@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Plan Issues and Create Branches'
+  short_description: 'Create Korean issue plans and work branches.'
+  default_prompt: 'Use $issue-to-plan to plan my assigned issue and create its work branch.'

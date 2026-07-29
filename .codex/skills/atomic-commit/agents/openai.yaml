@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Select Atomic Commit Scope'
+  short_description: 'Select files and create focused commits.'
+  default_prompt: 'Use $atomic-commit to select the files and create a focused commit.'

@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Push Branch and Open PR'
+  short_description: 'Push a branch and open a convention-based PR.'
+  default_prompt: 'Use $push-and-pr to push the current branch and open a PR to main.'

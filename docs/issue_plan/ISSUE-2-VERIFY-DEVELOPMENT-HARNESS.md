@@ -174,6 +174,13 @@ src/lib/health.test.ts
 - Vite `8.1.5`의 Node.js engine 요구사항에 맞춰 `AGENTS.md`의 최소 버전을 Node.js `20.19`로 높이고 `package.json`에 `engines.node: >=20.19.0`을 추가했다.
 - npm `11.6.2` 기준 `npm install --package-lock-only`, 실제 `npm ci`, `npm run check`가 모두 통과했다. peer dependency 경고와 high severity audit 경고 12건은 기존과 동일하게 남아 있다.
 
+### 2026-07-30 TSX 테스트 수집 리뷰 대응
+
+- Vitest include glob을 `src/**/*.test.{ts,tsx}`로 확장했다.
+- 임시 `src/lib/tsx-collection.test.tsx`를 추가해 `npx vitest list`가 기존 TypeScript 테스트 2개와 TSX 테스트 1개를 모두 수집하는 것을 확인했다.
+- 임시 TSX 테스트를 직접 실행해 테스트 파일 1개와 테스트 1개가 통과함을 확인한 뒤 검증용 파일을 제거했다.
+- `npm run check`: 통과. 포맷, 린트, 타입 검사, 기존 테스트 2개와 Next.js 프로덕션 빌드가 모두 성공했다.
+
 ### 2026-07-30 Node.js 지원 범위 리뷰 대응
 
 - Vite `8.1.5`, Vitest `4.1.10`, ESLint 하위 도구의 Node.js engine 교집합을 확인했다.

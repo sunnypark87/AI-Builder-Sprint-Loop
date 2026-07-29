@@ -173,3 +173,9 @@ src/lib/health.test.ts
 - `atomic-commit` 스킬이 기존 staged 변경을 선택 커밋에서 제외하도록 `git commit --only -- <selected-paths>` 절차와 커밋 후 경로 검증을 추가했다.
 - Vite `8.1.5`의 Node.js engine 요구사항에 맞춰 `AGENTS.md`의 최소 버전을 Node.js `20.19`로 높이고 `package.json`에 `engines.node: >=20.19.0`을 추가했다.
 - npm `11.6.2` 기준 `npm install --package-lock-only`, 실제 `npm ci`, `npm run check`가 모두 통과했다. peer dependency 경고와 high severity audit 경고 12건은 기존과 동일하게 남아 있다.
+
+### 2026-07-30 Node.js 지원 범위 리뷰 대응
+
+- Vite `8.1.5`, Vitest `4.1.10`, ESLint 하위 도구의 Node.js engine 교집합을 확인했다.
+- `package.json`과 `AGENTS.md`의 지원 범위를 `^20.19.0 || ^22.13.0 || >=24.0.0`으로 제한해 지원되지 않는 Node.js 21, 22.0~22.12, 23이 허용되지 않도록 했다.
+- npm `11.6.2` 기준 `npm install --package-lock-only`, 실제 `npm ci`, `npm run check`가 모두 통과했다. peer dependency 경고와 high severity audit 경고 12건은 기존과 동일하게 남아 있다.

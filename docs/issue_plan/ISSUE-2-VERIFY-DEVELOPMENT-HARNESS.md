@@ -154,3 +154,12 @@ src/lib/health.test.ts
 ### 남은 작업과 알려진 제한
 
 - 리뷰 댓글 또는 CI 실패 대응은 실제 대상이 발생할 때 문서화된 절차로 수행한다.
+
+### 2026-07-30 PR #3 리뷰 및 CI 대응
+
+- GitHub Actions run `30470053157`은 리뷰가 언급한 포맷 단계가 아니라 `npm ci`에서 실패했다. 로그에서 `package-lock.json`의 optional WASI 의존성 누락과 `@emnapi/wasi-threads` 버전 불일치를 확인했다.
+- `npm install --package-lock-only`: 통과. `package.json` 변경 없이 optional WASI 의존성의 버전과 중첩 위치를 재정리했다.
+- `npm ci --dry-run`: 통과.
+- `npm ci`: 통과. 393개 패키지를 설치했다. peer dependency 경고와 high severity audit 경고 12건은 남아 있으며 이번 lockfile 정합성 수정 범위에서는 자동 수정하지 않았다.
+- `npm run check`: 통과. 포맷, 린트, 타입 검사, 테스트 2개와 Next.js 프로덕션 빌드가 모두 성공했다.
+- 리뷰가 지목한 `next.config.ts`, `README.md`, `.codex/skills/address-pr-review/SKILL.md`는 `npm run format:check`에서 모두 통과했으므로 변경하지 않았다.

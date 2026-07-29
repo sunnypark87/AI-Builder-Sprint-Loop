@@ -163,3 +163,6 @@ src/lib/health.test.ts
 - `npm ci`: 통과. 393개 패키지를 설치했다. peer dependency 경고와 high severity audit 경고 12건은 남아 있으며 이번 lockfile 정합성 수정 범위에서는 자동 수정하지 않았다.
 - `npm run check`: 통과. 포맷, 린트, 타입 검사, 테스트 2개와 Next.js 프로덕션 빌드가 모두 성공했다.
 - 리뷰가 지목한 `next.config.ts`, `README.md`, `.codex/skills/address-pr-review/SKILL.md`는 `npm run format:check`에서 모두 통과했으므로 변경하지 않았다.
+- 두 번째 GitHub Actions run `30470678732`에서 runner의 npm `10.9.8`이 npm `11.6.2`로 생성한 lockfile의 optional WASI peer dependency를 불일치로 판정하는 것을 확인했다.
+- `package.json`에 `packageManager: npm@11.6.2`를 명시하고 CI가 `npm ci` 전에 같은 npm 버전을 설치하도록 변경했다.
+- npm `11.6.2` 기준 `npm install --package-lock-only`, 실제 `npm ci`, `npm run check`가 모두 통과했다. 새 GitHub Actions 결과는 Push 후 확인한다.

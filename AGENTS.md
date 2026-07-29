@@ -30,7 +30,7 @@
 - 앱 형태: 웹앱
 - 언어 및 프레임워크: Next.js App Router + TypeScript
 - 스타일: Tailwind CSS
-- 런타임: Node.js 20.9 이상
+- 런타임: Node.js 20.19 이상
 - 패키지 관리자: npm
 - 기본 개발 서버 포트: 3000
 - AI API: Upstage API를 서버 측 코드에서 호출

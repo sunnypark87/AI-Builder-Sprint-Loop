@@ -166,3 +166,10 @@ src/lib/health.test.ts
 - 두 번째 GitHub Actions run `30470678732`에서 runner의 npm `10.9.8`이 npm `11.6.2`로 생성한 lockfile의 optional WASI peer dependency를 불일치로 판정하는 것을 확인했다.
 - `package.json`에 `packageManager: npm@11.6.2`를 명시하고 CI가 `npm ci` 전에 같은 npm 버전을 설치하도록 변경했다.
 - npm `11.6.2` 기준 `npm install --package-lock-only`, 실제 `npm ci`, `npm run check`가 모두 통과했다. 새 GitHub Actions 결과는 Push 후 확인한다.
+
+### 2026-07-30 추가 리뷰 대응
+
+- 최신 GitHub Actions run `30471277599`의 `check`가 성공했다.
+- `atomic-commit` 스킬이 기존 staged 변경을 선택 커밋에서 제외하도록 `git commit --only -- <selected-paths>` 절차와 커밋 후 경로 검증을 추가했다.
+- Vite `8.1.5`의 Node.js engine 요구사항에 맞춰 `AGENTS.md`의 최소 버전을 Node.js `20.19`로 높이고 `package.json`에 `engines.node: >=20.19.0`을 추가했다.
+- npm `11.6.2` 기준 `npm install --package-lock-only`, 실제 `npm ci`, `npm run check`가 모두 통과했다. peer dependency 경고와 high severity audit 경고 12건은 기존과 동일하게 남아 있다.

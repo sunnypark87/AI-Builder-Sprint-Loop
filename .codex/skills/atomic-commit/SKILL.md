@@ -29,11 +29,11 @@ Use the repository's documented validation command, normally `npm run check` for
 5. Ask the user to select exact paths or groups. Accept explicit path lists, group names, or `all`; never infer `all` from silence.
 6. Check selected paths for secrets, generated artifacts, unrelated work, and files outside the intended issue scope.
 7. Stage only the selected paths with path-limited commands such as `git add -- <selected-paths>`. Never use `git add .` or `git add -A`.
-8. Show the staged name-status and diff summary. Ask for confirmation before committing.
+8. Show the staged name-status and diff summary. If pre-existing staged entries exist, keep them staged but exclude them from the selected commit by using `git commit --only -- <selected-paths>` after the selected paths are validated. Ask for confirmation before committing.
 9. Read `docs/git-conventions.md` and generate the commit message from its rules. Validate the type, optional scope, Korean subject/body, subject punctuation, and header length. Do not add `Closes`, `Fixes`, or `Resolves` Issue footers to commits; those belong in the PR body. If the convention file is missing or ambiguous, ask before committing.
 10. Run `verify-change` against the final selected change, or verify that its latest evidence covers the unchanged selected diff. Require a `PASS` result and no blocking findings.
 11. Run the required repository validation against the selected change. Stop on a failed check, missing required test, secret exposure, or safety blocker; do not bypass these failures on request.
-12. Create the commit with the selected paths only.
+12. Create the commit with the selected paths only. Use a normal `git commit` only when the index contains no pre-existing staged entries; otherwise use `git commit --only -- <selected-paths>` and verify that the resulting commit contains no unselected path.
 13. Verify the commit with `git show --stat --oneline HEAD` and report remaining unstaged or untracked changes.
 
 ## Atomicity rules
@@ -49,5 +49,6 @@ Use the repository's documented validation command, normally `npm run check` for
 - Never stage `.env`, credentials, tokens, private keys, or likely secrets.
 - Never amend, reset, rebase, or rewrite existing commits unless explicitly requested.
 - Never commit without showing the final staged scope.
+- Never rely on path-limited `git add` alone to isolate a commit when the index already contains unselected staged entries.
 - Never commit changes that differ materially from the latest `verify-change` evidence without re-verifying them.
 - Do not push or open a pull request; those are handled by `push-and-pr`.

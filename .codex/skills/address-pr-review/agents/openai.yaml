@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Analyze PR Review Feedback'
+  short_description: 'Analyze and address unresolved PR reviews.'
+  default_prompt: 'Use $address-pr-review to analyze unresolved PR review comments.'

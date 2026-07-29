@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Verify Change Quality'
+  short_description: 'Validate issue coverage, tests, and AI safety.'
+  default_prompt: 'Use $verify-change to audit this issue implementation and report blocking quality risks.'

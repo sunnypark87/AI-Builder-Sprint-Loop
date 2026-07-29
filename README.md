@@ -2,14 +2,31 @@
 
 > 총 168시간, AI와 함께 만드는 도전
 
+## 개발 시작하기
+
+현재 프로젝트는 Next.js App Router와 TypeScript 기반 웹앱으로 구성되어 있습니다.
+
+```bash
+npm install
+npm run dev
+```
+
+개발 서버는 `http://localhost:3000`에서 실행됩니다. 환경변수가 필요한 기능을 개발할 때는 예시 파일을 복사한 뒤 실제 값을 로컬에서만 설정합니다.
+
+```bash
+cp .env.example .env.local
+```
+
+검증 명령은 `npm run check`로 한 번에 실행할 수 있습니다. 세부 명령은 `AGENTS.md`에 정리되어 있습니다.
+
 ## 대회 소개
 
 **AI Builder Sprint 2026**은 부산대학교 **APPTIVE**가 주최하고, **Upstage**, 부산대학교 **Anchor 사업단** 및 부산대학교 **AI융합교육원**이 후원하는 해커톤입니다. 참가자들은 자유로운 기술 스택을 바탕으로 실제로 동작하는 서비스를 직접 코드로 구현합니다.
 
-| 항목 | 내용 |
-| --- | --- |
-| 주제 | AI를 통해 인간다움을 더욱 잘 드러낼 수 있는 서비스 개발 |
-| 팀 구성 | 2~4인 1팀 |
+| 항목      | 내용                                                    |
+| --------- | ------------------------------------------------------- |
+| 주제      | AI를 통해 인간다움을 더욱 잘 드러낼 수 있는 서비스 개발 |
+| 팀 구성   | 2~4인 1팀                                               |
 | 개발 방식 | 코드 기반 앱 개발 필수 (노코드/로우코드 단독 사용 불가) |
 
 ### 진행 흐름
@@ -30,15 +47,15 @@
 
 ### 심사 기준
 
-| 기준 | 배점 |
-| --- | --- |
-| 창의성 | 20점 |
-| AI 활용도 | 20점 |
-| 완성도 | 20점 |
-| 실용성 | 20점 |
-| 발표력 (본선) | 20점 |
+| 기준                  | 배점 |
+| --------------------- | ---- |
+| 창의성                | 20점 |
+| AI 활용도             | 20점 |
+| 완성도                | 20점 |
+| 실용성                | 20점 |
+| 발표력 (본선)         | 20점 |
 | Upstage API 활용 가점 | +5점 |
-| 지역사회 기여도 가점 | +5점 |
+| 지역사회 기여도 가점  | +5점 |
 
 ### 시상 내역
 
@@ -69,21 +86,20 @@ cd AI-Builder-Sprint
 ### 3. 개발 진행 및 커밋
 
 ```bash
-git checkout -b develop
+git checkout main
+git pull origin main
+git checkout -b feature/<github-issue-number>-<short-description>
 # 코드 작성 및 수정
-git add .
-git commit -m "feat: 프로젝트 초기 구현"
-git push origin develop
+git push origin feature/<github-issue-number>-<short-description>
 ```
 
-포크된 저장소 내에서 개발을 진행해주시면 됩니다.
+작업 유형에 따라 `feature/*`, `fix/*`, `refactor/*` 브랜치를 사용합니다. 모든 Pull Request의 base branch는 `main`이며, PR 생성 전 `npm run check`를 통과해야 합니다. 자세한 규칙은 [`docs/git-conventions.md`](docs/git-conventions.md)를 참고하세요.
 
 ### 4. 결과물 제출
 
 - **팀별로 Fork한 본인 저장소 URL을 제출 양식에 기재합니다.**
 - 제출 마감 전까지 코드, 데모 영상/배포 링크, 발표 자료를 함께 준비해 제출해주세요.
 - 코딩 에이전트를 활용한 경우 `.claude/`, `AGENTS.md` 등 설정 파일도 반드시 저장소에 포함해주세요.
-
 
 ## 문의
 

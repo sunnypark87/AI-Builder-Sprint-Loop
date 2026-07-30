@@ -1,149 +1,205 @@
-# AI Builder Sprint 작업 지침
+# AI Builder Sprint Working Guidelines
 
-## 프로젝트 개요
+## Project Overview
 
-이 저장소는 AI Builder Sprint 2026 해커톤 프로젝트의 시작점이다. 목표는 AI를 활용해 인간다움을 더 잘 드러내는, 실제로 실행 가능한 서비스를 만드는 것이다.
+This repository is the starting point for an AI Builder Sprint 2026 hackathon project. The goal is to build a practical service that uses AI to bring out more of what makes us human.
 
-현재 저장소는 Next.js 기반 웹앱의 시작점이다. 기능 개발과 함께 이 문서의 구조와 명령을 최신 상태로 유지한다.
+The repository currently contains a starter Next.js web application. Keep this document's structure and commands up to date as features are developed.
 
-## 현재 구조
+## Current Structure
 
 ```text
 .
 ├── AGENTS.md
 ├── docs/
+│   ├── design-system.md
+│   ├── git-conventions.md
 │   ├── issue_plan/
-│   │   └── ISSUE-1-IMPLEMENTATION-PLAN.md
 │   └── testing-strategy.md
 ├── README.md
 ├── package.json
 ├── public/
 └── src/
-    ├── app/          # App Router 페이지, 레이아웃, API route
-    └── lib/          # 기능과 무관한 공통 유틸리티
+    ├── app/          # App Router pages, public/donor/partner layouts, and API routes
+    ├── components/
+    │   ├── layout/   # Public/donor headers and the partner management app shell
+    │   └── ui/       # Shared UI for buttons, inputs, cards, dialogs, steps, statuses, and notices
+    └── lib/          # Shared utilities and navigation configuration
 ```
 
-애플리케이션 코드가 추가되면 주요 디렉터리의 책임과 실행 방법을 이 문서에 함께 기록한다.
+When application code is added, document the responsibilities of major directories and their run instructions here as well.
 
-## 기술 스택
+## Documentation Guide
 
-- 앱 형태: 웹앱
-- 언어 및 프레임워크: Next.js App Router + TypeScript
-- 스타일: Tailwind CSS
-- 런타임: Node.js 20 계열 20.19 이상, 22 계열 22.13 이상 또는 24.0 이상
-- 패키지 관리자: npm
-- 기본 개발 서버 포트: 3000
-- AI API: Upstage API를 서버 측 코드에서 호출
+Use the documents in `docs/` according to the guide below. Update this list whenever a document is added or an existing document's responsibility changes.
 
-## 설치 및 실행
+| Document                                               | When to reference it                                                                                                                |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| [`docs/design-system.md`](docs/design-system.md)       | When designing or implementing screens or deciding on shared components, color/type/spacing tokens, accessibility, or AI output UI. |
+| [`docs/git-conventions.md`](docs/git-conventions.md)   | When creating branches, writing commit messages, or performing push, PR, and merge workflows.                                       |
+| [`docs/testing-strategy.md`](docs/testing-strategy.md) | When defining test scope, writing unit/integration/E2E tests, or validating AI accuracy, safety, and acceptance criteria.           |
+| `docs/issue_plan/`                                     | When writing a new Issue implementation plan or reviewing an Issue's scope, acceptance criteria, and verification results.          |
 
-의존성을 설치한 뒤 개발 서버를 실행한다.
+## Routing Structure
+
+The routes below reflect the App Router structure in `src/app`. `[organizationId]` is a dynamic segment that receives an organization identifier, and `demo` routes currently use mock data to present detailed flows.
+
+### Public and Donor Screens
+
+| Route                                   | Page responsibility                                                      |
+| --------------------------------------- | ------------------------------------------------------------------------ |
+| `/`                                     | Home page introducing the service and featured organizations             |
+| `/organizations`                        | Organization directory browsable by type and criteria                    |
+| `/organizations/[organizationId]`       | Organization details and analysis results                                |
+| `/donate/[organizationId]/consultation` | AI consultation for donation purpose, amount, and terms                  |
+| `/donate/[organizationId]/summary`      | Review of pledge terms generated from the consultation                   |
+| `/pledges/demo/review`                  | Review of the generated donation pledge                                  |
+| `/pledges/demo/sign`                    | Pledge consent and donor signature                                       |
+| `/pledges/demo/waiting`                 | Organization-signature waiting status                                    |
+| `/donations/demo/payment`               | Donation amount and payment method confirmation                          |
+| `/donations/demo/payment/result`        | Payment completion result and next-step guidance                         |
+| `/donations/demo`                       | Donation fulfillment details, including plans, expenditures, and reports |
+| `/my-donations`                         | Donor's donation list and progress                                       |
+| `/notifications`                        | Notifications related to pledges, payments, and expenditures             |
+| `/account`                              | Demo account page for entering donor or organization experiences         |
+
+### Organization Registration Screens
+
+| Route                               | Page responsibility                                                  |
+| ----------------------------------- | -------------------------------------------------------------------- |
+| `/partner/register`                 | Registration step 1: enter organization and verification information |
+| `/partner/register/pledge-template` | Registration step 2: create an organization-specific pledge template |
+
+### Organization Management Screens
+
+| Route                               | Page responsibility                                                                     |
+| ----------------------------------- | --------------------------------------------------------------------------------------- |
+| `/partner`                          | Dashboard summarizing work from pledges through reporting                               |
+| `/partner/profile`                  | Manage the public organization profile and verification materials                       |
+| `/partner/pledges`                  | Manage pledge lists and signature tasks by status                                       |
+| `/partner/pledges/demo`             | Review donor-signed pledge terms and add the organization signature                     |
+| `/partner/donations`                | Manage donation agreements and fulfillment statuses                                     |
+| `/partner/donations/demo`           | Review an individual donation's pledge, payment, plan, expenditure, and report progress |
+| `/partner/plans`                    | Manage expenditure plans and AI review statuses                                         |
+| `/partner/plans/demo/review`        | Compare and review the source plan against AI extraction before publishing              |
+| `/partner/executions`               | Manage expenditure evidence and analysis/redaction statuses                             |
+| `/partner/executions/demo/review`   | Review source evidence, AI extraction, and personal-data redaction before publishing    |
+| `/partner/reports`                  | Manage completion reports and AI draft review statuses                                  |
+| `/partner/reports/demo/review`      | Compare and review expenditure evidence against an AI report draft before publishing    |
+| `/partner/settings/pledge-template` | Configure organization-specific terms in the standard pledge                            |
+| `/partner/settings/members`         | Manage members and task-specific permissions                                            |
+| `/partner/settings/notifications`   | Configure notifications for pledges, AI analysis, and reports                           |
+
+### API
+
+| Route             | Responsibility           |
+| ----------------- | ------------------------ |
+| `GET /api/health` | Check application health |
+
+## Technology Stack
+
+- Application type: web application
+- Language and framework: Next.js App Router + TypeScript
+- Styling: Tailwind CSS
+- Shared components: shadcn/ui source components + Radix UI primitives
+- Runtime: Node.js 20.19+ in the 20 line, 22.13+ in the 22 line, or 24.0+
+- Package manager: npm
+- Default development server port: 3000
+- AI API: call the Upstage API from server-side code
+
+## Installation and Development
+
+Install dependencies, then start the development server.
 
 ```bash
 npm install
 npm run dev
 ```
 
-브라우저에서 `http://localhost:3000`을 연다.
+Open `http://localhost:3000` in a browser.
 
-## 검증 명령
+## Verification Commands
 
-포맷터, 린터, 타입 검사, 테스트 러너, 빌드는 `package.json` 스크립트로 실행한다.
+Run the formatter, linter, type checker, test runner, and build through `package.json` scripts.
 
 ```bash
-npm run format        # Prettier로 포맷 적용
-npm run format:check  # 포맷 검사
+npm run format        # Apply Prettier formatting
+npm run format:check  # Check formatting
 npm run lint          # ESLint
-npm run typecheck     # TypeScript 타입 검사
-npm run test          # Vitest 단위 테스트
-npm run build         # Next.js 프로덕션 빌드
-npm run check         # format:check, lint, typecheck, test, build 통합
+npm run typecheck     # TypeScript type checking
+npm run test          # Vitest unit tests
+npm run build         # Next.js production build
+npm run check         # Run format:check, lint, typecheck, test, and build
 ```
 
-`check`는 포맷 검사, 린트, 타입 검사, 테스트, 빌드를 반복 실행할 수 있는 단일 진입점이어야 한다. 외부 API 키 없이도 정적 검증과 단위 테스트를 실행할 수 있도록 외부 연동은 mock 처리한다.
+`check` must remain a single repeatable entry point for formatting checks, linting, type checking, tests, and builds. Mock external integrations so static verification and unit tests can run without external API keys.
 
-## 코딩 규칙
+## Coding Rules
 
-- 기능을 시작하기 전에 관련 GitHub Issue와 완료 조건을 확인한다.
-- 변경 범위를 Issue의 목적에 필요한 최소 범위로 유지한다.
-- 기존 사용자 변경사항을 확인하고 덮어쓰지 않는다.
-- 비밀정보, API 키, 토큰, 개인정보를 소스·로그·테스트 fixture에 포함하지 않는다.
-- 환경변수 이름만 `.env.example`에 기록하고 실제 값은 로컬 환경에만 둔다.
-- 새로운 의존성은 추가 이유와 대안을 검토한 뒤 최소한으로 추가한다.
-- 브라우저에서 직접 호출할 필요가 없는 AI API와 비밀정보는 Server Component 또는 Route Handler에서만 사용한다.
-- 동작 변경에는 적절한 테스트 또는 재현 가능한 검증 절차를 함께 추가한다.
-- 문서에 적은 실행 명령은 실제로 실행 가능한 상태로 유지한다.
+- Keep changes within the minimum scope required by the Issue.
+- Review and preserve existing user changes.
+- Add as few new dependencies as possible, after considering the reason and alternatives.
+- AI APIs and secrets that do not require direct browser access must be used only in Server Components or Route Handlers.
+- Add appropriate tests or reproducible verification steps for behavior changes.
+- Keep commands documented here executable.
 
-## 검증 및 Definition of Done
+## Verification and Definition of Done
 
-- 구현 후 커밋 전에 `verify-change`로 Issue 완료 조건, 구현, 테스트의 추적성을 확인한다.
-- 테스트 기준과 AI 정확성·안전성 검증 범위는 [`docs/testing-strategy.md`](docs/testing-strategy.md)를 따른다.
-- AI 동작을 변경한 경우 대표 정확성 사례와 관련 안전성 사례를 검증하고 결과를 Issue 계획 문서에 기록한다.
-- 완료 조건 누락, 필수 테스트 실패, 비밀정보 노출, 심각한 AI 안전성 문제는 차단 항목이다.
-- `npm run check`와 `verify-change`가 모두 통과하고 차단 항목이 없어야 완료로 판단한다.
+- Before committing, use `verify-change` to trace the implementation and tests to the Issue acceptance criteria.
+- Follow [`docs/testing-strategy.md`](docs/testing-strategy.md) for test standards and AI accuracy and safety coverage.
+- When AI behavior changes, verify representative accuracy cases and relevant safety cases, then record the results in the Issue plan.
+- Missing acceptance criteria, required test failures, secret exposure, and severe AI safety problems are blockers.
+- Work is complete only when both `npm run check` and `verify-change` pass with no blockers.
 
-## Git 및 PR 작업 흐름
+## Git and PR Workflow
 
-1. 작업할 Issue, 범위, 완료 조건을 확인한다.
-2. `main`을 최신 상태로 만든 뒤 Issue 유형에 맞는 작업 브랜치를 만든다.
-   - 기능: `feature/{github-issue-number}-{short-description}`
-   - 버그: `fix/{github-issue-number}-{short-description}`
-   - 리팩터링: `refactor/{github-issue-number}-{short-description}`
-3. 관련 파일과 기존 변경사항을 먼저 확인한다.
-4. 구현 후 변경 동작에 필요한 테스트를 작성하고 `verify-change`로 정확성·안전성을 검증한다.
-5. `format`, `lint`, `typecheck`, `test`, `build` 또는 통합 `check`를 실행한다.
-6. 검증 결과를 Issue 계획 문서에 기록한 뒤 변경 파일을 선택하고 원자적 커밋을 만든다.
-7. 커밋 메시지는 `docs/git-conventions.md`의 Conventional Commits 규칙을 따른다. Issue 종료 footer는 커밋에 넣지 않는다.
-8. 모든 검증을 통과한 뒤 현재 브랜치를 Push하고 `main`을 base로 일반 PR을 생성한다.
-9. PR에는 관련 Issue, 변경 내용, 실행한 검증 명령, AI 품질 증거와 남은 제한을 기록한다.
-10. 검증이 끝나기 전에는 완료로 보고하지 않는다.
+1. Confirm the Issue, scope, and acceptance criteria.
+2. Update `main` and create a branch appropriate to the Issue type, following [`docs/git-conventions.md`](docs/git-conventions.md).
+3. Review relevant files and existing changes first.
+4. Implement the change and add tests for the changed behavior.
+5. Run `verify-change` and `npm run check` according to the `Verification and Definition of Done` section above.
+6. Record verification results in the Issue plan, select the changed files, and create an atomic commit.
+7. Follow the Conventional Commits rules in `docs/git-conventions.md`. Do not add an Issue-closing footer to the commit.
+8. After all verification passes, push the current branch and open a regular PR targeting `main`.
+9. Document the PR and work results according to the `Completion Report` section below.
+10. Do not report the work as complete before verification finishes.
 
-권장 브랜치 이름 예시:
+Use [`docs/git-conventions.md`](docs/git-conventions.md) as the source of truth for branch, commit, and PR details.
 
-```text
-feature/<github-issue-number>-<short-description>
-fix/<github-issue-number>-<short-description>
-refactor/<github-issue-number>-<short-description>
-```
+## GitHub and Codex Usage
 
-브랜치, 커밋, PR 상세 규칙은 [`docs/git-conventions.md`](docs/git-conventions.md)를 기준으로 한다.
+The following GitHub capabilities are available in the current environment.
 
-## GitHub 및 Codex 사용
+- `github:github`: repository, Issue, and PR lookup and summaries
+- `github:gh-address-comments`: inspect and address PR review feedback
+- `github:gh-fix-ci`: analyze and fix GitHub Actions failures
+- `github:yeet`: commit changes, push, and create a PR
 
-현재 작업 환경에서 사용할 수 있는 GitHub 관련 기능은 다음과 같다.
+Before any GitHub write operation, reconfirm the repository, target branch, and Issue or PR number. If these skills are unavailable, use equivalent GitHub CLI or web procedures without exposing authentication tokens in source code or logs.
 
-- `github:github`: 저장소·Issue·PR 조회와 요약
-- `github:gh-address-comments`: PR 리뷰 피드백 확인 및 반영
-- `github:gh-fix-ci`: GitHub Actions 실패 분석 및 수정
-- `github:yeet`: 변경사항 커밋, Push, PR 생성
+Check the GitHub integration as follows.
 
-GitHub 쓰기 작업 전에는 저장소, 대상 브랜치, Issue 또는 PR 번호를 다시 확인한다. 스킬이 제공되지 않는 환경에서는 동등한 GitHub CLI 또는 웹 작업 절차를 사용하되, 인증 토큰을 소스나 로그에 남기지 않는다.
+1. Run `gh auth status` to check authentication, and use `git remote -v` to confirm the target repository is `sunnypark87/AI-Builder-Sprint-Loop`.
+2. Use `gh issue view <number>` and `gh pr view <number>` to inspect Issues and PRs.
+3. For review work, inspect `gh pr view <number> --comments` and unresolved review threads, then modify only the selected feedback and reverify.
+4. For CI failures, identify the failed check with `gh pr checks <number>` and inspect the cause with `gh run view <run-id> --log-failed`.
 
-GitHub 연동은 다음 절차로 점검한다.
+If there are no review comments or CI failures, confirm that no target exists with the commands above and reproduce the same process when one appears on an actual PR. Follow the `Git and PR Workflow` above for pushes and PR creation. If GitHub authentication or network access is unavailable, complete only local implementation and verification and report remote write operations as unverified.
 
-1. `gh auth status`로 인증 상태를 확인하고 `git remote -v`로 대상 저장소가 `sunnypark87/AI-Builder-Sprint-Loop`인지 확인한다.
-2. Issue와 PR 조회는 `gh issue view <번호>`, `gh pr view <번호>`를 사용한다.
-3. 리뷰 대응은 `gh pr view <번호> --comments`와 unresolved review thread를 확인한 뒤, 선택한 피드백만 수정하고 재검증한다.
-4. CI 실패는 `gh pr checks <번호>`로 실패 check를 찾고 `gh run view <run-id> --log-failed`로 원인을 확인한다.
-5. Push 전 `npm run check`와 `verify-change`가 통과했는지 확인한다.
-6. `feature/*`, `fix/*`, `refactor/*` 브랜치를 Push하고 `main`을 base로 Ready for review 상태의 일반 PR을 생성한다.
+## Environment Variables and Secrets
 
-리뷰 댓글이나 CI 실패가 없는 경우에는 위 조회 명령으로 대상이 없음을 확인하고, 실제 PR에서 발생했을 때 같은 절차를 재현한다. GitHub 인증이나 네트워크 연결이 없으면 로컬 구현과 검증까지만 진행하고 원격 쓰기 작업은 미검증으로 보고한다.
+- Do not commit real environment files. Commit only `.env.example`.
+- In `.env.example`, document only variable names, whether they are required, and their purpose.
+- Prevent API keys from appearing in logs, error messages, or screenshots.
+- If a key is exposed, revoke and reissue it immediately.
+- Use mocks in tests wherever possible so they run without real secrets.
 
-## 환경변수 및 비밀정보
+## Completion Report
 
-- 실제 환경변수 파일은 커밋하지 않는다. `.env.example`만 커밋한다.
-- `.env.example`에는 변수 이름, 필수 여부, 용도만 기록한다.
-- API 키가 로그·에러 메시지·스크린샷에 노출되지 않도록 한다.
-- 키가 노출되면 즉시 폐기하고 재발급한다.
-- 테스트는 가능한 한 mock을 사용해 실제 비밀정보 없이 실행한다.
+When work is finished, include the following in the PR or work report.
 
-## 작업 완료 보고
-
-작업을 마칠 때 다음 내용을 PR 또는 작업 보고에 남긴다.
-
-- 변경한 파일과 핵심 변경 내용
-- 실행한 검증 명령과 결과
-- 실행하지 못한 검증과 그 이유
-- 환경변수, 마이그레이션, 배포에 미치는 영향
-- 남은 작업과 알려진 제한
+- Changed files and key changes
+- Verification commands run and their results
+- Verification not run and the reason
+- Impact on environment variables, migrations, and deployment
+- Remaining work and known limitations

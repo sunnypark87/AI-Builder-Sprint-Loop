@@ -92,6 +92,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
       return;
     }
 
+    setLoading(false);
     router.push(safeNextPath(searchParams.get('next')));
     router.refresh();
   }

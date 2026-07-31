@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -48,6 +48,12 @@ describe('AuthForm', () => {
 
     expect(signIn).toHaveBeenCalledWith('user@example.com', 'secret1');
     expect(push).toHaveBeenCalledWith('/my-donations');
+    await waitFor(() =>
+      expect(
+        (screen.getByRole('button', { name: '로그인' }) as HTMLButtonElement)
+          .disabled,
+      ).toBe(false),
+    );
   });
 
   it('shows a safe message when the Auth request throws', async () => {

@@ -78,6 +78,22 @@ describe('GET /api/health/supabase', () => {
     expect(getUser).not.toHaveBeenCalled();
   });
 
+  it('sends the publishable key as an API key, not as a bearer token', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await GET();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://example.supabase.co/auth/v1/settings',
+      expect.objectContaining({
+        headers: { apikey: 'publishable-key' },
+      }),
+    );
+  });
+
   it('handles unexpected client failures without leaking details', async () => {
     createClient.mockRejectedValueOnce(
       new Error('private configuration details'),

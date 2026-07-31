@@ -16,7 +16,6 @@ export async function GET() {
       cache: 'no-store',
       headers: {
         apikey: publishableKey,
-        Authorization: `Bearer ${publishableKey}`,
       },
     });
 

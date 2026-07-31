@@ -9,7 +9,17 @@ const { createClient, getUser } = vi.hoisted(() => {
 
 vi.mock('./server', () => ({ createClient }));
 
-import { getCurrentUser } from './auth';
+const { requestHeaders, redirect } = vi.hoisted(() => ({
+  requestHeaders: vi.fn(),
+  redirect: vi.fn((path: string): never => {
+    throw new Error(`REDIRECT:${path}`);
+  }),
+}));
+
+vi.mock('next/headers', () => ({ headers: requestHeaders }));
+vi.mock('next/navigation', () => ({ redirect }));
+
+import { getCurrentUser, requireCurrentUser } from './auth';
 
 describe('getCurrentUser', () => {
   beforeEach(() => {
@@ -38,5 +48,17 @@ describe('getCurrentUser', () => {
     });
 
     await expect(getCurrentUser()).resolves.toBeNull();
+  });
+
+  it('redirects unauthenticated users to login with a safe internal path', async () => {
+    getUser.mockResolvedValue({ data: { user: null }, error: null });
+    requestHeaders.mockResolvedValue(
+      new Headers({ 'x-modugive-pathname': '/partner/register' }),
+    );
+
+    await expect(requireCurrentUser('/partner')).rejects.toThrow(
+      'REDIRECT:/login?next=%2Fpartner%2Fregister',
+    );
+    expect(redirect).toHaveBeenCalledWith('/login?next=%2Fpartner%2Fregister');
   });
 });

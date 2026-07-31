@@ -11,6 +11,10 @@ import { getSupabasePublishableKey, getSupabaseUrl } from './config';
  * intentionally limited to keeping the cookie-based session current.
  */
 export async function updateSession(request: NextRequest) {
+  request.headers.set(
+    'x-modugive-pathname',
+    `${request.nextUrl.pathname}${request.nextUrl.search}`,
+  );
   let supabaseResponse = NextResponse.next({ request });
 
   try {

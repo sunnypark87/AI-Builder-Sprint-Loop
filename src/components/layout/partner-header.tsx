@@ -6,6 +6,8 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 
 import { cn } from '@/lib/cn';
+import { getAuthErrorMessage, signOut } from '@/lib/supabase/auth-client';
+import { buttonClassName } from '@/components/ui/button';
 import {
   isNavigationItemActive,
   partnerNavigation,
@@ -17,6 +19,7 @@ import { BrandMark } from './brand-mark';
 export function PartnerHeader() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [signOutMessage, setSignOutMessage] = useState('');
   const items = [...partnerNavigation, ...partnerSettingsNavigation];
 
   return (
@@ -37,6 +40,25 @@ export function PartnerHeader() {
           >
             M
           </Link>
+          <button
+            className={buttonClassName({ variant: 'tertiary', size: 'small' })}
+            onClick={async () => {
+              setSignOutMessage('');
+              try {
+                const { error } = await signOut();
+                if (error) {
+                  setSignOutMessage(getAuthErrorMessage(error, 'logout'));
+                  return;
+                }
+                window.location.assign('/');
+              } catch (error) {
+                setSignOutMessage(getAuthErrorMessage(error, 'logout'));
+              }
+            }}
+            type="button"
+          >
+            로그아웃
+          </button>
           <button
             aria-expanded={menuOpen}
             aria-label={menuOpen ? '관리 메뉴 닫기' : '관리 메뉴 열기'}
@@ -83,6 +105,14 @@ export function PartnerHeader() {
             기부자 화면으로 전환
           </Link>
         </nav>
+      ) : null}
+      {signOutMessage ? (
+        <p
+          className="border-t border-danger bg-danger-soft px-4 py-2 text-center text-xs text-danger"
+          role="alert"
+        >
+          {signOutMessage}
+        </p>
       ) : null}
     </header>
   );

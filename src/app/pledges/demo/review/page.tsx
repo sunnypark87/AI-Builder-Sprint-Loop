@@ -14,7 +14,7 @@ export default async function PledgeReviewPage({
     getOrganization(organizationId) ?? getOrganization('haebom')!;
   const terms = [
     ['기부처', organization.name],
-    ['기부 목적', '돌봄 공백 아동 교육 프로그램 운영'],
+    ['기부 목적', organization.donationPurpose],
     ['기부 금액', '월 50,000원'],
     ['약정 기간', '2026. 08. 01. ~ 2027. 07. 31.'],
     ['집행 공개', '계획 등록, 집행 증빙 등록, 완료 보고 시 알림'],

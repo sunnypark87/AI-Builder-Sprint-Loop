@@ -28,7 +28,7 @@ export default async function ConsultationPage({
         </div>
         <div className="ml-auto max-w-[80%] rounded-[var(--radius-md)] bg-accent-soft px-4 py-3">
           <p className="text-sm leading-6">
-            아동 교육 프로그램에 매월 5만원씩 1년 동안 기부하고 싶어요.
+            {org.donationPurpose}에 매월 5만원씩 1년 동안 기부하고 싶어요.
           </p>
         </div>
         <div className="max-w-[80%]">

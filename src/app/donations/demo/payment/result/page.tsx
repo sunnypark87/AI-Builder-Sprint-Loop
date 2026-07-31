@@ -2,8 +2,17 @@ import { CircleCheckBigIcon } from 'lucide-react';
 import Link from 'next/link';
 import { buttonClassName } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { getOrganization } from '@/lib/mock-data/organizations';
 
-export default function PaymentResultPage() {
+export default async function PaymentResultPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ organizationId?: string }>;
+}) {
+  const { organizationId = 'haebom' } = await searchParams;
+  const organization =
+    getOrganization(organizationId) ?? getOrganization('haebom')!;
+
   return (
     <main className="mx-auto max-w-[680px] px-4 py-16 text-center">
       <CircleCheckBigIcon className="mx-auto size-12 text-success" />
@@ -16,7 +25,7 @@ export default function PaymentResultPage() {
       <Card className="mt-8 p-5 text-left">
         <div className="flex justify-between text-sm">
           <span className="text-copy-muted">기부처</span>
-          <strong>해봄재단</strong>
+          <strong>{organization.name}</strong>
         </div>
         <div className="mt-3 flex justify-between text-sm">
           <span className="text-copy-muted">예시 금액</span>
@@ -30,7 +39,10 @@ export default function PaymentResultPage() {
         >
           기부처 더 보기
         </Link>
-        <Link className={buttonClassName()} href="/donations/demo">
+        <Link
+          className={buttonClassName()}
+          href={`/donations/demo?organizationId=${organization.id}`}
+        >
           기부 이행 확인
         </Link>
       </div>

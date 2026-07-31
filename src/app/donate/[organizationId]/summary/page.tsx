@@ -19,7 +19,7 @@ export default async function SummaryPage({
       <Card className="mt-8 divide-y divide-line">
         {[
           ['기부처', org.name],
-          ['기부 목적', '아동 교육 프로그램'],
+          ['기부 목적', org.donationPurpose],
           ['기부 금액', '매월 50,000원'],
           ['기부 기간', '12개월'],
           ['집행 보고', '계획·집행 내역·완료 보고 알림'],

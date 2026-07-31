@@ -24,10 +24,22 @@ test('pledge signing requires consent before continuing', async ({ page }) => {
 test('pledge creation preserves the selected organization', async ({
   page,
 }) => {
-  await page.goto('/donate/green-tomorrow/summary');
+  await page.goto('/donate/green-tomorrow/consultation');
+  await expect(
+    page.getByText(
+      '하천 생태계 복원과 시민 기록 활동에 매월 5만원씩 1년 동안 기부하고 싶어요.',
+    ),
+  ).toBeVisible();
+  await page.getByRole('link', { name: '상담 요약 확인' }).click();
+  await expect(
+    page.getByText('하천 생태계 복원과 시민 기록 활동'),
+  ).toBeVisible();
   await page.getByRole('link', { name: '약정서 생성하기' }).click();
 
   await expect(page.getByText('푸른내일 정기 기부 약정')).toBeVisible();
+  await expect(
+    page.getByText('하천 생태계 복원과 시민 기록 활동'),
+  ).toBeVisible();
   await page.getByRole('link', { name: '검토 완료 · 서명하기' }).click();
   await page
     .getByRole('checkbox', {
@@ -38,6 +50,22 @@ test('pledge creation preserves the selected organization', async ({
 
   await expect(
     page.getByRole('heading', { name: '푸른내일이 약정서를 확인하고 있어요' }),
+  ).toBeVisible();
+
+  await page
+    .getByRole('link', { name: '데모: 서명 완료 후 결제 보기' })
+    .click();
+  await expect(
+    page.getByText('하천 생태계 복원과 시민 기록 활동'),
+  ).toBeVisible();
+  await page.getByRole('link', { name: '예시 결제 완료' }).click();
+  await expect(page.getByText('푸른내일')).toBeVisible();
+  await page.getByRole('link', { name: '기부 이행 확인' }).click();
+  await expect(
+    page.getByRole('heading', { name: '푸른내일 기부 이행' }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('하천 생태계 복원과 시민 기록 활동 집행 계획 공개'),
   ).toBeVisible();
 });
 

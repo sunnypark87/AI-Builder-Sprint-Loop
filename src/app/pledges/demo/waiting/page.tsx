@@ -45,7 +45,10 @@ export default async function PledgeWaitingPage({
         >
           내 기부에서 확인
         </Link>
-        <Link className={buttonClassName()} href="/donations/demo/payment">
+        <Link
+          className={buttonClassName()}
+          href={`/donations/demo/payment?organizationId=${organization.id}`}
+        >
           데모: 서명 완료 후 결제 보기
         </Link>
       </div>

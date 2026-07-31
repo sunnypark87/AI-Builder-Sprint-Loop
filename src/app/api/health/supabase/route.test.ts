@@ -14,6 +14,12 @@ import { GET } from './route';
 describe('GET /api/health/supabase', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'publishable-key';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('{}', { status: 200 })),
+    );
   });
 
   it('reports a healthy unauthenticated connection', async () => {
@@ -58,6 +64,18 @@ describe('GET /api/health/supabase', () => {
       status: 'error',
       code: 'supabase_auth_unavailable',
     });
+  });
+
+  it('reports an unavailable response when the Supabase upstream is unhealthy', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('{}', { status: 503 })),
+    );
+
+    const response = await GET();
+
+    expect(response.status).toBe(503);
+    expect(getUser).not.toHaveBeenCalled();
   });
 
   it('handles unexpected client failures without leaking details', async () => {

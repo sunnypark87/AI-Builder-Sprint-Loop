@@ -67,6 +67,18 @@ describe('updateSession', () => {
     expect(response.status).toBe(200);
   });
 
+  it('keeps public requests available when Supabase configuration is missing', async () => {
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+    const response = await updateSession(
+      new NextRequest('https://example.com/organizations'),
+    );
+
+    expect(response.status).toBe(200);
+    expect(createServerClient).not.toHaveBeenCalled();
+  });
+
   it('copies refreshed cookies to the request and response', async () => {
     const request = new NextRequest('https://example.com/account');
     await updateSession(request);

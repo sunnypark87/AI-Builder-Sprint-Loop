@@ -30,7 +30,7 @@ Supabase Auth 이메일 인증을 실제 사용자 화면에 연결한다. 로�
 
 - 제품 Auth 경로는 `/login`과 `/signup`을 기본안으로 사용하고, 기존 `/account`는 데모 역할 선택 화면이므로 로그인 화면으로 재사용하지 않는다.
 - 보호 라우트는 이번 이슈 범위에서 제외하고 별도 이슈로 분리한다.
-- Proxy는 세션 쿠키 갱신만 담당하게 유지하고, 접근 제어는 Server Component 또는 서버 전용 helper에서 `getCurrentUser()`로 수행한다.
+- Proxy는 이번 PR에서 기존 세션 쿠키 갱신 역할만 유지하며, 접근 제어는 별도 이슈에서 다룬다.
 - 로그인 후 이동 경로는 검증된 내부 상대 경로만 허용하고 기본값은 `/`로 한다. 외부 URL이나 스킴을 허용하지 않아 오픈 리다이렉트를 방지한다.
 - 회원가입 후 이메일 확인이 활성화된 환경에서는 즉시 로그인된 것으로 가정하지 않고 확인 안내를 표시한다. 이메일 확인이 비활성화되어 세션이 반환되면 로그인 성공과 같은 방식으로 처리한다.
 - Supabase 원문 오류, 토큰, 세션, 사용자 식별자를 UI·로그에 노출하지 않고 오류 유형을 제한된 한국어 메시지로 매핑한다.
@@ -203,7 +203,6 @@ AGENTS.md                                   # 제품 Auth 라우트·구조 문�
 - 보호 라우트는 이번 PR 범위에서 제외하고 별도 구현 대상으로 분리
 - Donor/Partner Header에 인증 상태와 로그아웃 동작 연결
 - Auth 요청 네트워크·설정 예외와 파트너 로그아웃 실패 메시지 처리
-- Proxy에서 원래 내부 경로를 전달하고 로그인 후 복귀할 수 있도록 보강
 - Auth 폼 테스트와 경로 검증 테스트 추가, 라우트 문서 갱신
 
 ### 완료 조건 추적표
@@ -212,7 +211,7 @@ AGENTS.md                                   # 제품 Auth 라우트·구조 문�
 | ------------------------------ | ---------------------------------------------------------------------------------------- | ---------------------------------------- | ---- |
 | 로그인·회원가입 UI와 입력 검증 | `src/components/auth/auth-form.tsx`, `src/app/login/page.tsx`, `src/app/signup/page.tsx` | `src/components/auth/auth-form.test.tsx` | 통과 |
 | Header 인증 상태와 로그아웃    | `src/components/layout/donor-header.tsx`, `src/components/layout/partner-header.tsx`     | 기존 Header 테스트, `npm run test`       | 통과 |
-| 세션 쿠키 및 원래 경로 전달    | `src/lib/supabase/proxy.ts`                                                              | `src/lib/supabase/proxy.test.ts`         | 통과 |
+| 세션 쿠키 갱신 기반            | `src/lib/supabase/proxy.ts`                                                              | `src/lib/supabase/proxy.test.ts`         | 통과 |
 | 전체 품질 게이트               | 전체 변경 파일                                                                           | `npm run check`                          | 통과 |
 
 ### 검증 명령과 결과

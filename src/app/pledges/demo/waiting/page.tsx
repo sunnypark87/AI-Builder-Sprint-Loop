@@ -41,7 +41,7 @@ export default async function PledgeWaitingPage({
       <div className="mt-8 flex flex-wrap gap-2">
         <Link
           className={buttonClassName({ variant: 'secondary' })}
-          href="/my-donations"
+          href={`/my-donations?organizationId=${organization.id}`}
         >
           내 기부에서 확인
         </Link>

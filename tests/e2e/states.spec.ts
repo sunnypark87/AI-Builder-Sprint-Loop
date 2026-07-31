@@ -52,6 +52,22 @@ test('pledge creation preserves the selected organization', async ({
     page.getByRole('heading', { name: '푸른내일이 약정서를 확인하고 있어요' }),
   ).toBeVisible();
 
+  const myDonationsLink = page.getByRole('link', {
+    name: '내 기부에서 확인',
+  });
+  await expect(myDonationsLink).toHaveAttribute(
+    'href',
+    '/my-donations?organizationId=green-tomorrow',
+  );
+  await myDonationsLink.click();
+  await expect(page.getByText('푸른내일')).toBeVisible();
+  await expect(
+    page.getByRole('heading', {
+      name: '하천 생태계 복원과 시민 기록 활동 정기 기부',
+    }),
+  ).toBeVisible();
+  await page.goBack();
+
   await page
     .getByRole('link', { name: '데모: 서명 완료 후 결제 보기' })
     .click();

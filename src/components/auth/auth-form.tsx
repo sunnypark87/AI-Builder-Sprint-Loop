@@ -24,7 +24,8 @@ export function safeNextPath(value: string | null) {
   return value &&
     value.startsWith('/') &&
     !value.startsWith('//') &&
-    !value.includes('\\')
+    !value.includes('\\') &&
+    !/[\u0000-\u001f\u007f]/.test(value)
     ? value
     : '/';
 }

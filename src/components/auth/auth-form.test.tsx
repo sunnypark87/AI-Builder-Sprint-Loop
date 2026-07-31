@@ -69,6 +69,7 @@ describe('auth route helpers', () => {
     expect(safeNextPath('https://example.com')).toBe('/');
     expect(safeNextPath('//example.com')).toBe('/');
     expect(safeNextPath('/\\evil.example')).toBe('/');
+    expect(safeNextPath('/\n/evil.example')).toBe('/');
     expect(safeNextPath('/partner')).toBe('/partner');
   });
 

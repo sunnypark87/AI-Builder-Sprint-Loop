@@ -17,6 +17,7 @@ export function InlineNotice({
   const Icon = tone === 'info' ? InfoIcon : AlertTriangleIcon;
   return (
     <div
+      {...props}
       className={cn(
         'flex gap-3 rounded-[var(--radius-md)] p-4 text-sm leading-6',
         tone === 'info' && 'bg-info-soft text-info',
@@ -24,7 +25,8 @@ export function InlineNotice({
         tone === 'danger' && 'bg-danger-soft text-danger',
         className,
       )}
-      {...props}
+      aria-live={tone === 'danger' ? 'assertive' : 'polite'}
+      role={tone === 'danger' ? 'alert' : 'status'}
     >
       <Icon aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
       <div>

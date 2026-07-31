@@ -64,13 +64,17 @@ export function DonorHeader() {
 
   async function handleSignOut() {
     setAuthMessage('');
-    const { error } = await signOut();
-    if (error) {
+    try {
+      const { error } = await signOut();
+      if (error) {
+        setAuthMessage(getAuthErrorMessage(error, 'logout'));
+        return;
+      }
+      setUserEmail(null);
+      window.location.assign('/');
+    } catch (error) {
       setAuthMessage(getAuthErrorMessage(error, 'logout'));
-      return;
     }
-    setUserEmail(null);
-    window.location.assign('/');
   }
 
   if (pathname.startsWith('/partner')) return null;

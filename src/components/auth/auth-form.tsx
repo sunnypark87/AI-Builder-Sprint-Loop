@@ -21,7 +21,10 @@ type FieldErrors = {
 };
 
 export function safeNextPath(value: string | null) {
-  return value && value.startsWith('/') && !value.startsWith('//')
+  return value &&
+    value.startsWith('/') &&
+    !value.startsWith('//') &&
+    !value.includes('\\')
     ? value
     : '/';
 }

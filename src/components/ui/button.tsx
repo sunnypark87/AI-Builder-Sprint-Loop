@@ -7,7 +7,7 @@ export type ButtonSize = 'small' | 'medium' | 'large';
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    'border-accent bg-accent text-copy hover:border-accent-hover hover:bg-accent-hover active:border-accent-strong active:bg-accent-strong active:text-white',
+    'border-accent bg-accent text-copy hover:border-accent-hover hover:bg-accent-hover hover:text-white active:border-accent-strong active:bg-accent-strong active:text-white',
   secondary:
     'border-line bg-panel text-copy-secondary hover:border-copy-disabled hover:bg-panel-muted',
   tertiary:

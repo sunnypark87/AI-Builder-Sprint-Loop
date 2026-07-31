@@ -8,6 +8,7 @@ describe('buttonClassName', () => {
 
     expect(className).toContain('bg-accent');
     expect(className).toContain('text-copy');
+    expect(className).toContain('hover:text-white');
     expect(className).toContain('h-10');
   });
 

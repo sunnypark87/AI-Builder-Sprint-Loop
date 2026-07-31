@@ -3,17 +3,26 @@
 import Link from 'next/link';
 import { MenuIcon, XIcon } from 'lucide-react';
 import { usePathname } from 'next/navigation';
-import { useState, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 
 import { buttonClassName } from '@/components/ui/button';
 import { cn } from '@/lib/cn';
 import { donorNavigation, isNavigationItemActive } from '@/lib/navigation';
+import {
+  getAuthErrorMessage,
+  getCurrentSession,
+  signOut,
+  subscribeToAuthState,
+} from '@/lib/supabase/auth-client';
 
 import { BrandMark } from './brand-mark';
 
 export function DonorHeader() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [authMessage, setAuthMessage] = useState('');
   const search = useSyncExternalStore(
     () => () => {},
     () => window.location.search,
@@ -24,6 +33,49 @@ export function DonorHeader() {
     organizationId && (href === '/my-donations' || href === '/notifications')
       ? `${href}?organizationId=${encodeURIComponent(organizationId)}`
       : href;
+
+  useEffect(() => {
+    let mounted = true;
+    void getCurrentSession()
+      .then((session) => {
+        if (mounted) {
+          setUserEmail(session?.user.email ?? null);
+          setAuthReady(true);
+        }
+      })
+      .catch(() => mounted && setAuthReady(true));
+
+    let unsubscribe = () => {};
+    try {
+      unsubscribe = subscribeToAuthState((_event, session) => {
+        if (mounted) {
+          setUserEmail(session?.user.email ?? null);
+          setAuthReady(true);
+        }
+      });
+    } catch {
+      // The public header remains usable when Auth is not configured locally.
+    }
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, []);
+
+  async function handleSignOut() {
+    setAuthMessage('');
+    try {
+      const { error } = await signOut();
+      if (error) {
+        setAuthMessage(getAuthErrorMessage(error, 'logout'));
+        return;
+      }
+      setUserEmail(null);
+      window.location.assign('/');
+    } catch (error) {
+      setAuthMessage(getAuthErrorMessage(error, 'logout'));
+    }
+  }
 
   if (pathname.startsWith('/partner')) return null;
 
@@ -54,12 +106,28 @@ export function DonorHeader() {
           })}
         </nav>
         <div className="ml-auto hidden items-center gap-2 md:flex">
-          <Link
-            className={buttonClassName({ variant: 'tertiary', size: 'small' })}
-            href="/account"
-          >
-            로그인
-          </Link>
+          {authReady && userEmail ? (
+            <button
+              className={buttonClassName({
+                variant: 'tertiary',
+                size: 'small',
+              })}
+              onClick={handleSignOut}
+              type="button"
+            >
+              로그아웃
+            </button>
+          ) : (
+            <Link
+              className={buttonClassName({
+                variant: 'tertiary',
+                size: 'small',
+              })}
+              href="/login"
+            >
+              로그인
+            </Link>
+          )}
           <Link
             className={buttonClassName({ variant: 'secondary', size: 'small' })}
             href="/partner"
@@ -106,13 +174,26 @@ export function DonorHeader() {
             );
           })}
           <div className="mt-2 grid grid-cols-2 gap-2 border-t border-line pt-3">
-            <Link
-              className={buttonClassName({ variant: 'tertiary' })}
-              href="/account"
-              onClick={() => setMenuOpen(false)}
-            >
-              로그인
-            </Link>
+            {authReady && userEmail ? (
+              <button
+                className={buttonClassName({ variant: 'tertiary' })}
+                onClick={() => {
+                  setMenuOpen(false);
+                  void handleSignOut();
+                }}
+                type="button"
+              >
+                로그아웃
+              </button>
+            ) : (
+              <Link
+                className={buttonClassName({ variant: 'tertiary' })}
+                href="/login"
+                onClick={() => setMenuOpen(false)}
+              >
+                로그인
+              </Link>
+            )}
             <Link
               className={buttonClassName({ variant: 'secondary' })}
               href="/partner"
@@ -122,6 +203,14 @@ export function DonorHeader() {
             </Link>
           </div>
         </nav>
+      ) : null}
+      {authMessage ? (
+        <p
+          className="border-t border-danger bg-danger-soft px-4 py-2 text-center text-xs text-danger"
+          role="alert"
+        >
+          {authMessage}
+        </p>
       ) : null}
     </header>
   );

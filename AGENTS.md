@@ -25,6 +25,7 @@ The repository currently contains a starter Next.js web application. Keep this d
     │   └── dev/auth-test/       # Development-only Auth smoke-test page
     ├── components/
     │   ├── layout/   # Public/donor headers and the partner management app shell
+    │   ├── auth/     # Email login/signup forms and authentication feedback
     │   └── ui/       # Shared UI for buttons, inputs, cards, dialogs, steps, statuses, and notices
     └── lib/
         ├── supabase/ # Browser/server clients, session refresh, and Auth helpers
@@ -66,6 +67,8 @@ The routes below reflect the App Router structure in `src/app`. `[organizationId
 | `/my-donations`                         | Donor's donation list and progress                                       |
 | `/notifications`                        | Notifications related to pledges, payments, and expenditures             |
 | `/account`                              | Demo account page for entering donor or organization experiences         |
+| `/login`                                | Email login and protected-route return flow                              |
+| `/signup`                               | Email account registration and email-confirmation guidance               |
 
 ### Organization Registration Screens
 

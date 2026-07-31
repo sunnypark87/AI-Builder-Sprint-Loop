@@ -6,6 +6,21 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DonorHeader } from './donor-header';
 
+const { getCurrentSession, signOut, subscribeToAuthState } = vi.hoisted(() => ({
+  getCurrentSession: vi.fn(() =>
+    Promise.resolve(null as { user: { email: string } } | null),
+  ),
+  signOut: vi.fn(),
+  subscribeToAuthState: vi.fn(() => () => {}),
+}));
+
+vi.mock('@/lib/supabase/auth-client', () => ({
+  getCurrentSession,
+  getAuthErrorMessage: () => '로그아웃에 실패했습니다. 다시 시도해 주세요.',
+  signOut,
+  subscribeToAuthState,
+}));
+
 vi.mock('next/navigation', () => ({
   usePathname: () => '/organizations',
 }));
@@ -58,5 +73,21 @@ describe('DonorHeader', () => {
     expect(
       screen.queryByRole('navigation', { name: '모바일 주요 메뉴' }),
     ).toBeNull();
+  });
+
+  it('shows a recoverable message when donor logout rejects', async () => {
+    const user = userEvent.setup();
+    signOut.mockRejectedValue(new Error('network unavailable'));
+    getCurrentSession.mockResolvedValueOnce({
+      user: { email: 'donor@example.com' },
+    });
+    render(<DonorHeader />);
+
+    await screen.findByRole('button', { name: '로그아웃' });
+    await user.click(screen.getAllByRole('button', { name: '로그아웃' })[0]);
+
+    expect(screen.getByRole('alert').textContent).toContain(
+      '로그아웃에 실패했습니다. 다시 시도해 주세요.',
+    );
   });
 });

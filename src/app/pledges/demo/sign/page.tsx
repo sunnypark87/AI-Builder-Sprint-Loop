@@ -1,10 +1,16 @@
+'use client';
+
 import Link from 'next/link';
 import { ShieldCheckIcon } from 'lucide-react';
+import { useState } from 'react';
+
 import { buttonClassName } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { FlowProgress } from '@/components/ui/flow-progress';
 
 export default function PledgeSignPage() {
+  const [consented, setConsented] = useState(false);
+
   return (
     <main className="mx-auto max-w-[680px] px-4 py-12 md:px-6">
       <FlowProgress current={4} />
@@ -20,7 +26,12 @@ export default function PledgeSignPage() {
           <li>실제 주민등록번호, 인증서 또는 결제정보를 입력하지 않습니다.</li>
         </ul>
         <label className="mt-6 flex gap-3 border-t border-line pt-5 text-sm font-medium">
-          <input className="mt-1 size-5 accent-accent" type="checkbox" />
+          <input
+            checked={consented}
+            className="mt-1 size-5 accent-accent"
+            onChange={(event) => setConsented(event.target.checked)}
+            type="checkbox"
+          />
           예시 약정서 내용을 확인하고 목업 서명 진행에 동의합니다.
         </label>
       </Card>
@@ -31,9 +42,15 @@ export default function PledgeSignPage() {
         >
           약정서 다시 보기
         </Link>
-        <Link className={buttonClassName()} href="/pledges/demo/waiting">
-          예시 서명 완료
-        </Link>
+        {consented ? (
+          <Link className={buttonClassName()} href="/pledges/demo/waiting">
+            예시 서명 완료
+          </Link>
+        ) : (
+          <button className={buttonClassName()} disabled type="button">
+            예시 서명 완료
+          </button>
+        )}
       </div>
     </main>
   );

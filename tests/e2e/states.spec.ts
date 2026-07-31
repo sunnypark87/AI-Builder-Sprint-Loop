@@ -1,5 +1,24 @@
 import { expect, test } from '@playwright/test';
 
+test('pledge signing requires consent before continuing', async ({ page }) => {
+  await page.goto('/pledges/demo/sign');
+
+  const completeButton = page.getByRole('button', { name: '예시 서명 완료' });
+  await expect(completeButton).toBeDisabled();
+  await expect(page.getByRole('link', { name: '예시 서명 완료' })).toHaveCount(
+    0,
+  );
+
+  await page
+    .getByRole('checkbox', {
+      name: '예시 약정서 내용을 확인하고 목업 서명 진행에 동의합니다.',
+    })
+    .check();
+  await page.getByRole('link', { name: '예시 서명 완료' }).click();
+
+  await expect(page).toHaveURL(/\/pledges\/demo\/waiting$/);
+});
+
 test('organization registration blocks submission and focuses the missing required field', async ({
   page,
 }) => {
@@ -7,6 +26,13 @@ test('organization registration blocks submission and focuses the missing requir
 
   const organizationName = page.getByRole('textbox', { name: '기부처명' });
   await organizationName.clear();
+  await expect(
+    page.getByRole('link', { name: '2. 약정서 템플릿' }),
+  ).toHaveCount(0);
+  await expect(page.getByText('2. 약정서 템플릿')).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
   await page.getByRole('button', { name: '저장하고 약정서 만들기' }).click();
 
   await expect(page).toHaveURL(/\/partner\/register$/);

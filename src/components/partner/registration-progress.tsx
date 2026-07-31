@@ -27,16 +27,24 @@ export function RegistrationProgress({ current }: { current: 1 | 2 }) {
                   (active || complete) && 'bg-accent',
                 )}
               />
-              <Link
-                className={cn(
-                  'mt-2 inline-block text-xs text-copy-disabled',
-                  active && 'font-bold text-copy',
-                  complete && 'text-copy-muted',
-                )}
-                href={step.href}
-              >
-                {number}. {step.label}
-              </Link>
+              {complete ? (
+                <Link
+                  className="mt-2 inline-block text-xs text-copy-muted"
+                  href={step.href}
+                >
+                  {number}. {step.label}
+                </Link>
+              ) : (
+                <span
+                  aria-disabled={!active || undefined}
+                  className={cn(
+                    'mt-2 inline-block text-xs text-copy-disabled',
+                    active && 'font-bold text-copy',
+                  )}
+                >
+                  {number}. {step.label}
+                </span>
+              )}
             </li>
           );
         })}

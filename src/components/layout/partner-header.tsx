@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { BellIcon, MenuIcon, XIcon } from 'lucide-react';
+import { MenuIcon, XIcon } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 
@@ -30,13 +30,6 @@ export function PartnerHeader() {
           <p className="text-sm font-bold text-copy">모두기브 파트너</p>
         </div>
         <div className="ml-auto flex items-center gap-1">
-          <Link
-            aria-label="알림"
-            className="grid size-10 place-items-center rounded-full text-lg hover:bg-panel-muted"
-            href="/notifications"
-          >
-            <BellIcon aria-hidden="true" className="size-5" />
-          </Link>
           <Link
             aria-label="계정 설정"
             className="grid size-10 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent-strong"

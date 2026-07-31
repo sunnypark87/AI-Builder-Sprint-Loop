@@ -1,6 +1,4 @@
 import type { User } from '@supabase/supabase-js';
-import { headers } from 'next/headers';
-import { redirect } from 'next/navigation';
 
 import { createClient } from './server';
 
@@ -20,17 +18,4 @@ export async function getCurrentUser(): Promise<User | null> {
   }
 
   return user;
-}
-
-export async function requireCurrentUser(fallbackPath: string) {
-  const user = await getCurrentUser();
-  if (user) return user;
-
-  const requestPath =
-    (await headers()).get('x-modugive-pathname') ?? fallbackPath;
-  const safePath =
-    requestPath.startsWith('/') && !requestPath.startsWith('//')
-      ? requestPath
-      : fallbackPath;
-  redirect(`/login?next=${encodeURIComponent(safePath)}`);
 }

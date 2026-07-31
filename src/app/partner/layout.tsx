@@ -2,14 +2,8 @@ import type { ReactNode } from 'react';
 
 import { PartnerHeader } from '@/components/layout/partner-header';
 import { PartnerSidebar } from '@/components/layout/partner-sidebar';
-import { requireCurrentUser } from '@/lib/supabase/auth';
 
-export default async function PartnerLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
-  await requireCurrentUser('/partner');
+export default function PartnerLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen bg-panel">
       <PartnerSidebar />

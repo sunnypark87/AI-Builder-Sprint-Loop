@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { MenuIcon, XIcon } from 'lucide-react';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 
 import { buttonClassName } from '@/components/ui/button';
 import { cn } from '@/lib/cn';
@@ -14,10 +14,12 @@ import { BrandMark } from './brand-mark';
 export function DonorHeader() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
-  const organizationId =
-    typeof window === 'undefined'
-      ? null
-      : new URLSearchParams(window.location.search).get('organizationId');
+  const search = useSyncExternalStore(
+    () => () => {},
+    () => window.location.search,
+    () => '',
+  );
+  const organizationId = new URLSearchParams(search).get('organizationId');
   const contextHref = (href: string) =>
     organizationId && (href === '/my-donations' || href === '/notifications')
       ? `${href}?organizationId=${encodeURIComponent(organizationId)}`

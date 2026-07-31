@@ -125,9 +125,7 @@ test('organization registration carries validated details into the template step
   await page.getByRole('textbox', { name: '기부처명' }).fill('푸른내일');
   await page.getByRole('button', { name: '저장하고 약정서 만들기' }).click();
 
-  await expect(page).toHaveURL(
-    /organizationName=%ED%91%B8%EB%A5%B8%EB%82%B4%EC%9D%BC/,
-  );
+  await expect(page).toHaveURL('/partner/register/pledge-template');
   await expect(page.getByRole('textbox', { name: '템플릿 이름' })).toHaveValue(
     '푸른내일 기부 약정서',
   );
@@ -138,6 +136,50 @@ test('organization registration carries validated details into the template step
   await expect(page.getByRole('textbox', { name: '기부처명' })).toHaveValue(
     '푸른내일',
   );
+});
+
+test('organization registration keeps all fields out of the URL and restores them', async ({
+  page,
+}) => {
+  await page.goto('/partner/register');
+  await page.getByRole('textbox', { name: '기부처명' }).fill('새봄재단');
+  await page.getByRole('combobox', { name: '단체 유형' }).selectOption('ngo');
+  await page.getByRole('textbox', { name: '대표자명' }).fill('이새봄');
+  await page.getByRole('textbox', { name: '담당자명' }).fill('홍담당');
+  await page.getByRole('button', { name: '저장하고 약정서 만들기' }).click();
+
+  await expect(page).toHaveURL('/partner/register/pledge-template');
+  await expect(
+    page.getByRole('textbox', { name: '약정서에 표시할 기부처명' }),
+  ).toHaveValue('새봄재단');
+  await page.getByRole('link', { name: '기부처 정보로 돌아가기' }).click();
+  await expect(page.getByRole('textbox', { name: '기부처명' })).toHaveValue(
+    '새봄재단',
+  );
+  await expect(page.getByRole('combobox', { name: '단체 유형' })).toHaveValue(
+    'ngo',
+  );
+  await expect(page.getByRole('textbox', { name: '대표자명' })).toHaveValue(
+    '이새봄',
+  );
+  await expect(page.getByRole('textbox', { name: '담당자명' })).toHaveValue(
+    '홍담당',
+  );
+});
+
+test('pledge template requires at least one donation type', async ({
+  page,
+}) => {
+  await page.goto('/partner/register/pledge-template');
+  await page.getByRole('checkbox', { name: '현금' }).uncheck();
+  await page.getByRole('checkbox', { name: '현물' }).uncheck();
+
+  await expect(
+    page.getByRole('button', { name: '템플릿 저장·등록 완료' }),
+  ).toBeDisabled();
+  await expect(
+    page.getByText('기부 종류를 하나 이상 선택해야 저장할 수 있습니다.'),
+  ).toBeVisible();
 });
 
 test('partner rows without matching details are not interactive', async ({

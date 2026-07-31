@@ -2,10 +2,15 @@
 
 import { CheckIcon, LockIcon, PlusIcon, Trash2Icon } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 
 import { buttonClassName } from '@/components/ui/button';
 import { InlineNotice } from '@/components/ui/inline-notice';
+import {
+  defaultPartnerRegistrationValues,
+  getPartnerRegistrationSnapshot,
+  parsePartnerRegistrationSnapshot,
+} from '@/lib/partner-registration-state';
 
 const inputClassName =
   'h-10 w-full rounded-[var(--radius-sm)] border border-line bg-panel px-3 text-sm text-copy placeholder:text-copy-disabled hover:border-copy-disabled';
@@ -21,11 +26,22 @@ export function PledgeTemplateEditor({
   initialOrganizationName?: string;
   registrationReturnHref?: string;
 }) {
+  const registrationSnapshot = useSyncExternalStore(
+    () => () => {},
+    getPartnerRegistrationSnapshot,
+    () => '',
+  );
+  const storedRegistration = {
+    ...defaultPartnerRegistrationValues,
+    ...parsePartnerRegistrationSnapshot(registrationSnapshot),
+  };
+  const registeredOrganizationName =
+    storedRegistration.organizationName || initialOrganizationName;
   const [templateName, setTemplateName] = useState(
-    `${initialOrganizationName} 기부 약정서`,
+    `${registeredOrganizationName} 기부 약정서`,
   );
   const [organizationName, setOrganizationName] = useState(
-    initialOrganizationName,
+    registeredOrganizationName,
   );
   const [donationTypes, setDonationTypes] = useState({
     cash: true,
@@ -61,6 +77,7 @@ export function PledgeTemplateEditor({
   const togglePaymentMethod = (key: keyof typeof paymentMethods) => {
     setPaymentMethods((current) => ({ ...current, [key]: !current[key] }));
   };
+  const hasDonationType = Object.values(donationTypes).some(Boolean);
 
   return (
     <div className="mt-8 grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(380px,0.8fr)]">
@@ -314,18 +331,35 @@ export function PledgeTemplateEditor({
           >
             {mode === 'registration' ? '기부처 정보로 돌아가기' : '변경 취소'}
           </Link>
-          <Link
-            className={buttonClassName({ size: 'large' })}
-            href={
-              mode === 'registration'
-                ? '/partner'
-                : '/partner/settings/pledge-template'
-            }
-          >
-            {mode === 'registration'
-              ? '템플릿 저장·등록 완료'
-              : '변경사항 저장'}
-          </Link>
+          {hasDonationType ? (
+            <Link
+              className={buttonClassName({ size: 'large' })}
+              href={
+                mode === 'registration'
+                  ? '/partner'
+                  : '/partner/settings/pledge-template'
+              }
+            >
+              {mode === 'registration'
+                ? '템플릿 저장·등록 완료'
+                : '변경사항 저장'}
+            </Link>
+          ) : (
+            <div className="grid justify-items-end gap-2">
+              <button
+                className={buttonClassName({ size: 'large' })}
+                disabled
+                type="button"
+              >
+                {mode === 'registration'
+                  ? '템플릿 저장·등록 완료'
+                  : '변경사항 저장'}
+              </button>
+              <p className="text-xs text-danger" role="alert">
+                기부 종류를 하나 이상 선택해야 저장할 수 있습니다.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

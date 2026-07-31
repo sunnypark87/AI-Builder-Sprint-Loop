@@ -2,12 +2,19 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
 import { RegistrationProgress } from '@/components/partner/registration-progress';
 import { buttonClassName } from '@/components/ui/button';
 import { InlineNotice } from '@/components/ui/inline-notice';
 import { Input } from '@/components/ui/input';
+import {
+  defaultPartnerRegistrationValues,
+  getPartnerRegistrationSnapshot,
+  parsePartnerRegistrationSnapshot,
+  savePartnerRegistration,
+  type PartnerRegistrationValues,
+} from '@/lib/partner-registration-state';
 
 const selectClassName =
   'h-10 w-full rounded-[var(--radius-sm)] border border-line bg-panel px-3 text-sm text-copy hover:border-copy-disabled';
@@ -16,12 +23,15 @@ const textareaClassName =
 
 export default function PartnerRegisterPage() {
   const router = useRouter();
-  const [organizationName, setOrganizationName] = useState(() =>
-    typeof window === 'undefined'
-      ? '해봄재단'
-      : (new URLSearchParams(window.location.search).get('organizationName') ??
-        '해봄재단'),
+  const registrationSnapshot = useSyncExternalStore(
+    () => () => {},
+    getPartnerRegistrationSnapshot,
+    () => '',
   );
+  const registrationValues: PartnerRegistrationValues = {
+    ...defaultPartnerRegistrationValues,
+    ...parsePartnerRegistrationSnapshot(registrationSnapshot),
+  };
 
   return (
     <div className="max-w-[960px]">
@@ -43,21 +53,21 @@ export default function PartnerRegisterPage() {
         onSubmit={(event) => {
           event.preventDefault();
           const values = new FormData(event.currentTarget);
-          const nextParams = new URLSearchParams();
-          values.forEach((entry, name) => {
-            if (typeof entry === 'string' && entry) nextParams.set(name, entry);
-          });
-          router.push(
-            `/partner/register/pledge-template?${nextParams.toString()}`,
-          );
+          const registration = Object.fromEntries(
+            Object.keys(defaultPartnerRegistrationValues).map((name) => [
+              name,
+              String(values.get(name) ?? ''),
+            ]),
+          ) as PartnerRegistrationValues;
+          savePartnerRegistration(registration);
+          router.push('/partner/register/pledge-template');
         }}
       >
         <fieldset className="grid gap-5 border-t border-line pt-6">
           <legend className="pr-4 text-lg font-bold">단체 기본 정보</legend>
           <div className="grid gap-5 sm:grid-cols-2">
             <Input
-              onChange={(event) => setOrganizationName(event.target.value)}
-              value={organizationName}
+              defaultValue={registrationValues.organizationName}
               label="기부처명"
               name="organizationName"
               required
@@ -66,7 +76,7 @@ export default function PartnerRegisterPage() {
               단체 유형
               <select
                 className={selectClassName}
-                defaultValue="foundation"
+                defaultValue={registrationValues.organizationType}
                 name="organizationType"
                 required
               >
@@ -78,27 +88,27 @@ export default function PartnerRegisterPage() {
               </select>
             </label>
             <Input
-              defaultValue="123-45-67890"
+              defaultValue={registrationValues.registrationNumber}
               description="공개 화면에는 확인 여부만 표시합니다."
               label="고유번호 또는 사업자등록번호"
               name="registrationNumber"
               required
             />
             <Input
-              defaultValue="김해봄"
+              defaultValue={registrationValues.representativeName}
               label="대표자명"
               name="representativeName"
               required
             />
             <Input
               className="sm:col-span-2"
-              defaultValue="서울특별시 종로구 모두길 12"
+              defaultValue={registrationValues.address}
               label="소재지"
               name="address"
               required
             />
             <Input
-              defaultValue="https://example.org"
+              defaultValue={registrationValues.website}
               label="공식 웹사이트"
               name="website"
               type="url"
@@ -107,7 +117,7 @@ export default function PartnerRegisterPage() {
               주요 활동 분야
               <select
                 className={selectClassName}
-                defaultValue="children"
+                defaultValue={registrationValues.category}
                 name="category"
                 required
               >
@@ -123,7 +133,7 @@ export default function PartnerRegisterPage() {
             기부처 소개
             <textarea
               className={textareaClassName}
-              defaultValue="돌봄 공백 아동의 방과 후 배움과 식사를 지원합니다."
+              defaultValue={registrationValues.description}
               maxLength={300}
               name="description"
               required
@@ -142,25 +152,25 @@ export default function PartnerRegisterPage() {
           </p>
           <div className="grid gap-5 sm:grid-cols-2">
             <Input
-              defaultValue="박모두"
+              defaultValue={registrationValues.managerName}
               label="담당자명"
               name="managerName"
               required
             />
             <Input
-              defaultValue="기부사업팀 팀장"
+              defaultValue={registrationValues.managerRole}
               label="부서·직책"
               name="managerRole"
             />
             <Input
-              defaultValue="manager@example.org"
+              defaultValue={registrationValues.managerEmail}
               label="업무 이메일"
               name="managerEmail"
               required
               type="email"
             />
             <Input
-              defaultValue="02-1234-5678"
+              defaultValue={registrationValues.managerPhone}
               label="업무 연락처"
               name="managerPhone"
               required

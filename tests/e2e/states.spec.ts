@@ -16,7 +16,57 @@ test('pledge signing requires consent before continuing', async ({ page }) => {
     .check();
   await page.getByRole('link', { name: '예시 서명 완료' }).click();
 
-  await expect(page).toHaveURL(/\/pledges\/demo\/waiting$/);
+  await expect(page).toHaveURL(
+    /\/pledges\/demo\/waiting\?organizationId=haebom$/,
+  );
+});
+
+test('pledge creation preserves the selected organization', async ({
+  page,
+}) => {
+  await page.goto('/donate/green-tomorrow/summary');
+  await page.getByRole('link', { name: '약정서 생성하기' }).click();
+
+  await expect(page.getByText('푸른내일 정기 기부 약정')).toBeVisible();
+  await page.getByRole('link', { name: '검토 완료 · 서명하기' }).click();
+  await page
+    .getByRole('checkbox', {
+      name: '예시 약정서 내용을 확인하고 목업 서명 진행에 동의합니다.',
+    })
+    .check();
+  await page.getByRole('link', { name: '예시 서명 완료' }).click();
+
+  await expect(
+    page.getByRole('heading', { name: '푸른내일이 약정서를 확인하고 있어요' }),
+  ).toBeVisible();
+});
+
+test('partner dashboard totals match filtered work lists', async ({ page }) => {
+  await page.goto('/partner');
+
+  for (const label of [
+    '기부처 서명 필요',
+    '계획 추출 결과 검토',
+    '증빙 마스킹 확인',
+    '보고서 사실 확인',
+  ]) {
+    const link = page.getByRole('link', { name: new RegExp(`1건.*${label}`) });
+    await expect(link).toBeVisible();
+  }
+});
+
+test('partner rows without matching details are not interactive', async ({
+  page,
+}) => {
+  await page.goto('/partner/pledges');
+
+  await expect(
+    page.getByRole('link', { name: /김모아 님 · 아동 교육 정기 기부/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: /이푸름 님 · 급식 지원 일시 기부/ }),
+  ).toHaveCount(0);
+  await expect(page.getByText('이푸름 님 · 급식 지원 일시 기부')).toBeVisible();
 });
 
 test('organization registration blocks submission and focuses the missing required field', async ({

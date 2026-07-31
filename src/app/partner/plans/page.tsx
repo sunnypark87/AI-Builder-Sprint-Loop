@@ -50,7 +50,6 @@ export default async function Page({
           status: '기부자 공개 완료',
           statusKey: 'published',
           tone: 'success',
-          href: '/partner/plans/demo/review',
           cells: {
             budget: '3,000,000원',
             period: '2026. 07.',

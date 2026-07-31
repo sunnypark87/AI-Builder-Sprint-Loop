@@ -16,11 +16,11 @@ export default function PartnerDashboardPage() {
         {[
           [
             '/partner/pledges?status=needs-signature',
-            '3건',
+            '1건',
             '기부처 서명 필요',
           ],
-          ['/partner/plans?status=review', '2건', '계획 추출 결과 검토'],
-          ['/partner/executions?status=masking', '7건', '증빙 마스킹 확인'],
+          ['/partner/plans?status=review', '1건', '계획 추출 결과 검토'],
+          ['/partner/executions?status=masking', '1건', '증빙 마스킹 확인'],
           ['/partner/reports?status=review', '1건', '보고서 사실 확인'],
         ].map(([href, count, label]) => (
           <Link

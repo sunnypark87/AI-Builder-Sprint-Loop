@@ -40,4 +40,23 @@ describe('DonorHeader', () => {
       screen.queryByRole('navigation', { name: '모바일 주요 메뉴' }),
     ).toBeNull();
   });
+
+  it('closes mobile navigation when a secondary action is selected', async () => {
+    const user = userEvent.setup();
+    render(<DonorHeader />);
+
+    await user.click(screen.getByRole('button', { name: '메뉴 열기' }));
+    const mobileNavigation = screen.getByRole('navigation', {
+      name: '모바일 주요 메뉴',
+    });
+    const accountLink = within(mobileNavigation).getByRole('link', {
+      name: '로그인',
+    });
+    accountLink.addEventListener('click', (event) => event.preventDefault());
+    await user.click(accountLink);
+
+    expect(
+      screen.queryByRole('navigation', { name: '모바일 주요 메뉴' }),
+    ).toBeNull();
+  });
 });

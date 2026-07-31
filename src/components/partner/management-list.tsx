@@ -13,7 +13,7 @@ type Row = {
   status: string;
   statusKey: string;
   tone?: StatusTone;
-  href: string;
+  href?: string;
   cells: Record<string, string>;
 };
 
@@ -119,38 +119,57 @@ export function ManagementList({
           <span>현재 상태</span>
         </div>
         {visibleRows.length ? (
-          visibleRows.map((row) => (
-            <Link
-              className="grid min-h-20 gap-3 border-b border-line px-4 py-4 last:border-0 hover:bg-panel-muted lg:grid-cols-[minmax(260px,2fr)_repeat(var(--column-count),minmax(110px,1fr))_120px] lg:items-center lg:gap-4"
-              href={row.href}
-              key={row.title}
-              style={
-                { '--column-count': columns.length } as React.CSSProperties
-              }
-            >
-              <div>
-                <p className="font-bold">{row.title}</p>
-                <p className="mt-1 text-sm text-copy-muted lg:hidden">
-                  {row.description}
-                </p>
+          visibleRows.map((row) => {
+            const content = (
+              <>
+                <div>
+                  <p className="font-bold">{row.title}</p>
+                  <p className="mt-1 text-sm text-copy-muted lg:hidden">
+                    {row.description}
+                  </p>
+                </div>
+                {columns.map((column) => (
+                  <span
+                    className={cn(
+                      'hidden text-sm lg:block',
+                      column.align === 'right' && 'text-right',
+                      column.className,
+                    )}
+                    key={column.key}
+                  >
+                    {row.cells[column.key]}
+                  </span>
+                ))}
+                <div>
+                  <StatusIndicator tone={row.tone}>
+                    {row.status}
+                  </StatusIndicator>
+                </div>
+              </>
+            );
+            const className = cn(
+              'grid min-h-20 gap-3 border-b border-line px-4 py-4 last:border-0 lg:grid-cols-[minmax(260px,2fr)_repeat(var(--column-count),minmax(110px,1fr))_120px] lg:items-center lg:gap-4',
+              row.href && 'hover:bg-panel-muted',
+            );
+            const style = {
+              '--column-count': columns.length,
+            } as React.CSSProperties;
+
+            return row.href ? (
+              <Link
+                className={className}
+                href={row.href}
+                key={row.title}
+                style={style}
+              >
+                {content}
+              </Link>
+            ) : (
+              <div className={className} key={row.title} style={style}>
+                {content}
               </div>
-              {columns.map((column) => (
-                <span
-                  className={cn(
-                    'hidden text-sm lg:block',
-                    column.align === 'right' && 'text-right',
-                    column.className,
-                  )}
-                  key={column.key}
-                >
-                  {row.cells[column.key]}
-                </span>
-              ))}
-              <div>
-                <StatusIndicator tone={row.tone}>{row.status}</StatusIndicator>
-              </div>
-            </Link>
-          ))
+            );
+          })
         ) : (
           <div className="px-4 py-12 text-center">
             <p className="font-bold">해당 상태의 업무가 없습니다.</p>

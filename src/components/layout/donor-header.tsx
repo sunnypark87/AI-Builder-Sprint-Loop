@@ -99,12 +99,14 @@ export function DonorHeader() {
             <Link
               className={buttonClassName({ variant: 'tertiary' })}
               href="/account"
+              onClick={() => setMenuOpen(false)}
             >
               로그인
             </Link>
             <Link
               className={buttonClassName({ variant: 'secondary' })}
               href="/partner"
+              onClick={() => setMenuOpen(false)}
             >
               기부처 관리
             </Link>

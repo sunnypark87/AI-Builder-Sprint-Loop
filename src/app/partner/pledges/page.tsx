@@ -43,7 +43,6 @@ export default async function Page({
           status: '양측 서명 완료',
           statusKey: 'completed',
           tone: 'success',
-          href: '/partner/pledges/demo',
           cells: {
             amount: '300,000원',
             period: '일시 기부',

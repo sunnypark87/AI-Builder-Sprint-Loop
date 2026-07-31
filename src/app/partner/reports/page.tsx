@@ -43,7 +43,6 @@ export default async function Page({
           status: '기부자 발행 완료',
           statusKey: 'published',
           tone: 'success',
-          href: '/partner/reports/demo/review',
           cells: {
             donors: '기부자 12명',
             period: '2026. 06.',

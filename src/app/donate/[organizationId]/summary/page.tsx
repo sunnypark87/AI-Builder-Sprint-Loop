@@ -41,7 +41,10 @@ export default async function SummaryPage({
         >
           상담으로 돌아가기
         </Link>
-        <Link className={buttonClassName()} href="/pledges/demo/review">
+        <Link
+          className={buttonClassName()}
+          href={`/pledges/demo/review?organizationId=${org.id}`}
+        >
           약정서 생성하기
         </Link>
       </div>

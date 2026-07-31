@@ -2,17 +2,25 @@ import Link from 'next/link';
 import { buttonClassName } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { FlowProgress } from '@/components/ui/flow-progress';
+import { getOrganization } from '@/lib/mock-data/organizations';
 
-const terms = [
-  ['기부처', '해봄재단'],
-  ['기부 목적', '돌봄 공백 아동 교육 프로그램 운영'],
-  ['기부 금액', '월 50,000원'],
-  ['약정 기간', '2026. 08. 01. ~ 2027. 07. 31.'],
-  ['집행 공개', '계획 등록, 집행 증빙 등록, 완료 보고 시 알림'],
-  ['중도 해지', '다음 결제일 3일 전까지 요청 시 이후 결제 중단'],
-];
+export default async function PledgeReviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ organizationId?: string }>;
+}) {
+  const { organizationId = 'haebom' } = await searchParams;
+  const organization =
+    getOrganization(organizationId) ?? getOrganization('haebom')!;
+  const terms = [
+    ['기부처', organization.name],
+    ['기부 목적', '돌봄 공백 아동 교육 프로그램 운영'],
+    ['기부 금액', '월 50,000원'],
+    ['약정 기간', '2026. 08. 01. ~ 2027. 07. 31.'],
+    ['집행 공개', '계획 등록, 집행 증빙 등록, 완료 보고 시 알림'],
+    ['중도 해지', '다음 결제일 3일 전까지 요청 시 이후 결제 중단'],
+  ];
 
-export default function PledgeReviewPage() {
   return (
     <main className="mx-auto max-w-[860px] px-4 py-12 md:px-6">
       <FlowProgress current={3} />
@@ -26,7 +34,9 @@ export default function PledgeReviewPage() {
           <p className="text-xs font-medium text-copy-muted">
             모두기브 표준 기부 약정서 · 예시
           </p>
-          <h2 className="mt-1 text-xl font-bold">해봄재단 정기 기부 약정</h2>
+          <h2 className="mt-1 text-xl font-bold">
+            {organization.name} 정기 기부 약정
+          </h2>
         </div>
         <dl className="divide-y divide-line">
           {terms.map(([label, value]) => (
@@ -43,13 +53,13 @@ export default function PledgeReviewPage() {
       <div className="mt-8 flex flex-wrap justify-between gap-3">
         <Link
           className={buttonClassName({ variant: 'secondary' })}
-          href="/donate/haebom/summary"
+          href={`/donate/${organization.id}/summary`}
         >
           조건 수정하기
         </Link>
         <Link
           className={buttonClassName({ size: 'large' })}
-          href="/pledges/demo/sign"
+          href={`/pledges/demo/sign?organizationId=${organization.id}`}
         >
           검토 완료 · 서명하기
         </Link>

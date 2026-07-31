@@ -2,13 +2,22 @@ import Link from 'next/link';
 import { CheckIcon, CircleIcon, Clock3Icon } from 'lucide-react';
 import { buttonClassName } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { getOrganization } from '@/lib/mock-data/organizations';
 
-export default function PledgeWaitingPage() {
+export default async function PledgeWaitingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ organizationId?: string }>;
+}) {
+  const { organizationId = 'haebom' } = await searchParams;
+  const organization =
+    getOrganization(organizationId) ?? getOrganization('haebom')!;
+
   return (
     <main className="mx-auto max-w-[720px] px-4 py-12 md:px-6">
       <p className="text-sm text-copy-muted">약정 진행 상태</p>
       <h1 className="mt-2 text-3xl font-bold">
-        해봄재단이 약정서를 확인하고 있어요
+        {organization.name}이 약정서를 확인하고 있어요
       </h1>
       <Card className="mt-8 p-6">
         <Clock3Icon className="size-8 text-warning" />

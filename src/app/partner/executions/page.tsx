@@ -53,7 +53,6 @@ export default async function Page({
           status: '기부자 공개 완료',
           statusKey: 'published',
           tone: 'success',
-          href: '/partner/executions/demo/review',
           cells: {
             amount: '610,000원',
             plan: '8월 교육 프로그램',

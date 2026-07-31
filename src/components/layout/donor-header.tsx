@@ -14,6 +14,14 @@ import { BrandMark } from './brand-mark';
 export function DonorHeader() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const organizationId =
+    typeof window === 'undefined'
+      ? null
+      : new URLSearchParams(window.location.search).get('organizationId');
+  const contextHref = (href: string) =>
+    organizationId && (href === '/my-donations' || href === '/notifications')
+      ? `${href}?organizationId=${encodeURIComponent(organizationId)}`
+      : href;
 
   if (pathname.startsWith('/partner')) return null;
 
@@ -35,7 +43,7 @@ export function DonorHeader() {
                   active &&
                     'text-copy after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-accent',
                 )}
-                href={item.href}
+                href={contextHref(item.href)}
                 key={item.href}
               >
                 {item.label}
@@ -87,7 +95,7 @@ export function DonorHeader() {
                     ? 'bg-accent-soft text-accent-strong'
                     : 'text-copy-secondary',
                 )}
-                href={item.href}
+                href={contextHref(item.href)}
                 key={item.href}
                 onClick={() => setMenuOpen(false)}
               >

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 import { RegistrationProgress } from '@/components/partner/registration-progress';
 import { buttonClassName } from '@/components/ui/button';
@@ -15,6 +16,12 @@ const textareaClassName =
 
 export default function PartnerRegisterPage() {
   const router = useRouter();
+  const [organizationName, setOrganizationName] = useState(() =>
+    typeof window === 'undefined'
+      ? '해봄재단'
+      : (new URLSearchParams(window.location.search).get('organizationName') ??
+        '해봄재단'),
+  );
 
   return (
     <div className="max-w-[960px]">
@@ -35,14 +42,22 @@ export default function PartnerRegisterPage() {
         className="mt-8 grid gap-10"
         onSubmit={(event) => {
           event.preventDefault();
-          router.push('/partner/register/pledge-template');
+          const values = new FormData(event.currentTarget);
+          const nextParams = new URLSearchParams();
+          values.forEach((entry, name) => {
+            if (typeof entry === 'string' && entry) nextParams.set(name, entry);
+          });
+          router.push(
+            `/partner/register/pledge-template?${nextParams.toString()}`,
+          );
         }}
       >
         <fieldset className="grid gap-5 border-t border-line pt-6">
           <legend className="pr-4 text-lg font-bold">단체 기본 정보</legend>
           <div className="grid gap-5 sm:grid-cols-2">
             <Input
-              defaultValue="해봄재단"
+              onChange={(event) => setOrganizationName(event.target.value)}
+              value={organizationName}
               label="기부처명"
               name="organizationName"
               required

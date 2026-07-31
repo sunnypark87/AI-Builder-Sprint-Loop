@@ -14,11 +14,19 @@ const textareaClassName =
 
 export function PledgeTemplateEditor({
   mode = 'registration',
+  initialOrganizationName = '해봄재단',
+  registrationReturnHref = '/partner/register',
 }: {
   mode?: 'registration' | 'settings';
+  initialOrganizationName?: string;
+  registrationReturnHref?: string;
 }) {
-  const [templateName, setTemplateName] = useState('해봄재단 기부 약정서');
-  const [organizationName, setOrganizationName] = useState('해봄재단');
+  const [templateName, setTemplateName] = useState(
+    `${initialOrganizationName} 기부 약정서`,
+  );
+  const [organizationName, setOrganizationName] = useState(
+    initialOrganizationName,
+  );
   const [donationTypes, setDonationTypes] = useState({
     cash: true,
     goods: true,
@@ -300,7 +308,7 @@ export function PledgeTemplateEditor({
             className={buttonClassName({ variant: 'secondary' })}
             href={
               mode === 'registration'
-                ? '/partner/register'
+                ? registrationReturnHref
                 : '/partner/settings/pledge-template'
             }
           >

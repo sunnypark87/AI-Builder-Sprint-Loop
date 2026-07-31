@@ -1,7 +1,20 @@
 import { PledgeTemplateEditor } from '@/components/partner/pledge-template-editor';
 import { RegistrationProgress } from '@/components/partner/registration-progress';
 
-export default function RegistrationPledgeTemplatePage() {
+export default async function RegistrationPledgeTemplatePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const values = await searchParams;
+  const query = Object.entries(values)
+    .reduce((params, [key, value]) => {
+      if (value) params.set(key, value);
+      return params;
+    }, new URLSearchParams())
+    .toString();
+  const organizationName = values.organizationName ?? '해봄재단';
+
   return (
     <div>
       <RegistrationProgress current={2} />
@@ -14,7 +27,12 @@ export default function RegistrationPledgeTemplatePage() {
           처리 조건을 기부처 운영 정책에 맞게 설정합니다.
         </p>
       </div>
-      <PledgeTemplateEditor />
+      <PledgeTemplateEditor
+        initialOrganizationName={organizationName}
+        registrationReturnHref={
+          query ? `/partner/register?${query}` : '/partner/register'
+        }
+      />
     </div>
   );
 }

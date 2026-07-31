@@ -99,6 +99,47 @@ test('partner dashboard totals match filtered work lists', async ({ page }) => {
   }
 });
 
+test('donor header preserves organization context for donations and notifications', async ({
+  page,
+}) => {
+  await page.goto('/my-donations?organizationId=green-tomorrow');
+
+  await expect(page.getByRole('link', { name: '내 기부' })).toHaveAttribute(
+    'href',
+    '/my-donations?organizationId=green-tomorrow',
+  );
+  await expect(page.getByRole('link', { name: '알림' })).toHaveAttribute(
+    'href',
+    '/notifications?organizationId=green-tomorrow',
+  );
+  await page.getByRole('link', { name: '알림' }).click();
+  await expect(
+    page.getByText('푸른내일이 약정서를 확인하고 있습니다.'),
+  ).toBeVisible();
+});
+
+test('organization registration carries validated details into the template step', async ({
+  page,
+}) => {
+  await page.goto('/partner/register');
+  await page.getByRole('textbox', { name: '기부처명' }).fill('푸른내일');
+  await page.getByRole('button', { name: '저장하고 약정서 만들기' }).click();
+
+  await expect(page).toHaveURL(
+    /organizationName=%ED%91%B8%EB%A5%B8%EB%82%B4%EC%9D%BC/,
+  );
+  await expect(page.getByRole('textbox', { name: '템플릿 이름' })).toHaveValue(
+    '푸른내일 기부 약정서',
+  );
+  await expect(
+    page.getByRole('textbox', { name: '약정서에 표시할 기부처명' }),
+  ).toHaveValue('푸른내일');
+  await page.getByRole('link', { name: '기부처 정보로 돌아가기' }).click();
+  await expect(page.getByRole('textbox', { name: '기부처명' })).toHaveValue(
+    '푸른내일',
+  );
+});
+
 test('partner rows without matching details are not interactive', async ({
   page,
 }) => {

@@ -14,6 +14,7 @@ type Row = {
   statusKey: string;
   tone?: StatusTone;
   href?: string;
+  action?: React.ReactNode;
   cells: Record<string, string>;
 };
 
@@ -144,6 +145,7 @@ export function ManagementList({
                   <StatusIndicator tone={row.tone}>
                     {row.status}
                   </StatusIndicator>
+                  {row.action}
                 </div>
               </>
             );

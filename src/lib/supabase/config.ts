@@ -1,11 +1,18 @@
 const missingEnvironmentMessage =
   'Supabase 환경 변수가 설정되지 않았습니다. NEXT_PUBLIC_SUPABASE_URL 또는 SUPABASE_URL과 공개 키 변수를 확인하세요.';
 
+export class SupabaseConfigurationError extends Error {
+  constructor() {
+    super(missingEnvironmentMessage);
+    this.name = 'SupabaseConfigurationError';
+  }
+}
+
 function getRequiredEnvironmentVariable(...values: (string | undefined)[]) {
   const value = values.find(Boolean);
 
   if (!value) {
-    throw new Error(missingEnvironmentMessage);
+    throw new SupabaseConfigurationError();
   }
 
   return value;

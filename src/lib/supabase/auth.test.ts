@@ -9,7 +9,7 @@ const { createClient, getUser } = vi.hoisted(() => {
 
 vi.mock('./server', () => ({ createClient }));
 
-import { getCurrentUser } from './auth';
+import { AuthenticationError, getCurrentUser, requireUserId } from './auth';
 
 describe('getCurrentUser', () => {
   beforeEach(() => {
@@ -38,5 +38,33 @@ describe('getCurrentUser', () => {
     });
 
     await expect(getCurrentUser()).resolves.toBeNull();
+  });
+});
+
+describe('requireUserId', () => {
+  it('returns the server-validated user id', async () => {
+    const auth = {
+      getUser: vi.fn().mockResolvedValue({
+        data: { user: { id: 'user-1' } },
+        error: null,
+      }),
+    };
+
+    await expect(
+      requireUserId({ auth } as unknown as Parameters<typeof requireUserId>[0]),
+    ).resolves.toBe('user-1');
+  });
+
+  it('rejects an absent or invalid session', async () => {
+    const auth = {
+      getUser: vi.fn().mockResolvedValue({
+        data: { user: null },
+        error: new Error('private auth detail'),
+      }),
+    };
+
+    await expect(
+      requireUserId({ auth } as unknown as Parameters<typeof requireUserId>[0]),
+    ).rejects.toBeInstanceOf(AuthenticationError);
   });
 });

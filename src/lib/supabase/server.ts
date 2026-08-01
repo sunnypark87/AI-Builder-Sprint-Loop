@@ -4,10 +4,14 @@ import { cookies } from 'next/headers';
 
 import { getSupabasePublishableKey, getSupabaseUrl } from './config';
 
+export { SupabaseConfigurationError } from './config';
+
 export async function createClient(): Promise<SupabaseClient> {
+  const url = getSupabaseUrl();
+  const publishableKey = getSupabasePublishableKey();
   const cookieStore = await cookies();
 
-  return createServerClient(getSupabaseUrl(), getSupabasePublishableKey(), {
+  return createServerClient(url, publishableKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();

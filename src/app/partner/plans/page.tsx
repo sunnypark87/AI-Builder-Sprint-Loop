@@ -1,6 +1,42 @@
 import Link from 'next/link';
 import { ManagementList } from '@/components/partner/management-list';
+import { PlanRetryButton } from '@/components/partner/plan-retry-button';
 import { buttonClassName } from '@/components/ui/button';
+import type { StatusTone } from '@/components/ui/status-indicator';
+import { createPlanRepository } from '@/lib/plans/plan-repository';
+import type { PlanStatus } from '@/lib/plans/types';
+import { requireUserId } from '@/lib/supabase/auth';
+import { createClient } from '@/lib/supabase/server';
+
+export const dynamic = 'force-dynamic';
+
+const statusLabel: Record<PlanStatus, { label: string; tone: StatusTone }> = {
+  analyzing: { label: 'AI 분석 중', tone: 'neutral' },
+  review_required: { label: '추출 결과 검토 필요', tone: 'brand' },
+  registered: { label: '내부 등록 완료', tone: 'success' },
+  analysis_failed: { label: '분석 실패·재시도 필요', tone: 'warning' },
+};
+
+async function getPlans() {
+  try {
+    const supabase = await createClient();
+    await requireUserId(supabase);
+    return await createPlanRepository(supabase).list();
+  } catch {
+    return [];
+  }
+}
+
+function formatMoney(value: number | null) {
+  return value === null ? '-' : `${value.toLocaleString('ko-KR')}원`;
+}
+
+function formatPeriod(start: string | null, end: string | null) {
+  if (!start || !end) {
+    return '-';
+  }
+  return `${start} ~ ${end}`;
+}
 
 export default async function Page({
   searchParams,
@@ -8,14 +44,15 @@ export default async function Page({
   searchParams: Promise<{ status?: string }>;
 }) {
   const { status = 'all' } = await searchParams;
+  const plans = await getPlans();
   return (
     <ManagementList
       activeStatus={status}
       basePath="/partner/plans"
       title="집행 계획"
-      description="계획서를 등록하고 AI 추출 결과를 검토한 뒤 기부자에게 공개합니다."
+      description="계획서를 등록하고 AI 추출 결과를 검토한 뒤 내부 등록을 완료합니다."
       action={
-        <Link className={buttonClassName()} href="/partner/plans/demo/review">
+        <Link className={buttonClassName()} href="/partner/plans/new">
           계획 등록
         </Link>
       }
@@ -27,36 +64,32 @@ export default async function Page({
       statusFilters={[
         { key: 'all', label: '전체' },
         { key: 'analyzing', label: 'AI 분석 중' },
-        { key: 'review', label: '추출 결과 검토 필요' },
-        { key: 'published', label: '공개됨' },
+        { key: 'review_required', label: '추출 결과 검토 필요' },
+        { key: 'registered', label: '내부 등록 완료' },
+        { key: 'analysis_failed', label: '분석 실패' },
       ]}
-      rows={[
-        {
-          title: '2026년 8월 교육 프로그램 계획',
-          description: '5개 예산 항목 · 총 2,400,000원',
-          status: 'AI 추출 결과 검토 필요',
-          statusKey: 'review',
-          tone: 'brand',
-          href: '/partner/plans/demo/review',
-          cells: {
-            budget: '2,400,000원',
-            period: '2026. 08.',
-            updatedAt: '오늘 09:10',
-          },
+      rows={plans.map((plan) => ({
+        title: plan.title,
+        description: formatMoney(plan.totalAmount),
+        status: statusLabel[plan.status].label,
+        statusKey: plan.status,
+        tone: statusLabel[plan.status].tone,
+        href:
+          plan.status === 'review_required'
+            ? `/partner/plans/${plan.id}/review`
+            : undefined,
+        action:
+          plan.status === 'analysis_failed' ? (
+            <PlanRetryButton planId={plan.id} />
+          ) : undefined,
+        cells: {
+          budget: formatMoney(plan.totalAmount),
+          period: formatPeriod(plan.periodStart, plan.periodEnd),
+          updatedAt: new Intl.DateTimeFormat('ko-KR', {
+            dateStyle: 'medium',
+          }).format(new Date(plan.updatedAt)),
         },
-        {
-          title: '2026년 7월 급식 지원 계획',
-          description: '2026. 07. 03. 공개',
-          status: '기부자 공개 완료',
-          statusKey: 'published',
-          tone: 'success',
-          cells: {
-            budget: '3,000,000원',
-            period: '2026. 07.',
-            updatedAt: '7월 3일',
-          },
-        },
-      ]}
+      }))}
     />
   );
 }

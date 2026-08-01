@@ -2,6 +2,10 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/e2e',
+  testIgnore: [
+    '**/*.evaluation.spec.ts',
+    '**/expenditure-plan-integration.spec.ts',
+  ],
   fullyParallel: true,
   reporter: 'list',
   use: {

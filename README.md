@@ -17,7 +17,20 @@ npm run dev
 cp .env.example .env.local
 ```
 
+집행 계획 OCR 등록에는 서버 전용 `UPSTAGE_API_KEY`와 Supabase 프로젝트 설정이 필요합니다. 필요한 변수와 용도는 [`.env.example`](.env.example)에 정리되어 있으며 실제 비밀 값은 저장소에 커밋하지 않습니다.
+
 검증 명령은 `npm run check`로 한 번에 실행할 수 있습니다. 세부 명령은 `AGENTS.md`에 정리되어 있습니다.
+
+집행 계획의 실제 Auth·RLS·Storage·RPC 흐름은 로컬 Supabase를 시작한 뒤 별도 통합 테스트로 확인합니다. 이 명령은 Upstage 호출만 로컬 목으로 대체하며 Supabase 로컬 키를 파일이나 로그에 남기지 않습니다.
+
+```bash
+npx supabase start
+npx supabase db reset --local
+npx supabase test db
+npm run test:e2e:plans
+```
+
+실제 Upstage 정확도 평가는 비식별 합성 대표 문서에만 사용하며 `.env.local`의 `UPSTAGE_API_KEY`를 현재 프로세스에 설정한 환경에서 `npm run test:ai:ocr`로 실행합니다. 일반 `npm run check`와 E2E는 외부 API를 호출하지 않습니다.
 
 ## 대회 소개
 

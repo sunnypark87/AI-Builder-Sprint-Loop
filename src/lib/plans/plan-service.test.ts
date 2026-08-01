@@ -43,6 +43,7 @@ function repository(overrides: Partial<PlanRepository> = {}): PlanRepository {
     saveAnalysis: vi.fn().mockResolvedValue(undefined),
     saveFailure: vi.fn().mockResolvedValue(undefined),
     claimRetry: vi.fn().mockResolvedValue(null),
+    getAnalysis: vi.fn().mockResolvedValue(null),
     downloadSource: vi.fn(),
     getReview: vi.fn().mockResolvedValue(null),
     register: vi.fn().mockResolvedValue(undefined),
@@ -294,6 +295,36 @@ describe('retryPlanAnalysis', () => {
       code: 'retry_unavailable',
       httpStatus: 409,
     });
+    expect(store.downloadSource).not.toHaveBeenCalled();
+  });
+
+  it('returns an already completed retry without another OCR call', async () => {
+    const completed: ExistingAnalysis = {
+      id: ids.plan,
+      status: 'review_required',
+      draft: {
+        title: '교육 지원',
+        periodStart: '2026-08-01',
+        periodEnd: '2026-08-31',
+        totalAmount: 100_000,
+        items: [],
+      },
+      issues: [],
+      sourcePath: source.sourcePath,
+    };
+    const recognize = vi.fn();
+    const store = repository({
+      getAnalysis: vi.fn().mockResolvedValue(completed),
+    });
+
+    await expect(
+      retryPlanAnalysis(ids.plan, { repository: store, recognize }),
+    ).resolves.toMatchObject({
+      planId: ids.plan,
+      status: 'review_required',
+      duplicate: true,
+    });
+    expect(recognize).not.toHaveBeenCalled();
     expect(store.downloadSource).not.toHaveBeenCalled();
   });
 

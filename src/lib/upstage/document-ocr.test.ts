@@ -91,7 +91,9 @@ describe('recognizePlanDocument', () => {
     [400, 'invalid_request', false],
     [401, 'authentication_failed', false],
     [403, 'authentication_failed', false],
+    [404, 'upstream_rejected', false],
     [413, 'payload_too_large', false],
+    [422, 'upstream_rejected', false],
     [500, 'upstream_failure', true],
   ])(
     'maps upstream status %i to %s without exposing response details',

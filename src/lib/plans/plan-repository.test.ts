@@ -69,6 +69,18 @@ describe('getPlanRecoveryState', () => {
     ).toEqual({ canRetry: false, needsReupload: false });
   });
 
+  it('does not offer retry for an upstream request rejection', () => {
+    expect(
+      getPlanRecoveryState(
+        'analysis_failed',
+        'organization/plan/source.pdf',
+        null,
+        'upstream_rejected',
+        now,
+      ),
+    ).toEqual({ canRetry: false, needsReupload: false });
+  });
+
   it('requires a new upload for a rejected upstream document', () => {
     expect(
       getPlanRecoveryState(

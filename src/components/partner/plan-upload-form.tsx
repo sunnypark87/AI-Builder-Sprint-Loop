@@ -98,7 +98,11 @@ export function PlanUploadForm({
 
             setRetryPlanId(null);
             idempotencyKey.current = null;
-            router.push(`/partner/plans/${retryPlanId}/review`);
+            if (result.status === 'registered') {
+              router.push('/partner/plans?status=registered');
+            } else {
+              router.push(`/partner/plans/${retryPlanId}/review`);
+            }
             return;
           }
 

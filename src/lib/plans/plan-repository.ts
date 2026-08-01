@@ -135,6 +135,7 @@ export interface PlanRepository {
     sourcePath?: string,
   ): Promise<void>;
   claimRetry(planId: string): Promise<RetrySource | null>;
+  getAnalysis(planId: string): Promise<ExistingAnalysis | null>;
   downloadSource(source: RetrySource): Promise<File>;
   getReview(planId: string): Promise<PlanReview | null>;
   register(planId: string, draft: PlanDraft): Promise<void>;
@@ -387,6 +388,29 @@ export function createPlanRepository(
         sourcePath: source.source_path,
         fileName: source.source_file_name,
         mimeType: source.source_mime_type,
+      };
+    },
+
+    async getAnalysis(planId) {
+      const { data, error } = await supabase
+        .from('expenditure_plans')
+        .select('id,status,draft_data,validation_issues,source_path')
+        .eq('id', planId)
+        .maybeSingle();
+
+      if (error) {
+        throw databaseError(error.message);
+      }
+      if (!data) {
+        return null;
+      }
+
+      return {
+        id: data.id as string,
+        status: data.status as PlanStatus,
+        draft: parsePlanDraft(data.draft_data),
+        issues: asIssues(data.validation_issues),
+        sourcePath: data.source_path as string | null,
       };
     },
 

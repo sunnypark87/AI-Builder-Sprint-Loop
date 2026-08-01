@@ -16,6 +16,7 @@ export type DocumentOcrErrorCode =
   | 'authentication_failed'
   | 'payload_too_large'
   | 'rate_limited'
+  | 'upstream_rejected'
   | 'upstream_failure'
   | 'timeout'
   | 'network_failure'
@@ -126,6 +127,15 @@ function mapStatusError(status: number) {
       'rate_limited',
       '문서 분석 요청이 많습니다. 잠시 후 다시 시도해 주세요.',
       true,
+      status,
+    );
+  }
+
+  if (status >= 400 && status < 500) {
+    return new DocumentOcrError(
+      'upstream_rejected',
+      '문서 분석 서비스가 요청을 처리할 수 없습니다.',
+      false,
       status,
     );
   }

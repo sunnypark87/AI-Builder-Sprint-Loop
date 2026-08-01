@@ -303,6 +303,7 @@ describe('PlanUploadForm', () => {
           { status: 502 },
         ),
       )
+      .mockRejectedValueOnce(new TypeError('response lost'))
       .mockResolvedValueOnce(
         Response.json({ planId, status: 'review_required' }),
       );
@@ -341,12 +342,19 @@ describe('PlanUploadForm', () => {
     fireEvent.submit(
       screen.getByRole('button', { name: '계획서 재분석' }).closest('form')!,
     );
+    await screen.findByText(
+      '서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+    );
+    fireEvent.submit(
+      screen.getByRole('button', { name: '계획서 재분석' }).closest('form')!,
+    );
 
     await waitFor(() => {
       expect(push).toHaveBeenCalledWith(`/partner/plans/${planId}/review`);
     });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(fetchMock.mock.calls[2][0]).toBe(`/api/partner/plans/${planId}`);
+    expect(fetchMock.mock.calls[3][0]).toBe(`/api/partner/plans/${planId}`);
     expect(uploadToSignedUrl).toHaveBeenCalledOnce();
   });
 

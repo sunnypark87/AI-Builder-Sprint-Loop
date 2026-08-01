@@ -85,6 +85,26 @@ export async function retryPlanAnalysis(
   }
 
   if (!source) {
+    let existing;
+    try {
+      existing = await dependencies.repository.getAnalysis(planId);
+    } catch {
+      throw new PlanServiceError(
+        'persistence_failed',
+        '집행 계획 재분석 결과를 확인할 수 없습니다.',
+        500,
+        true,
+      );
+    }
+
+    if (
+      existing &&
+      (existing.status === 'review_required' ||
+        existing.status === 'registered')
+    ) {
+      return existingResult(existing);
+    }
+
     throw new PlanServiceError(
       'retry_unavailable',
       '재시도할 수 있는 실패 상태의 집행 계획이 없습니다.',

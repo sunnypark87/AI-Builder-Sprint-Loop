@@ -180,6 +180,112 @@ describe('PlanUploadForm', () => {
     expect(randomUUID).toHaveBeenCalledOnce();
   });
 
+  it('cleans up the pending upload when the analysis response is invalid', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json(preparedUpload))
+      .mockResolvedValueOnce(
+        new Response('<html>Bad gateway</html>', {
+          status: 502,
+          headers: { 'Content-Type': 'text/html' },
+        }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('crypto', {
+      randomUUID: () => '55555555-5555-4555-8555-555555555555',
+    });
+    const user = userEvent.setup();
+
+    render(
+      <PlanUploadForm
+        donations={[
+          {
+            id: '33333333-3333-4333-8333-333333333333',
+            organizationId: '22222222-2222-4222-8222-222222222222',
+            label: '2026년 교육 지원 기부',
+          },
+        ]}
+      />,
+    );
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: '대상 기부 내역' }),
+      '33333333-3333-4333-8333-333333333333',
+    );
+    await user.upload(
+      screen.getByLabelText(/집행 계획서/),
+      new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'plan.png', {
+        type: 'image/png',
+      }),
+    );
+
+    fireEvent.submit(
+      screen.getByRole('button', { name: '계획서 분석' }).closest('form')!,
+    );
+
+    await screen.findByText(
+      '서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[2][1]?.method).toBe('DELETE');
+    expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body))).toEqual({
+      sourcePath: preparedUpload.sourcePath,
+    });
+  });
+
+  it('cleans up the pending upload when analysis fails before ownership', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json(preparedUpload))
+      .mockResolvedValueOnce(
+        Response.json(
+          {
+            error: {
+              message: '집행 계획 저장소가 구성되지 않았습니다.',
+              retryable: false,
+            },
+          },
+          { status: 503 },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('crypto', {
+      randomUUID: () => '55555555-5555-4555-8555-555555555555',
+    });
+    const user = userEvent.setup();
+
+    render(
+      <PlanUploadForm
+        donations={[
+          {
+            id: '33333333-3333-4333-8333-333333333333',
+            organizationId: '22222222-2222-4222-8222-222222222222',
+            label: '2026년 교육 지원 기부',
+          },
+        ]}
+      />,
+    );
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: '대상 기부 내역' }),
+      '33333333-3333-4333-8333-333333333333',
+    );
+    await user.upload(
+      screen.getByLabelText(/집행 계획서/),
+      new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'plan.png', {
+        type: 'image/png',
+      }),
+    );
+
+    fireEvent.submit(
+      screen.getByRole('button', { name: '계획서 분석' }).closest('form')!,
+    );
+
+    await screen.findByText('집행 계획 저장소가 구성되지 않았습니다.');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[2][1]?.method).toBe('DELETE');
+  });
+
   it('retries a retryable OCR failure on the existing plan', async () => {
     const planId = '44444444-4444-4444-8444-444444444444';
     const fetchMock = vi

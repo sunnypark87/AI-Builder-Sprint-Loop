@@ -152,11 +152,13 @@ export function PlanUploadForm({
               mimeType: file.type,
             }),
           });
-          pendingSourcePath = null;
           const result = (await response.json()) as ApiError & {
             planId?: string;
             status?: string;
           };
+          if (result.planId) {
+            pendingSourcePath = null;
+          }
 
           if (response.ok && result.planId && result.status === 'analyzing') {
             setStatusMessage(
@@ -166,6 +168,10 @@ export function PlanUploadForm({
           }
 
           if (!response.ok || !result.planId) {
+            if (pendingSourcePath) {
+              await cleanupPendingUpload(pendingSourcePath);
+              pendingSourcePath = null;
+            }
             if (result.error?.retryable && result.planId) {
               setRetryPlanId(result.planId);
             } else {

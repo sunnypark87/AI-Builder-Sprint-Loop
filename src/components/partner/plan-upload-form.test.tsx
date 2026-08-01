@@ -120,6 +120,7 @@ describe('PlanUploadForm', () => {
       .fn()
       .mockResolvedValueOnce(Response.json(preparedUpload))
       .mockRejectedValueOnce(new TypeError('network error'))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(Response.json(preparedUpload))
       .mockResolvedValueOnce(
         Response.json(
@@ -169,11 +170,78 @@ describe('PlanUploadForm', () => {
     );
     fireEvent.submit(form);
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
     const firstBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
-    const secondBody = JSON.parse(String(fetchMock.mock.calls[3][1]?.body));
+    const cleanupBody = JSON.parse(String(fetchMock.mock.calls[2][1]?.body));
+    const secondBody = JSON.parse(String(fetchMock.mock.calls[4][1]?.body));
     expect(firstBody.idempotencyKey).toBe(secondBody.idempotencyKey);
+    expect(fetchMock.mock.calls[2][1]?.method).toBe('DELETE');
+    expect(cleanupBody.sourcePath).toBe(preparedUpload.sourcePath);
     expect(randomUUID).toHaveBeenCalledOnce();
+  });
+
+  it('retries a retryable OCR failure on the existing plan', async () => {
+    const planId = '44444444-4444-4444-8444-444444444444';
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json(preparedUpload))
+      .mockResolvedValueOnce(
+        Response.json(
+          {
+            planId,
+            error: {
+              message: '문서 분석 시간이 초과되었습니다.',
+              retryable: true,
+            },
+          },
+          { status: 502 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ planId, status: 'review_required' }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('crypto', {
+      randomUUID: () => '55555555-5555-4555-8555-555555555555',
+    });
+    const user = userEvent.setup();
+
+    render(
+      <PlanUploadForm
+        donations={[
+          {
+            id: '33333333-3333-4333-8333-333333333333',
+            organizationId: '22222222-2222-4222-8222-222222222222',
+            label: '2026년 교육 지원 기부',
+          },
+        ]}
+      />,
+    );
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: '대상 기부 내역' }),
+      '33333333-3333-4333-8333-333333333333',
+    );
+    await user.upload(
+      screen.getByLabelText(/집행 계획서/),
+      new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'plan.png', {
+        type: 'image/png',
+      }),
+    );
+
+    fireEvent.submit(
+      screen.getByRole('button', { name: '계획서 분석' }).closest('form')!,
+    );
+    await screen.findByRole('button', { name: '계획서 재분석' });
+    fireEvent.submit(
+      screen.getByRole('button', { name: '계획서 재분석' }).closest('form')!,
+    );
+
+    await waitFor(() => {
+      expect(push).toHaveBeenCalledWith(`/partner/plans/${planId}/review`);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[2][0]).toBe(`/api/partner/plans/${planId}`);
+    expect(uploadToSignedUrl).toHaveBeenCalledOnce();
   });
 
   it('keeps the idempotency key while an earlier analysis lease is active', async () => {

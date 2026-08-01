@@ -127,3 +127,58 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    let payload: unknown;
+    try {
+      payload = await request.json();
+    } catch {
+      return errorResponse(
+        400,
+        'invalid_request',
+        '업로드 경로를 확인해 주세요.',
+      );
+    }
+
+    const supabase = await createClient();
+    const userId = await requireUserId(supabase);
+    const sourcePath = stringField(payload, 'sourcePath');
+    const segments = sourcePath.split('/');
+    if (
+      segments.length !== 5 ||
+      !UUID.test(segments[0]) ||
+      segments[1] !== 'pending' ||
+      segments[2] !== userId ||
+      !UUID.test(segments[3]) ||
+      (segments[4] !== 'source.pdf' &&
+        segments[4] !== 'source.png' &&
+        segments[4] !== 'source.jpg')
+    ) {
+      return errorResponse(
+        400,
+        'invalid_request',
+        '업로드 경로를 확인해 주세요.',
+      );
+    }
+
+    const repository = createPlanRepository(supabase, {
+      actorUserId: userId,
+      client: createServiceClient(),
+    });
+    await repository.removeSource(sourcePath);
+    return new NextResponse(null, { status: 204 });
+  } catch (error) {
+    if (error instanceof AuthenticationError) {
+      return errorResponse(401, 'unauthenticated', error.message);
+    }
+    if (error instanceof SupabaseConfigurationError) {
+      return errorResponse(
+        503,
+        'service_unavailable',
+        '집행 계획 저장소가 구성되지 않았습니다.',
+      );
+    }
+    return errorResponse(500, 'internal_error', '업로드를 정리할 수 없습니다.');
+  }
+}

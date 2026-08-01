@@ -16,10 +16,24 @@ export type EligibleDonation = {
 };
 
 type ApiError = {
+  planId?: string;
   error?: {
     message?: string;
+    retryable?: boolean;
   };
 };
+
+async function cleanupPendingUpload(sourcePath: string) {
+  try {
+    await fetch('/api/partner/plans/upload-url', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourcePath }),
+    });
+  } catch {
+    // Server-side storage lifecycle cleanup remains the fallback.
+  }
+}
 
 export function PlanUploadForm({
   donations,
@@ -29,6 +43,7 @@ export function PlanUploadForm({
   const router = useRouter();
   const submitting = useRef(false);
   const idempotencyKey = useRef<string | null>(null);
+  const [retryPlanId, setRetryPlanId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
@@ -60,8 +75,33 @@ export function PlanUploadForm({
         setError('');
         setStatusMessage('');
         idempotencyKey.current ??= `plan:${crypto.randomUUID()}`;
+        let pendingSourcePath: string | null = null;
 
         try {
+          if (retryPlanId) {
+            const response = await fetch(`/api/partner/plans/${retryPlanId}`, {
+              method: 'POST',
+            });
+            const result = (await response.json()) as ApiError & {
+              status?: string;
+            };
+            if (!response.ok) {
+              if (!result.error?.retryable) {
+                setRetryPlanId(null);
+                idempotencyKey.current = null;
+              }
+              setError(
+                result.error?.message ?? '집행 계획서를 재분석할 수 없습니다.',
+              );
+              return;
+            }
+
+            setRetryPlanId(null);
+            idempotencyKey.current = null;
+            router.push(`/partner/plans/${retryPlanId}/review`);
+            return;
+          }
+
           const uploadResponse = await fetch('/api/partner/plans/upload-url', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -84,6 +124,7 @@ export function PlanUploadForm({
             );
             return;
           }
+          pendingSourcePath = upload.sourcePath;
 
           const { error: uploadError } = await createClient()
             .storage.from(PLAN_DOCUMENT_BUCKET)
@@ -92,6 +133,9 @@ export function PlanUploadForm({
               upsert: false,
             });
           if (uploadError) {
+            await cleanupPendingUpload(upload.sourcePath);
+            pendingSourcePath = null;
+            idempotencyKey.current = null;
             setError('집행 계획서 원본을 업로드할 수 없습니다.');
             return;
           }
@@ -108,6 +152,7 @@ export function PlanUploadForm({
               mimeType: file.type,
             }),
           });
+          pendingSourcePath = null;
           const result = (await response.json()) as ApiError & {
             planId?: string;
             status?: string;
@@ -120,14 +165,20 @@ export function PlanUploadForm({
             return;
           }
 
-          idempotencyKey.current = null;
-
           if (!response.ok || !result.planId) {
+            if (result.error?.retryable && result.planId) {
+              setRetryPlanId(result.planId);
+            } else {
+              setRetryPlanId(null);
+              idempotencyKey.current = null;
+            }
             setError(
               result.error?.message ?? '집행 계획서를 분석할 수 없습니다.',
             );
             return;
           }
+
+          idempotencyKey.current = null;
 
           if (result.status === 'review_required') {
             router.push(`/partner/plans/${result.planId}/review`);
@@ -136,6 +187,9 @@ export function PlanUploadForm({
 
           router.push('/partner/plans?status=analyzing');
         } catch {
+          if (pendingSourcePath) {
+            await cleanupPendingUpload(pendingSourcePath);
+          }
           setError('서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.');
         } finally {
           submitting.current = false;
@@ -157,6 +211,7 @@ export function PlanUploadForm({
           name="donationId"
           onChange={() => {
             idempotencyKey.current = null;
+            setRetryPlanId(null);
             setStatusMessage('');
           }}
           required
@@ -179,6 +234,7 @@ export function PlanUploadForm({
           name="document"
           onChange={() => {
             idempotencyKey.current = null;
+            setRetryPlanId(null);
             setStatusMessage('');
           }}
           required
@@ -215,7 +271,13 @@ export function PlanUploadForm({
           ) : (
             <UploadIcon aria-hidden="true" className="size-4" />
           )}
-          {pending ? '계획서 분석 중' : '계획서 분석'}
+          {pending
+            ? retryPlanId
+              ? '계획서 재분석 중'
+              : '계획서 분석 중'
+            : retryPlanId
+              ? '계획서 재분석'
+              : '계획서 분석'}
         </button>
       </div>
     </form>

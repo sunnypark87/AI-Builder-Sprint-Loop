@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { POST } from '@/app/api/partner/plans/upload-url/route';
+import { DELETE, POST } from '@/app/api/partner/plans/upload-url/route';
 
 describe('POST /api/partner/plans/upload-url', () => {
   it('rejects files above the documented 10MB limit before external access', async () => {
@@ -28,6 +28,22 @@ describe('POST /api/partner/plans/upload-url', () => {
     const response = await POST(
       new Request('http://localhost/api/partner/plans/upload-url', {
         method: 'POST',
+        body: 'not-json',
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'invalid_request', retryable: false },
+    });
+  });
+});
+
+describe('DELETE /api/partner/plans/upload-url', () => {
+  it('rejects malformed JSON before external access', async () => {
+    const response = await DELETE(
+      new Request('http://localhost/api/partner/plans/upload-url', {
+        method: 'DELETE',
         body: 'not-json',
       }),
     );

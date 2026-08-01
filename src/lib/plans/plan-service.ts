@@ -49,6 +49,7 @@ export class PlanServiceError extends Error {
     message: string,
     public readonly httpStatus: number,
     public readonly retryable = false,
+    public readonly planId?: string,
   ) {
     super(message);
     this.name = 'PlanServiceError';
@@ -129,6 +130,7 @@ export async function retryPlanAnalysis(
         error.message,
         error.status && error.status < 500 ? error.status : 502,
         error.retryable,
+        source.planId,
       );
     }
 
@@ -137,6 +139,7 @@ export async function retryPlanAnalysis(
       '집행 계획 재분석 결과를 저장할 수 없습니다.',
       500,
       true,
+      source.planId,
     );
   }
 }
@@ -355,6 +358,7 @@ export async function analyzePlan(
         error.message,
         error.status && error.status < 500 ? error.status : 502,
         error.retryable,
+        planId,
       );
     }
 
@@ -362,7 +366,8 @@ export async function analyzePlan(
       'persistence_failed',
       '집행 계획 분석 결과를 저장할 수 없습니다.',
       500,
-      true,
+      Boolean(sourcePath),
+      sourcePath ? planId : undefined,
     );
   }
 }

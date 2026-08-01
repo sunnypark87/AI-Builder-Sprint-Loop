@@ -212,6 +212,7 @@ describe('analyzePlan', () => {
     ).rejects.toMatchObject({
       code: 'analysis_failed',
       retryable: true,
+      planId: ids.plan,
     });
     expect(store.saveFailure).toHaveBeenCalledWith(
       ids.plan,
@@ -232,7 +233,8 @@ describe('analyzePlan', () => {
       analyzePlan(input, { repository: store }),
     ).rejects.toMatchObject({
       code: 'persistence_failed',
-      retryable: true,
+      retryable: false,
+      planId: undefined,
     });
     expect(store.saveFailure).toHaveBeenCalledWith(
       ids.plan,
@@ -315,7 +317,11 @@ describe('retryPlanAnalysis', () => {
             ),
           ),
       }),
-    ).rejects.toMatchObject({ code: 'analysis_failed', retryable: true });
+    ).rejects.toMatchObject({
+      code: 'analysis_failed',
+      retryable: true,
+      planId: ids.plan,
+    });
     expect(store.saveFailure).toHaveBeenCalledWith(
       ids.plan,
       'rate_limited',

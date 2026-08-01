@@ -21,6 +21,7 @@ function safeError(error: unknown) {
   if (error instanceof PlanServiceError) {
     return NextResponse.json(
       {
+        planId: error.planId,
         error: {
           code: error.code,
           message: error.message,

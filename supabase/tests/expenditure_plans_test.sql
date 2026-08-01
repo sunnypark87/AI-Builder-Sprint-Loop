@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(39);
+select plan(42);
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values
@@ -315,6 +315,46 @@ select is(
 select ok(
   (select edited_by_reviewer from public.expenditure_plan_items where plan_id = 'aaaaaaaa-1000-4000-8000-000000000004' and name = '배송비'),
   'new review items are recorded as reviewer edits'
+);
+
+reset role;
+insert into public.expenditure_plans (
+  id, organization_id, donation_id, created_by, status,
+  source_file_name, source_mime_type, source_size_bytes,
+  source_page_count, source_fingerprint, idempotency_key, draft_data
+)
+values (
+  'aaaaaaaa-1000-4000-8000-000000000007',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'aaaaaaaa-0000-4000-8000-000000000001',
+  '11111111-1111-4111-8111-111111111111',
+  'review_required', 'duplicate-item.pdf', 'application/pdf', 1024, 1,
+  repeat('7', 64), 'duplicate-item-integration-key',
+  '{"title":"중복 방지","periodStart":"2026-08-01","periodEnd":"2026-08-31","totalAmount":100,"items":[{"id":"item-1","name":"교재비","description":"","amount":100,"confidence":0.98,"sourceText":"교재비 100원","sourceName":"교재비","sourceAmount":100}]}'::jsonb
+);
+
+set local role service_role;
+select throws_ok(
+  $$
+    select public.register_expenditure_plan(
+      '11111111-1111-4111-8111-111111111111',
+      'aaaaaaaa-1000-4000-8000-000000000007',
+      '{"title":"중복 방지","periodStart":"2026-08-01","periodEnd":"2026-08-31","totalAmount":200,"items":[{"id":"item-1","name":"교재비","description":"","amount":100,"confidence":0.98,"sourceText":"교재비 100원","sourceName":"교재비","sourceAmount":100},{"id":"item-1","name":"교재비","description":"","amount":100,"confidence":0.98,"sourceText":"교재비 100원","sourceName":"교재비","sourceAmount":100}]}'::jsonb
+    )
+  $$,
+  'P0001',
+  'Plan item identifiers are invalid',
+  'registration rejects duplicate OCR item identifiers'
+);
+select is(
+  (select status from public.expenditure_plans where id = 'aaaaaaaa-1000-4000-8000-000000000007'),
+  'review_required',
+  'duplicate item rejection leaves the plan unregistered'
+);
+select is(
+  (select count(*) from public.expenditure_plan_items where plan_id = 'aaaaaaaa-1000-4000-8000-000000000007'),
+  0::bigint,
+  'duplicate item rejection stores no plan items'
 );
 
 reset role;

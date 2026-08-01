@@ -48,6 +48,7 @@ export function parsePlanDraft(value: unknown): PlanDraft | null {
     if (
       !isRecord(item) ||
       typeof item.id !== 'string' ||
+      !item.id.trim() ||
       typeof item.name !== 'string' ||
       typeof item.description !== 'string' ||
       nullableNumber(item.amount) === undefined ||
@@ -148,6 +149,18 @@ export function validatePlanDraft(draft: PlanDraft): PlanValidationIssue[] {
       path: 'items',
     });
   }
+
+  const itemIds = new Set<string>();
+  draft.items.forEach((item, index) => {
+    if (itemIds.has(item.id)) {
+      issues.push({
+        code: 'item_id_duplicate',
+        message: '중복된 예산 항목을 제거해 주세요.',
+        path: `items.${index}.name`,
+      });
+    }
+    itemIds.add(item.id);
+  });
 
   draft.items.forEach((item, index) => {
     if (!item.name.trim()) {

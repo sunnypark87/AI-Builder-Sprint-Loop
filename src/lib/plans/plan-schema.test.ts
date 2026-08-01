@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { validatePlanDraft } from '@/lib/plans/plan-schema';
+import { parsePlanDraft, validatePlanDraft } from '@/lib/plans/plan-schema';
 import type { PlanDraft } from '@/lib/plans/types';
 
 const validDraft: PlanDraft = {
@@ -76,6 +76,19 @@ describe('validatePlanDraft', () => {
     ]);
   });
 
+  it('rejects duplicate item identifiers', () => {
+    const issues = validatePlanDraft({
+      ...validDraft,
+      items: [validDraft.items[0], { ...validDraft.items[1], id: '1' }],
+    });
+
+    expect(issues).toContainEqual({
+      code: 'item_id_duplicate',
+      message: '중복된 예산 항목을 제거해 주세요.',
+      path: 'items.1.name',
+    });
+  });
+
   it('rejects plan text and item counts beyond storage limits', () => {
     const issues = validatePlanDraft({
       ...validDraft,
@@ -98,5 +111,16 @@ describe('validatePlanDraft', () => {
         'item_description_too_long',
       ]),
     );
+  });
+});
+
+describe('parsePlanDraft', () => {
+  it('rejects a blank item identifier', () => {
+    expect(
+      parsePlanDraft({
+        ...validDraft,
+        items: [{ ...validDraft.items[0], id: ' ' }],
+      }),
+    ).toBeNull();
   });
 });

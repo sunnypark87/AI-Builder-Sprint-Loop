@@ -565,6 +565,16 @@ begin
     raise exception 'Plan item fields are invalid';
   end if;
 
+  if exists (
+    select 1
+    from jsonb_array_elements(p_draft->'items') as item(value)
+    group by item.value->>'id'
+    having coalesce(trim(item.value->>'id'), '') = ''
+      or count(*) > 1
+  ) then
+    raise exception 'Plan item identifiers are invalid';
+  end if;
+
   select coalesce(
     jsonb_agg(
       element.value || jsonb_build_object(

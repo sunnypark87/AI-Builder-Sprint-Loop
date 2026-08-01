@@ -28,6 +28,7 @@ export type PlanIssueCode =
   | 'title_too_long'
   | 'items_required'
   | 'items_too_many'
+  | 'item_id_duplicate'
   | 'item_name_required'
   | 'item_name_too_long'
   | 'item_description_too_long'

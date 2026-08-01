@@ -324,6 +324,9 @@ tests/
 - 동일 idempotency key 재사용 시 조직·기부·파일명·MIME·크기·페이지 수·SHA-256 fingerprint가 모두 일치해야만 기존 계획을 반환하거나 stale 분석을 재개하도록 강화함.
 - 저장된 OCR 오류 코드를 기준으로 429·5xx·timeout·network 오류만 재시도하고, 400·401·403·413 오류에는 무효한 재시도 버튼을 노출하지 않도록 수정함.
 - 관리 목록 행에 불변 ID를 전달하고 React key로 사용해 같은 제목의 계획을 필터링하거나 재정렬해도 행별 상태와 액션을 유지함.
+- 분석 요청 전송 후 응답이 유실되거나 비정상 응답이 오면 진행 중인 서버 작업과 충돌하지 않도록 pending 원본을 클라이언트에서 삭제하지 않게 수정함.
+- 재분석 응답 유실 후 활성 lease가 남은 계획은 `analyzing` 멱등 응답으로 유지하고, 중복 요청의 `analysis_failed` 상태는 실패 목록에서 복구하도록 수정함.
+- 등록 완료 계획은 읽기 전용으로 표시하고, 동일 초안 재제출만 멱등 성공으로 허용해 다른 수정값이 저장된 것처럼 응답하지 않도록 수정함.
 
 ### 완료 조건 추적표
 
@@ -337,13 +340,13 @@ tests/
 | 원본과 OCR 감사 정보 추적               | 계획 저장소, 비공개 버킷, OCR 이력 테이블        | pgTAP OCR 이력, 서명 URL을 사용하는 실제 검토 화면      | PASS |
 | 파일·외부 API 실패와 재시도             | 파일 검증, OCR 어댑터, 조건부 재시도 서비스·버튼 | 오류 모킹, 429→부분 데이터 없음→같은 원본 재시도 E2E    | PASS |
 | 비밀정보·원문 노출 방지                 | 서버 전용 어댑터, 정제 오류, React 텍스트 렌더링 | 오류·악성 문자열 테스트, 빌드된 클라이언트 번들 값 검색 | PASS |
-| 대표 문서 정확도와 전체 검증            | 결정적 파서, 평가 전용 Playwright                | 합성 대표 문서 6종 30/30, `npm run check` 116개 테스트  | PASS |
+| 대표 문서 정확도와 전체 검증            | 결정적 파서, 평가 전용 Playwright                | 합성 대표 문서 6종 30/30, `npm run check` 122개 테스트  | PASS |
 
 ### 소프트웨어 품질 검증
 
 ```text
 명령: npm run check
-결과: PASS. format:check, lint, typecheck, Vitest 29개 파일 116개 테스트, Next.js 16.2.12 프로덕션 빌드 통과
+결과: PASS. format:check, lint, typecheck, Vitest 29개 파일 122개 테스트, Next.js 16.2.12 프로덕션 빌드 통과
 
 명령: npm run test:e2e -- expenditure-plan-registration.spec.ts
 결과: PASS. 등록 진입·안전한 빈 상태, 문서 없는 API 요청 거부, 360px 오버플로 3개 테스트 통과
@@ -400,6 +403,9 @@ tests/
 - lease 만료 후 새 worker가 분석을 인계해도 이전 worker가 성공 또는 실패 상태를 기록할 수 있는 경쟁 조건을 세대별 lease token 검증으로 차단함.
 - 조직 ID만 검사하는 Storage SELECT 정책 때문에 같은 조직의 다른 사용자가 검증 전 pending 원본을 읽을 수 있는 문제를 업로더 UUID 검증으로 차단함.
 - 같은 제목을 React key로 사용해 목록 재정렬 시 다른 계획의 재시도 버튼 상태가 재사용될 수 있는 문제를 불변 계획 ID key로 차단함.
+- 분석 POST 응답 유실 시 클라이언트 DELETE가 서버의 원본 승격과 경쟁해 계획을 `source_upload_failed`로 만들 수 있는 문제를 불확실 응답의 지연 정리로 차단함.
+- 재분석 응답 유실 직후 활성 lease를 비재시도 오류로 처리해 기존 계획 연결을 잃고 새 계획을 만들 수 있는 문제를 진행 상태 멱등 응답으로 차단함.
+- 등록 완료 계획에 다른 초안을 제출해도 성공으로 응답하면서 변경값을 버리는 문제를 읽기 전용 UI와 초안 일치 검사로 차단함.
 
 ### 차단 항목과 미검증 범위
 
@@ -410,7 +416,7 @@ tests/
 
 ### 실행한 명령과 결과
 
-- `npm run check`: PASS, 29개 파일 116개 테스트와 프로덕션 빌드 통과.
+- `npm run check`: PASS, 29개 파일 122개 테스트와 프로덕션 빌드 통과.
 - `npm run test:e2e -- expenditure-plan-registration.spec.ts`: PASS, 3개 통과.
 - `npx supabase db reset --local`: PASS, 빈 DB 마이그레이션 적용.
 - `npx supabase test db`: PASS, pgTAP 54개 통과.

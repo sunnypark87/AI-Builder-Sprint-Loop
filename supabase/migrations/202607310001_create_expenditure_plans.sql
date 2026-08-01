@@ -58,10 +58,28 @@ security definer
 set search_path = ''
 as $$
 declare
-  organization_id uuid;
+  path_segments text[];
+  target_organization_id uuid;
 begin
-  organization_id := (storage.foldername(object_name))[1]::uuid;
-  return private.is_organization_member(organization_id);
+  path_segments := storage.foldername(object_name);
+  target_organization_id := path_segments[1]::uuid;
+
+  if not private.is_organization_member(target_organization_id) then
+    return false;
+  end if;
+
+  if path_segments[2] = 'pending' then
+    return array_length(path_segments, 1) = 4
+      and path_segments[3]::uuid = auth.uid();
+  end if;
+
+  return array_length(path_segments, 1) = 2
+    and exists (
+      select 1
+      from public.expenditure_plans plan
+      where plan.id = path_segments[2]::uuid
+        and plan.organization_id = target_organization_id
+    );
 exception
   when invalid_text_representation then
     return false;

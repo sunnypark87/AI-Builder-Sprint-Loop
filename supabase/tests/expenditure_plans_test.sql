@@ -2,11 +2,12 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(51);
+select plan(54);
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values
   ('11111111-1111-4111-8111-111111111111', 'authenticated', 'authenticated', 'member-a@example.test', now(), now()),
+  ('33333333-3333-4333-8333-333333333333', 'authenticated', 'authenticated', 'member-a-peer@example.test', now(), now()),
   ('22222222-2222-4222-8222-222222222222', 'authenticated', 'authenticated', 'member-b@example.test', now(), now());
 
 insert into public.organizations (id, name)
@@ -17,6 +18,7 @@ values
 insert into public.organization_members (organization_id, user_id, role)
 values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '11111111-1111-4111-8111-111111111111', 'manager'),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '33333333-3333-4333-8333-333333333333', 'manager'),
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '22222222-2222-4222-8222-222222222222', 'manager');
 
 insert into public.donations (id, organization_id, amount, status)
@@ -54,6 +56,8 @@ values
 insert into storage.objects (bucket_id, name)
 values
   ('plan-documents', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/aaaaaaaa-1000-4000-8000-000000000001/source.pdf'),
+  ('plan-documents', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/pending/11111111-1111-4111-8111-111111111111/aaaaaaaa-3000-4000-8000-000000000001/source.pdf'),
+  ('plan-documents', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/pending/33333333-3333-4333-8333-333333333333/aaaaaaaa-3000-4000-8000-000000000002/source.pdf'),
   ('plan-documents', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/bbbbbbbb-1000-4000-8000-000000000001/source.pdf');
 
 set local role authenticated;
@@ -75,8 +79,35 @@ select is(
 );
 select is(
   (select count(*) from storage.objects where bucket_id = 'plan-documents'),
+  2::bigint,
+  'organization A member reads finalized sources and only their pending uploads'
+);
+select is(
+  (
+    select count(*)
+    from storage.objects
+    where name like 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/pending/11111111-1111-4111-8111-111111111111/%'
+  ),
   1::bigint,
-  'organization A member reads only organization A source objects'
+  'an uploader can read their own pending source'
+);
+select is(
+  (
+    select count(*)
+    from storage.objects
+    where name like 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/pending/33333333-3333-4333-8333-333333333333/%'
+  ),
+  0::bigint,
+  'an organization peer cannot read another uploader pending source'
+);
+select is(
+  (
+    select count(*)
+    from storage.objects
+    where name = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/aaaaaaaa-1000-4000-8000-000000000001/source.pdf'
+  ),
+  1::bigint,
+  'organization members retain access to finalized plan sources'
 );
 select ok(
   not has_table_privilege('authenticated', 'public.expenditure_plans', 'UPDATE'),

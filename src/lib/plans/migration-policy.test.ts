@@ -27,6 +27,8 @@ describe('expenditure plan migration security', () => {
     expect(migration).toContain("'plan-documents'");
     expect(migration).toMatch(/'plan-documents',\s*'plan-documents',\s*false,/);
     expect(migration).toContain('private.can_access_plan_document(name)');
+    expect(migration).toContain("path_segments[2] = 'pending'");
+    expect(migration).toContain('path_segments[3]::uuid = auth.uid()');
     expect(migration).not.toContain(
       'Organization members can delete plan documents',
     );

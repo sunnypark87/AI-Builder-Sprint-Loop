@@ -326,16 +326,28 @@ describe('retryPlanAnalysis', () => {
     );
   });
 
-  it('rejects a retry when another request already claimed the failed plan', async () => {
-    const store = repository();
+  it('returns an active retry without starting another OCR call', async () => {
+    const existing: ExistingAnalysis = {
+      id: ids.plan,
+      status: 'analyzing',
+      draft: null,
+      issues: [],
+      sourcePath: `${ids.organization}/${ids.plan}/source.png`,
+    };
+    const recognize = vi.fn();
+    const store = repository({
+      getAnalysis: vi.fn().mockResolvedValue(existing),
+    });
 
     await expect(
-      retryPlanAnalysis(ids.plan, { repository: store }),
-    ).rejects.toMatchObject({
-      code: 'retry_unavailable',
-      httpStatus: 409,
+      retryPlanAnalysis(ids.plan, { repository: store, recognize }),
+    ).resolves.toMatchObject({
+      planId: ids.plan,
+      status: 'analyzing',
+      duplicate: true,
     });
     expect(store.downloadSource).not.toHaveBeenCalled();
+    expect(recognize).not.toHaveBeenCalled();
   });
 
   it('returns an already completed retry without another OCR call', async () => {

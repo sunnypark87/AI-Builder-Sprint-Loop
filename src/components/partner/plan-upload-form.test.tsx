@@ -120,7 +120,6 @@ describe('PlanUploadForm', () => {
       .fn()
       .mockResolvedValueOnce(Response.json(preparedUpload))
       .mockRejectedValueOnce(new TypeError('network error'))
-      .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(Response.json(preparedUpload))
       .mockResolvedValueOnce(
         Response.json(
@@ -170,17 +169,17 @@ describe('PlanUploadForm', () => {
     );
     fireEvent.submit(form);
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
     const firstBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
-    const cleanupBody = JSON.parse(String(fetchMock.mock.calls[2][1]?.body));
-    const secondBody = JSON.parse(String(fetchMock.mock.calls[4][1]?.body));
+    const secondBody = JSON.parse(String(fetchMock.mock.calls[3][1]?.body));
     expect(firstBody.idempotencyKey).toBe(secondBody.idempotencyKey);
-    expect(fetchMock.mock.calls[2][1]?.method).toBe('DELETE');
-    expect(cleanupBody.sourcePath).toBe(preparedUpload.sourcePath);
+    expect(
+      fetchMock.mock.calls.some(([, options]) => options?.method === 'DELETE'),
+    ).toBe(false);
     expect(randomUUID).toHaveBeenCalledOnce();
   });
 
-  it('cleans up the pending upload when the analysis response is invalid', async () => {
+  it('preserves the pending upload when the analysis response is invalid', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(Response.json(preparedUpload))
@@ -189,8 +188,7 @@ describe('PlanUploadForm', () => {
           status: 502,
           headers: { 'Content-Type': 'text/html' },
         }),
-      )
-      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+      );
     vi.stubGlobal('fetch', fetchMock);
     vi.stubGlobal('crypto', {
       randomUUID: () => '55555555-5555-4555-8555-555555555555',
@@ -226,11 +224,10 @@ describe('PlanUploadForm', () => {
     await screen.findByText(
       '서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
     );
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(fetchMock.mock.calls[2][1]?.method).toBe('DELETE');
-    expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body))).toEqual({
-      sourcePath: preparedUpload.sourcePath,
-    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(
+      fetchMock.mock.calls.some(([, options]) => options?.method === 'DELETE'),
+    ).toBe(false);
   });
 
   it('cleans up the pending upload when analysis fails before ownership', async () => {
@@ -305,6 +302,9 @@ describe('PlanUploadForm', () => {
       )
       .mockRejectedValueOnce(new TypeError('response lost'))
       .mockResolvedValueOnce(
+        Response.json({ planId, status: 'analyzing', duplicate: true }),
+      )
+      .mockResolvedValueOnce(
         Response.json({ planId, status: 'review_required' }),
       );
     vi.stubGlobal('fetch', fetchMock);
@@ -348,14 +348,66 @@ describe('PlanUploadForm', () => {
     fireEvent.submit(
       screen.getByRole('button', { name: '계획서 재분석' }).closest('form')!,
     );
+    await screen.findByText(/이전 재분석이 아직 진행 중입니다/);
+    fireEvent.submit(
+      screen.getByRole('button', { name: '계획서 재분석' }).closest('form')!,
+    );
 
     await waitFor(() => {
       expect(push).toHaveBeenCalledWith(`/partner/plans/${planId}/review`);
     });
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
     expect(fetchMock.mock.calls[2][0]).toBe(`/api/partner/plans/${planId}`);
     expect(fetchMock.mock.calls[3][0]).toBe(`/api/partner/plans/${planId}`);
+    expect(fetchMock.mock.calls[4][0]).toBe(`/api/partner/plans/${planId}`);
     expect(uploadToSignedUrl).toHaveBeenCalledOnce();
+  });
+
+  it('opens the failed list when an idempotent submission already failed', async () => {
+    const planId = '44444444-4444-4444-8444-444444444444';
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json(preparedUpload))
+      .mockResolvedValueOnce(
+        Response.json({ planId, status: 'analysis_failed', duplicate: true }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('crypto', {
+      randomUUID: () => '55555555-5555-4555-8555-555555555555',
+    });
+    const user = userEvent.setup();
+
+    render(
+      <PlanUploadForm
+        donations={[
+          {
+            id: '33333333-3333-4333-8333-333333333333',
+            organizationId: '22222222-2222-4222-8222-222222222222',
+            label: '2026년 교육 지원 기부',
+          },
+        ]}
+      />,
+    );
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: '대상 기부 내역' }),
+      '33333333-3333-4333-8333-333333333333',
+    );
+    await user.upload(
+      screen.getByLabelText(/집행 계획서/),
+      new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'plan.png', {
+        type: 'image/png',
+      }),
+    );
+
+    fireEvent.submit(
+      screen.getByRole('button', { name: '계획서 분석' }).closest('form')!,
+    );
+
+    await waitFor(() => {
+      expect(push).toHaveBeenCalledWith(
+        '/partner/plans?status=analysis_failed',
+      );
+    });
   });
 
   it('keeps the idempotency key while an earlier analysis lease is active', async () => {

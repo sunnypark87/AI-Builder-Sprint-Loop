@@ -82,6 +82,7 @@ export default async function Page({
           initialDraft={plan.draft}
           initialIssues={plan.issues}
           planId={plan.id}
+          readOnly={plan.status === 'registered'}
         />
       </ReviewWorkspace>
     </div>

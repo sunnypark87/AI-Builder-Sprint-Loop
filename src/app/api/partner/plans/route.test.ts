@@ -43,6 +43,28 @@ describe('POST /api/partner/plans', () => {
     });
   });
 
+  it('rejects missing source metadata before Supabase access', async () => {
+    for (const name of supabaseEnvironmentNames) {
+      delete process.env[name];
+    }
+    const response = await POST(
+      new Request('http://localhost/api/partner/plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          organizationId: '22222222-2222-4222-8222-222222222222',
+          donationId: '33333333-3333-4333-8333-333333333333',
+          idempotencyKey: 'plan-submit-1234567890',
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'invalid_file', retryable: false },
+    });
+  });
+
   it('returns a safe unavailable response when Supabase is not configured', async () => {
     for (const name of supabaseEnvironmentNames) {
       delete process.env[name];

@@ -20,6 +20,13 @@ function responseError(status: number, code: string, message: string) {
   );
 }
 
+function samePlanDraft(
+  left: NonNullable<ReturnType<typeof parsePlanDraft>>,
+  right: NonNullable<ReturnType<typeof parsePlanDraft>>,
+) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 function safeError(error: unknown) {
   if (error instanceof PlanServiceError) {
     return NextResponse.json(
@@ -170,7 +177,14 @@ export async function PATCH(
       return responseError(404, 'not_found', '집행 계획을 찾을 수 없습니다.');
     }
     if (plan.status === 'registered') {
-      return NextResponse.json({ planId, status: 'registered' });
+      if (samePlanDraft(plan.draft, draft)) {
+        return NextResponse.json({ planId, status: 'registered' });
+      }
+      return responseError(
+        409,
+        'already_registered',
+        '이미 등록된 집행 계획은 수정할 수 없습니다.',
+      );
     }
     if (plan.status !== 'review_required') {
       return responseError(

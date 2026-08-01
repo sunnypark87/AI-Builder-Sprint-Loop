@@ -76,6 +76,7 @@ export function PlanUploadForm({
         setStatusMessage('');
         idempotencyKey.current ??= `plan:${crypto.randomUUID()}`;
         let pendingSourcePath: string | null = null;
+        let analysisRequestStarted = false;
 
         try {
           if (retryPlanId) {
@@ -96,12 +97,21 @@ export function PlanUploadForm({
               return;
             }
 
+            if (result.status === 'analyzing') {
+              setStatusMessage(
+                '이전 재분석이 아직 진행 중입니다. 잠시 후 다시 시도해 주세요.',
+              );
+              return;
+            }
+
             setRetryPlanId(null);
             idempotencyKey.current = null;
             if (result.status === 'registered') {
               router.push('/partner/plans?status=registered');
-            } else {
+            } else if (result.status === 'review_required') {
               router.push(`/partner/plans/${retryPlanId}/review`);
+            } else {
+              router.push('/partner/plans?status=analysis_failed');
             }
             return;
           }
@@ -144,6 +154,7 @@ export function PlanUploadForm({
             return;
           }
 
+          analysisRequestStarted = true;
           const response = await fetch('/api/partner/plans', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -195,9 +206,14 @@ export function PlanUploadForm({
             return;
           }
 
+          if (result.status === 'analysis_failed') {
+            router.push('/partner/plans?status=analysis_failed');
+            return;
+          }
+
           router.push('/partner/plans?status=analyzing');
         } catch {
-          if (pendingSourcePath) {
+          if (pendingSourcePath && !analysisRequestStarted) {
             await cleanupPendingUpload(pendingSourcePath);
           }
           setError('서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.');

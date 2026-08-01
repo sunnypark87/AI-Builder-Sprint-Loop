@@ -100,7 +100,8 @@ export async function retryPlanAnalysis(
     if (
       existing &&
       (existing.status === 'review_required' ||
-        existing.status === 'registered')
+        existing.status === 'registered' ||
+        existing.status === 'analyzing')
     ) {
       return existingResult(existing);
     }

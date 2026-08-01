@@ -43,10 +43,16 @@ export function PlanRetryButton({
             });
             const result = (await response.json()) as {
               planId?: string;
+              status?: string;
               error?: { message?: string };
             };
             if (!response.ok || !result.planId) {
               setError(result.error?.message ?? '재분석할 수 없습니다.');
+              return;
+            }
+            if (result.status === 'analyzing') {
+              setError('재분석이 아직 진행 중입니다. 잠시 후 확인해 주세요.');
+              router.refresh();
               return;
             }
             router.push(`/partner/plans/${result.planId}/review`);

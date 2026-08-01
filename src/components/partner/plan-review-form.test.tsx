@@ -88,4 +88,23 @@ describe('PlanReviewForm', () => {
     expect(push).toHaveBeenCalledWith('/partner/plans?status=registered');
     expect(refresh).toHaveBeenCalledOnce();
   });
+
+  it('renders an already registered plan as read-only', () => {
+    render(
+      <PlanReviewForm
+        initialDraft={draft}
+        initialIssues={[]}
+        planId="44444444-4444-4444-8444-444444444444"
+        readOnly
+      />,
+    );
+
+    expect(screen.getByText('내부 등록이 완료됐습니다.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '검토 완료·등록' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '예산 항목 추가' })).toBeNull();
+    expect(
+      (screen.getByRole('textbox', { name: '계획명' }) as HTMLInputElement)
+        .disabled,
+    ).toBe(true);
+  });
 });

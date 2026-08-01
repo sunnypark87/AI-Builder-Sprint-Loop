@@ -75,4 +75,27 @@ describe('PlanRetryButton', () => {
         .disabled,
     ).toBe(false);
   });
+
+  it('stays on the list while another retry request is processing', async () => {
+    const planId = '44444444-4444-4444-8444-444444444444';
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          Response.json({ planId, status: 'analyzing', duplicate: true }),
+        ),
+    );
+
+    render(<PlanRetryButton planId={planId} />);
+    await userEvent.click(screen.getByRole('button', { name: '재시도' }));
+
+    expect(
+      await screen.findByText(
+        '재분석이 아직 진행 중입니다. 잠시 후 확인해 주세요.',
+      ),
+    ).toBeTruthy();
+    expect(push).not.toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalledOnce();
+  });
 });

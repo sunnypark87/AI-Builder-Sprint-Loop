@@ -83,6 +83,27 @@ export async function POST(request: Request) {
       );
     }
 
+    const organizationId = stringField(payload, 'organizationId');
+    const donationId = stringField(payload, 'donationId');
+    const idempotencyKey = stringField(payload, 'idempotencyKey');
+    const sourcePath = stringField(payload, 'sourcePath');
+    const fileName = stringField(payload, 'fileName');
+    const mimeType = stringField(payload, 'mimeType');
+    if (
+      !organizationId ||
+      !donationId ||
+      !idempotencyKey ||
+      !sourcePath ||
+      !fileName ||
+      !mimeType
+    ) {
+      throw new PlanServiceError(
+        'invalid_file',
+        '업로드된 집행 계획서 정보를 확인해 주세요.',
+        400,
+      );
+    }
+
     const supabase = await createClient();
     const userId = await requireUserId(supabase);
     const repository = createPlanRepository(supabase, {
@@ -92,12 +113,12 @@ export async function POST(request: Request) {
     const result = await analyzePlan(
       {
         userId,
-        organizationId: stringField(payload, 'organizationId'),
-        donationId: stringField(payload, 'donationId'),
-        idempotencyKey: stringField(payload, 'idempotencyKey'),
-        sourcePath: stringField(payload, 'sourcePath'),
-        fileName: stringField(payload, 'fileName'),
-        mimeType: stringField(payload, 'mimeType'),
+        organizationId,
+        donationId,
+        idempotencyKey,
+        sourcePath,
+        fileName,
+        mimeType,
       },
       {
         repository,

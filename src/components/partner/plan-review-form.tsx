@@ -31,10 +31,12 @@ export function PlanReviewForm({
   planId,
   initialDraft,
   initialIssues,
+  readOnly = false,
 }: {
   planId: string;
   initialDraft: PlanDraft;
   initialIssues: PlanValidationIssue[];
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState(initialDraft);
@@ -87,7 +89,11 @@ export function PlanReviewForm({
         }
       }}
     >
-      {issues.length > 0 ? (
+      {readOnly ? (
+        <InlineNotice title="내부 등록이 완료됐습니다.">
+          등록된 값과 원본 계획서를 확인할 수 있습니다.
+        </InlineNotice>
+      ) : issues.length > 0 ? (
         <InlineNotice title="확인이 필요한 항목이 있습니다." tone="warning">
           원본과 비교해 표시된 값을 수정해 주세요.
         </InlineNotice>
@@ -98,6 +104,7 @@ export function PlanReviewForm({
       )}
 
       <Input
+        disabled={readOnly}
         error={issueFor(issues, 'title')}
         label="계획명"
         maxLength={200}
@@ -112,6 +119,7 @@ export function PlanReviewForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Input
+          disabled={readOnly}
           error={issueFor(issues, 'periodStart')}
           label="집행 시작일"
           onChange={(event) =>
@@ -124,6 +132,7 @@ export function PlanReviewForm({
           value={draft.periodStart}
         />
         <Input
+          disabled={readOnly}
           error={issueFor(issues, 'periodEnd')}
           label="집행 종료일"
           onChange={(event) =>
@@ -140,36 +149,38 @@ export function PlanReviewForm({
       <fieldset className="grid gap-4 border-t border-line pt-5">
         <div className="flex items-center justify-between gap-3">
           <legend className="text-base font-bold">예산 항목</legend>
-          <button
-            aria-label="예산 항목 추가"
-            className={buttonClassName({
-              size: 'small',
-              variant: 'secondary',
-            })}
-            onClick={() =>
-              setDraft((current) => ({
-                ...current,
-                items: [
-                  ...current.items,
-                  {
-                    id: crypto.randomUUID(),
-                    name: '',
-                    description: '',
-                    amount: null,
-                    confidence: null,
-                    sourceText: '',
-                    sourceName: '',
-                    sourceAmount: null,
-                  },
-                ],
-              }))
-            }
-            title="예산 항목 추가"
-            type="button"
-          >
-            <PlusIcon aria-hidden="true" className="size-4" />
-            항목 추가
-          </button>
+          {!readOnly ? (
+            <button
+              aria-label="예산 항목 추가"
+              className={buttonClassName({
+                size: 'small',
+                variant: 'secondary',
+              })}
+              onClick={() =>
+                setDraft((current) => ({
+                  ...current,
+                  items: [
+                    ...current.items,
+                    {
+                      id: crypto.randomUUID(),
+                      name: '',
+                      description: '',
+                      amount: null,
+                      confidence: null,
+                      sourceText: '',
+                      sourceName: '',
+                      sourceAmount: null,
+                    },
+                  ],
+                }))
+              }
+              title="예산 항목 추가"
+              type="button"
+            >
+              <PlusIcon aria-hidden="true" className="size-4" />
+              항목 추가
+            </button>
+          ) : null}
         </div>
 
         {draft.items.length === 0 ? (
@@ -185,6 +196,7 @@ export function PlanReviewForm({
               key={item.id}
             >
               <Input
+                disabled={readOnly}
                 error={issueFor(issues, `items.${index}.name`)}
                 label={`항목 ${index + 1}`}
                 maxLength={200}
@@ -201,6 +213,7 @@ export function PlanReviewForm({
                 value={item.name}
               />
               <Input
+                disabled={readOnly}
                 error={issueFor(issues, `items.${index}.description`)}
                 label="설명"
                 maxLength={1000}
@@ -220,6 +233,7 @@ export function PlanReviewForm({
                 value={item.description}
               />
               <Input
+                disabled={readOnly}
                 error={issueFor(issues, `items.${index}.amount`)}
                 label="금액"
                 min={1}
@@ -240,22 +254,24 @@ export function PlanReviewForm({
                 type="number"
                 value={item.amount ?? ''}
               />
-              <button
-                aria-label={`예산 항목 ${index + 1} 삭제`}
-                className="mt-7 flex size-10 items-center justify-center rounded-[var(--radius-sm)] text-copy-muted hover:bg-danger-soft hover:text-danger"
-                onClick={() =>
-                  setDraft((current) => ({
-                    ...current,
-                    items: current.items.filter(
-                      (_, itemIndex) => itemIndex !== index,
-                    ),
-                  }))
-                }
-                title="예산 항목 삭제"
-                type="button"
-              >
-                <Trash2Icon aria-hidden="true" className="size-4" />
-              </button>
+              {!readOnly ? (
+                <button
+                  aria-label={`예산 항목 ${index + 1} 삭제`}
+                  className="mt-7 flex size-10 items-center justify-center rounded-[var(--radius-sm)] text-copy-muted hover:bg-danger-soft hover:text-danger"
+                  onClick={() =>
+                    setDraft((current) => ({
+                      ...current,
+                      items: current.items.filter(
+                        (_, itemIndex) => itemIndex !== index,
+                      ),
+                    }))
+                  }
+                  title="예산 항목 삭제"
+                  type="button"
+                >
+                  <Trash2Icon aria-hidden="true" className="size-4" />
+                </button>
+              ) : null}
               {item.sourceText ? (
                 <p className="text-xs leading-5 text-copy-muted lg:col-span-4">
                   원문: {item.sourceText}
@@ -277,6 +293,7 @@ export function PlanReviewForm({
           </p>
         </div>
         <Input
+          disabled={readOnly}
           error={issueFor(issues, 'totalAmount')}
           label="총 계획 예산"
           min={1}
@@ -298,23 +315,25 @@ export function PlanReviewForm({
         </InlineNotice>
       ) : null}
 
-      <div className="flex justify-end border-t border-line pt-5">
-        <button
-          className={buttonClassName({ size: 'large' })}
-          disabled={pending}
-          type="submit"
-        >
-          {pending ? (
-            <LoaderCircleIcon
-              aria-hidden="true"
-              className="size-4 animate-spin"
-            />
-          ) : (
-            <CheckIcon aria-hidden="true" className="size-4" />
-          )}
-          {pending ? '등록 중' : '검토 완료·등록'}
-        </button>
-      </div>
+      {!readOnly ? (
+        <div className="flex justify-end border-t border-line pt-5">
+          <button
+            className={buttonClassName({ size: 'large' })}
+            disabled={pending}
+            type="submit"
+          >
+            {pending ? (
+              <LoaderCircleIcon
+                aria-hidden="true"
+                className="size-4 animate-spin"
+              />
+            ) : (
+              <CheckIcon aria-hidden="true" className="size-4" />
+            )}
+            {pending ? '등록 중' : '검토 완료·등록'}
+          </button>
+        </div>
+      ) : null}
     </form>
   );
 }

@@ -103,14 +103,15 @@ The routes below reflect the App Router structure in `src/app`. `[organizationId
 
 ### API
 
-| Route                                | Responsibility                                                    |
-| ------------------------------------ | ----------------------------------------------------------------- |
-| `GET /api/health`                    | Check application health                                          |
-| `POST /api/partner/plans/upload-url` | Authorize and prepare a signed direct upload to private Storage   |
-| `POST /api/partner/plans`            | Validate a stored source, call Upstage OCR, and save a draft      |
-| `GET /api/partner/plans/[planId]`    | Read an authorized review draft and short-lived source URL        |
-| `PATCH /api/partner/plans/[planId]`  | Validate and transactionally register a reviewed expenditure plan |
-| `POST /api/partner/plans/[planId]`   | Retry OCR for a failed plan from its privately stored source      |
+| Route                                  | Responsibility                                                    |
+| -------------------------------------- | ----------------------------------------------------------------- |
+| `GET /api/health`                      | Check application health                                          |
+| `POST /api/partner/plans/upload-url`   | Authorize and prepare a signed direct upload to private Storage   |
+| `DELETE /api/partner/plans/upload-url` | Remove the user's abandoned pending source upload                 |
+| `POST /api/partner/plans`              | Validate a stored source, call Upstage OCR, and save a draft      |
+| `GET /api/partner/plans/[planId]`      | Read an authorized review draft and short-lived source URL        |
+| `PATCH /api/partner/plans/[planId]`    | Validate and transactionally register a reviewed expenditure plan |
+| `POST /api/partner/plans/[planId]`     | Retry OCR for a failed plan from its privately stored source      |
 
 ## Technology Stack
 

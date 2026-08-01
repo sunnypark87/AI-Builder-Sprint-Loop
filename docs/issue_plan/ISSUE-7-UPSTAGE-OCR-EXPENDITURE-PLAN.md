@@ -315,6 +315,9 @@ tests/
 - Node 20 호환 Supabase 버전을 고정하고 Windows에서도 `npm run check`가 반복 가능하도록 Prettier 줄바꿈 설정을 보완함.
 - PR 리뷰에 따라 인증 사용자의 계획·항목 직접 변경 권한을 제거하고, 상태 전이와 조직 권한을 검사하는 RPC로 쓰기 경계를 제한함.
 - 업로드 응답 유실 시 같은 idempotency key를 재사용하고, 동시 생성 충돌 시 승자 계획을 반환해 중복 계획과 OCR 호출을 차단함.
+- 후속 PR 리뷰에 따라 모든 계획 변경 RPC와 원본 업로드를 `SUPABASE_SECRET_KEY`를 사용하는 서버 전용 클라이언트로 제한하고 actor·조직 권한을 RPC에서 재검증함.
+- 인증 사용자의 원본 Storage 업로드·삭제를 차단하고, 결제 완료(`paid`) 기부만 계획 생성과 최종 등록이 가능하도록 UI·서비스·DB에 동일한 규칙을 적용함.
+- 분석 행에 2분 lease와 업로드 원본 경로를 기록해 중단된 분석을 단일 요청만 복구하고, 원본 없는 업로드 실패에는 재분석 대신 재업로드를 안내함.
 
 ### 완료 조건 추적표
 
@@ -324,23 +327,23 @@ tests/
 | 계획 필드와 예산 항목 구조화            | `parse-ocr-plan.ts`, `plan-review-form.tsx`      | 파서·검토 폼 테스트, 실제 Upstage 대표 문서 평가        | PASS |
 | 누락·금액·합계 오류 등록 차단           | `plan-schema.ts`, 등록 API·RPC                   | 스키마·검토 폼 테스트, pgTAP 원자성 테스트              | PASS |
 | 담당자 수정값 원자 저장                 | `register_expenditure_plan` RPC, 등록 API        | pgTAP, 로컬 Supabase Playwright와 DB 사후 조회          | PASS |
-| 조직·기부 연결과 조직 간 격리           | 참조·계획 마이그레이션 RLS·Storage 정책          | 조직 A/B·직접 쓰기·멱등 충돌 pgTAP 23개, 로컬 통합 흐름 | PASS |
+| 조직·기부 연결과 조직 간 격리           | 참조·계획 마이그레이션 RLS·Storage 정책          | 서버 전용 RPC·Storage·paid·lease pgTAP 29개, 로컬 통합  | PASS |
 | 원본과 OCR 감사 정보 추적               | 계획 저장소, 비공개 버킷, OCR 이력 테이블        | pgTAP OCR 이력, 서명 URL을 사용하는 실제 검토 화면      | PASS |
 | 파일·외부 API 실패와 재시도             | 파일 검증, OCR 어댑터, 조건부 재시도 서비스·버튼 | 오류 모킹, 429→부분 데이터 없음→같은 원본 재시도 E2E    | PASS |
 | 비밀정보·원문 노출 방지                 | 서버 전용 어댑터, 정제 오류, React 텍스트 렌더링 | 오류·악성 문자열 테스트, 빌드된 클라이언트 번들 값 검색 | PASS |
-| 대표 문서 정확도와 전체 검증            | 결정적 파서, 평가 전용 Playwright                | 합성 대표 문서 6종 30/30, `npm run check` 88개 테스트   | PASS |
+| 대표 문서 정확도와 전체 검증            | 결정적 파서, 평가 전용 Playwright                | 합성 대표 문서 6종 30/30, `npm run check` 98개 테스트   | PASS |
 
 ### 소프트웨어 품질 검증
 
 ```text
 명령: npm run check
-결과: PASS. format:check, lint, typecheck, Vitest 26개 파일 88개 테스트, Next.js 16.2.12 프로덕션 빌드 통과
+결과: PASS. format:check, lint, typecheck, Vitest 27개 파일 98개 테스트, Next.js 16.2.12 프로덕션 빌드 통과
 
 명령: npm run test:e2e -- expenditure-plan-registration.spec.ts
 결과: PASS. 등록 진입·안전한 빈 상태, 문서 없는 API 요청 거부, 360px 오버플로 3개 테스트 통과
 
 명령: npx supabase db reset --local && npx supabase test db
-결과: PASS. 두 마이그레이션을 빈 DB에 적용하고 조직 A/B RLS, 직접 계획·항목 쓰기 차단, 멱등 충돌 반환, OCR 이력, 원자 등록·롤백 23개 pgTAP 테스트 통과
+결과: PASS. 두 마이그레이션을 빈 DB에 적용하고 조직 A/B RLS, 서버 전용 변경 RPC, Storage 삭제 차단, paid 기부 제한, stale lease 단일 복구, OCR 이력, 원자 등록·롤백 29개 pgTAP 테스트 통과
 
 명령: npm run test:e2e:plans
 결과: PASS. 실제 로컬 Auth·Storage·DB와 목 Upstage를 사용한 업로드→검토→수정→등록, 429 실패→부분 데이터 없음→같은 원본 재시도 2개 통과
@@ -373,19 +376,24 @@ tests/
 - Vercel Supabase 환경 별칭이 남아 설정 없음 테스트가 실제 네트워크로 진행되는 문제와 설정 검증보다 `cookies()`가 먼저 실패하는 문제를 수정함.
 - 인증 사용자가 Supabase REST로 계획 상태와 등록 항목을 직접 변경해 검증·감사 정보를 우회할 수 있는 권한 문제를 제거함.
 - 응답 유실 재제출과 같은 idempotency key의 동시 요청이 중복 계획·OCR 과금 또는 500 오류를 만들 수 있는 경쟁 조건을 제거함.
+- 인증 사용자가 REST로 내부 `SECURITY DEFINER` RPC를 호출해 OCR 결과나 분석 상태를 위조할 수 있는 경계를 서버 전용 secret 클라이언트로 차단함.
+- 조직 구성원이 등록 원본을 직접 삭제해 감사 근거를 소실할 수 있는 Storage DELETE 정책을 제거함.
+- 서버 중단 후 `analyzing` 상태가 영구 정체되거나 원본 없는 실패에 동작하지 않는 재시도 버튼이 노출되는 문제를 lease와 복구 가능 상태 구분으로 수정함.
+- 취소·환불된 기부 내역에 집행 계획을 생성하거나 등록할 수 있는 문제를 UI·서비스·RPC의 `paid` 검증으로 차단함.
 
 ### 차단 항목과 미검증 범위
 
 - 차단 항목 없음.
+- 배포 환경에는 계획 변경 Route Handler 전용 `SUPABASE_SECRET_KEY` 설정이 필요하다. 브라우저 접근이 가능한 `NEXT_PUBLIC_*` 변수로 선언해서는 안 됨.
 - 실제 Upstage 평가는 개인정보가 없는 합성 지원 양식 6종 기준이다. 운영 기부처의 다양한 실제 스캔 품질과 지원 범위 밖 임의 양식은 후속 데이터셋 평가가 필요함.
 - `npm audit --omit=dev --audit-level=high`는 기준 브랜치와 동일한 Next.js 16.2.12의 `next`, `postcss`, `sharp` 경로에서 고위험 3건·치명적 0건을 보고함. 제공되는 자동 수정은 Next 9.3.3으로 역행하므로 적용하지 않았으며 Issue #7 신규 코드에 한정된 차단 항목으로 분류하지 않음.
 
 ### 실행한 명령과 결과
 
-- `npm run check`: PASS, 26개 파일 88개 테스트와 프로덕션 빌드 통과.
+- `npm run check`: PASS, 27개 파일 98개 테스트와 프로덕션 빌드 통과.
 - `npm run test:e2e -- expenditure-plan-registration.spec.ts`: PASS, 3개 통과.
 - `npx supabase db reset --local`: PASS, 빈 DB 마이그레이션 적용.
-- `npx supabase test db`: PASS, pgTAP 23개 통과.
+- `npx supabase test db`: PASS, pgTAP 29개 통과.
 - `npm run test:e2e:plans`: PASS, 로컬 Supabase 통합 E2E 2개 통과.
 - `npm run test:ai:ocr`: PASS, 실제 Upstage 대표 문서 6종 및 필수 필드 30/30 통과.
 - 빌드된 `.next/static`의 실제 Upstage 키 값 검색: NOT_FOUND.

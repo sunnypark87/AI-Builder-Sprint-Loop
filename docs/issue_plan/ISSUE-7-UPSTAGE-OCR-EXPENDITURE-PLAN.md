@@ -330,23 +330,23 @@ tests/
 | 계획 필드와 예산 항목 구조화            | `parse-ocr-plan.ts`, `plan-review-form.tsx`      | 파서·검토 폼 테스트, 실제 Upstage 대표 문서 평가        | PASS |
 | 누락·금액·합계 오류 등록 차단           | `plan-schema.ts`, 등록 API·RPC                   | 스키마·검토 폼 테스트, pgTAP 원자성 테스트              | PASS |
 | 담당자 수정값 원자 저장                 | `register_expenditure_plan` RPC, 등록 API        | pgTAP, 로컬 Supabase Playwright와 DB 사후 조회          | PASS |
-| 조직·기부 연결과 조직 간 격리           | 참조·계획 마이그레이션 RLS·Storage 정책          | 서버 전용 RPC·Storage·paid·lease pgTAP 42개, 로컬 통합  | PASS |
+| 조직·기부 연결과 조직 간 격리           | 참조·계획 마이그레이션 RLS·Storage 정책          | 서버 전용 RPC·Storage·paid·lease pgTAP 46개, 로컬 통합  | PASS |
 | 원본과 OCR 감사 정보 추적               | 계획 저장소, 비공개 버킷, OCR 이력 테이블        | pgTAP OCR 이력, 서명 URL을 사용하는 실제 검토 화면      | PASS |
 | 파일·외부 API 실패와 재시도             | 파일 검증, OCR 어댑터, 조건부 재시도 서비스·버튼 | 오류 모킹, 429→부분 데이터 없음→같은 원본 재시도 E2E    | PASS |
 | 비밀정보·원문 노출 방지                 | 서버 전용 어댑터, 정제 오류, React 텍스트 렌더링 | 오류·악성 문자열 테스트, 빌드된 클라이언트 번들 값 검색 | PASS |
-| 대표 문서 정확도와 전체 검증            | 결정적 파서, 평가 전용 Playwright                | 합성 대표 문서 6종 30/30, `npm run check` 110개 테스트  | PASS |
+| 대표 문서 정확도와 전체 검증            | 결정적 파서, 평가 전용 Playwright                | 합성 대표 문서 6종 30/30, `npm run check` 114개 테스트  | PASS |
 
 ### 소프트웨어 품질 검증
 
 ```text
 명령: npm run check
-결과: PASS. format:check, lint, typecheck, Vitest 28개 파일 110개 테스트, Next.js 16.2.12 프로덕션 빌드 통과
+결과: PASS. format:check, lint, typecheck, Vitest 28개 파일 114개 테스트, Next.js 16.2.12 프로덕션 빌드 통과
 
 명령: npm run test:e2e -- expenditure-plan-registration.spec.ts
 결과: PASS. 등록 진입·안전한 빈 상태, 문서 없는 API 요청 거부, 360px 오버플로 3개 테스트 통과
 
 명령: npx supabase db reset --local && npx supabase test db
-결과: PASS. 두 마이그레이션을 빈 DB에 적용하고 조직 A/B RLS, 서버 전용 변경 RPC, Storage 삭제 차단, 오류 코드별 재시도 허용 목록, OCR 원본 출처 보존, 중복 항목 ID 차단, 원자 등록·롤백 42개 pgTAP 테스트 통과
+결과: PASS. 두 마이그레이션을 빈 DB에 적용하고 조직 A/B RLS, 서버 전용 변경 RPC, Storage 삭제 차단, 오류 코드별 재시도 허용 목록, 계획 수준 OCR 기준값 보존, 중복 항목 ID 차단, 원자 등록·롤백 46개 pgTAP 테스트 통과
 
 명령: npm run test:e2e:plans
 결과: PASS. 실제 로컬 Auth·Storage·DB와 목 Upstage를 사용한 업로드→검토→수정→등록, 429 실패→부분 데이터 없음→같은 원본 재시도 2개 통과
@@ -391,6 +391,9 @@ tests/
 - 원본 직접 업로드 후 분석 요청이 서버에 도달하지 않으면 pending 객체가 남는 문제를 사용자 범위 정리 API로 보완함.
 - 분석 응답을 검증하기 전에 pending 경로를 해제해 HTML 오류나 서버 인계 전 실패에서 원본 정리를 건너뛰는 문제를 차단함.
 - 동일 OCR 항목 ID를 반복 제출해 복제 항목을 미수정 상태로 등록할 수 있는 문제를 애플리케이션과 RPC의 유일성 검증으로 차단함.
+- 재분석 성공 응답이 유실된 뒤 같은 계획을 다시 요청하면 409로 처리해 새 계획과 OCR 호출을 만들 수 있는 문제를 완료 상태 멱등 조회로 차단함.
+- 등록 시 계획 수준 OCR 초안을 검토값으로 덮어써 제목·기간·총액의 원본 근거를 잃는 문제를 별도 `ocr_draft_data` 보존으로 차단함.
+- 404·422 등 영구 Upstage 4xx를 재시도 가능한 `upstream_failure`로 저장하는 문제를 `upstream_rejected` 코드로 분리함.
 
 ### 차단 항목과 미검증 범위
 
@@ -401,10 +404,10 @@ tests/
 
 ### 실행한 명령과 결과
 
-- `npm run check`: PASS, 28개 파일 110개 테스트와 프로덕션 빌드 통과.
+- `npm run check`: PASS, 28개 파일 114개 테스트와 프로덕션 빌드 통과.
 - `npm run test:e2e -- expenditure-plan-registration.spec.ts`: PASS, 3개 통과.
 - `npx supabase db reset --local`: PASS, 빈 DB 마이그레이션 적용.
-- `npx supabase test db`: PASS, pgTAP 42개 통과.
+- `npx supabase test db`: PASS, pgTAP 46개 통과.
 - `npm run test:e2e:plans`: PASS, 로컬 Supabase 통합 E2E 2개 통과.
 - `npm run test:ai:ocr`: PASS, 실제 Upstage 대표 문서 6종 및 필수 필드 30/30 통과.
 - 빌드된 `.next/static`의 실제 Upstage 키 값 검색: NOT_FOUND.

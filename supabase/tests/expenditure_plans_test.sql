@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(30);
+select plan(39);
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values
@@ -230,7 +230,7 @@ select lives_ok(
     select public.register_expenditure_plan(
       '11111111-1111-4111-8111-111111111111',
       'aaaaaaaa-1000-4000-8000-000000000001',
-      '{"title":"교육 지원 수정","periodStart":"2026-08-01","periodEnd":"2026-08-31","totalAmount":100000,"items":[{"id":"item-1","name":"교재비 수정","description":"교재 구입","amount":100000,"confidence":0.98,"sourceText":"교재비 100,000원","sourceName":"교재비","sourceAmount":100000}]}'::jsonb
+      '{"title":"교육 지원 수정","periodStart":"2026-08-01","periodEnd":"2026-08-31","totalAmount":100000,"items":[{"id":"item-1","name":"교재비 수정","description":"교재 구입","amount":100000,"confidence":0.1,"sourceText":"위조된 원문","sourceName":"교재비 수정","sourceAmount":100000}]}'::jsonb
     )
   $$,
   'organization A member registers reviewed values'
@@ -254,6 +254,11 @@ select ok(
   (select edited_by_reviewer from public.expenditure_plan_items where plan_id = 'aaaaaaaa-1000-4000-8000-000000000001'),
   'registration records that the reviewer edited the item'
 );
+select is(
+  (select source_text from public.expenditure_plan_items where plan_id = 'aaaaaaaa-1000-4000-8000-000000000001'),
+  '교재비 100,000원',
+  'registration preserves OCR provenance instead of submitted source fields'
+);
 
 select lives_ok(
   $$
@@ -269,6 +274,104 @@ select is(
   (select count(*) from public.expenditure_plan_items where plan_id = 'aaaaaaaa-1000-4000-8000-000000000001'),
   1::bigint,
   'idempotent registration does not duplicate items'
+);
+
+reset role;
+insert into public.expenditure_plans (
+  id, organization_id, donation_id, created_by, status,
+  source_file_name, source_mime_type, source_size_bytes,
+  source_page_count, source_fingerprint, idempotency_key, draft_data
+)
+values (
+  'aaaaaaaa-1000-4000-8000-000000000004',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'aaaaaaaa-0000-4000-8000-000000000001',
+  '11111111-1111-4111-8111-111111111111',
+  'review_required', 'description-edit.pdf', 'application/pdf', 1024, 1,
+  repeat('d', 64), 'description-edit-integration-key',
+  '{"title":"교육 지원","periodStart":"2026-08-01","periodEnd":"2026-08-31","totalAmount":100000,"items":[{"id":"item-1","name":"교재비","description":"교재 구입","amount":100000,"confidence":0.98,"sourceText":"교재비 100,000원","sourceName":"교재비","sourceAmount":100000}]}'::jsonb
+);
+
+set local role service_role;
+select lives_ok(
+  $$
+    select public.register_expenditure_plan(
+      '11111111-1111-4111-8111-111111111111',
+      'aaaaaaaa-1000-4000-8000-000000000004',
+      '{"title":"교육 지원","periodStart":"2026-08-01","periodEnd":"2026-08-31","totalAmount":100000,"items":[{"id":"item-1","name":"교재비","description":"온라인 교재 구입","amount":90000,"confidence":0.1,"sourceText":"위조된 원문","sourceName":"교재비","sourceAmount":90000},{"id":"item-2","name":"배송비","description":"교재 배송","amount":10000,"confidence":1,"sourceText":"위조된 신규 원문","sourceName":"배송비","sourceAmount":10000}]}'::jsonb
+    )
+  $$,
+  'registration accepts a description-only review edit'
+);
+select ok(
+  (select edited_by_reviewer from public.expenditure_plan_items where plan_id = 'aaaaaaaa-1000-4000-8000-000000000004' and name = '교재비'),
+  'description-only changes are recorded as reviewer edits'
+);
+select is(
+  (select source_text from public.expenditure_plan_items where plan_id = 'aaaaaaaa-1000-4000-8000-000000000004' and name = '교재비'),
+  '교재비 100,000원',
+  'description edits retain stored OCR provenance'
+);
+select ok(
+  (select edited_by_reviewer from public.expenditure_plan_items where plan_id = 'aaaaaaaa-1000-4000-8000-000000000004' and name = '배송비'),
+  'new review items are recorded as reviewer edits'
+);
+
+reset role;
+insert into public.expenditure_plans (
+  id, organization_id, donation_id, created_by, status,
+  source_file_name, source_mime_type, source_size_bytes,
+  source_page_count, source_fingerprint, idempotency_key,
+  source_path, analysis_error_code
+)
+values
+  (
+    'aaaaaaaa-1000-4000-8000-000000000005',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'aaaaaaaa-0000-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'analysis_failed', 'auth-failure.pdf', 'application/pdf', 1024, 1,
+    repeat('5', 64), 'auth-failure-integration-key',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/aaaaaaaa-1000-4000-8000-000000000005/source.pdf',
+    'authentication_failed'
+  ),
+  (
+    'aaaaaaaa-1000-4000-8000-000000000006',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'aaaaaaaa-0000-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'analysis_failed', 'rate-limit.pdf', 'application/pdf', 1024, 1,
+    repeat('6', 64), 'rate-limit-integration-key',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/aaaaaaaa-1000-4000-8000-000000000006/source.pdf',
+    'rate_limited'
+  );
+
+set local role service_role;
+select is(
+  (select count(*) from public.claim_plan_analysis_retry(
+    '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-1000-4000-8000-000000000005'
+  )),
+  0::bigint,
+  'non-retryable analysis failures cannot be claimed directly'
+);
+select is(
+  (select status from public.expenditure_plans where id = 'aaaaaaaa-1000-4000-8000-000000000005'),
+  'analysis_failed',
+  'a rejected retry leaves the failure state unchanged'
+);
+select is(
+  (select count(*) from public.claim_plan_analysis_retry(
+    '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-1000-4000-8000-000000000006'
+  )),
+  1::bigint,
+  'retryable analysis failures can be claimed'
+);
+select is(
+  (select status from public.expenditure_plans where id = 'aaaaaaaa-1000-4000-8000-000000000006'),
+  'analyzing',
+  'a claimed retry returns to analyzing state'
 );
 
 reset role;

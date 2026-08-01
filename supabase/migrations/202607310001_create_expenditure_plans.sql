@@ -462,7 +462,17 @@ begin
       updated_at = now()
   where plan.id = p_plan_id
     and (
-      plan.status = 'analysis_failed'
+      (
+        plan.status = 'analysis_failed'
+        and plan.analysis_error_code in (
+          'rate_limited',
+          'upstream_failure',
+          'timeout',
+          'network_failure',
+          'invalid_response',
+          'persistence_failed'
+        )
+      )
       or (
         plan.status = 'analyzing'
         and plan.analysis_lease_expires_at <= now()
@@ -491,11 +501,14 @@ set search_path = ''
 as $$
 declare
   current_status text;
+  stored_draft jsonb;
+  reviewed_items jsonb;
+  reviewed_draft jsonb;
   expected_total bigint;
   item_total bigint;
 begin
-  select plan.status
-  into current_status
+  select plan.status, plan.draft_data
+  into current_status, stored_draft
   from public.expenditure_plans plan
   where plan.id = p_plan_id
     and private.is_organization_member_for(plan.organization_id, p_actor_id)
@@ -552,12 +565,41 @@ begin
     raise exception 'Plan item fields are invalid';
   end if;
 
+  select coalesce(
+    jsonb_agg(
+      element.value || jsonb_build_object(
+        'confidence', baseline.value->'confidence',
+        'sourceText', coalesce(baseline.value->>'sourceText', ''),
+        'sourceName', coalesce(
+          baseline.value->>'sourceName',
+          baseline.value->>'name',
+          ''
+        ),
+        'sourceAmount', baseline.value->'sourceAmount'
+      )
+      order by element.ordinality
+    ),
+    '[]'::jsonb
+  )
+  into reviewed_items
+  from jsonb_array_elements(p_draft->'items') with ordinality
+    as element(value, ordinality)
+  left join lateral (
+    select candidate.value
+    from jsonb_array_elements(coalesce(stored_draft->'items', '[]'::jsonb))
+      as candidate(value)
+    where candidate.value->>'id' = element.value->>'id'
+    limit 1
+  ) baseline on true;
+
+  reviewed_draft := jsonb_set(p_draft, '{items}', reviewed_items, true);
+
   update public.expenditure_plans
   set title = trim(p_draft->>'title'),
       period_start = (p_draft->>'periodStart')::date,
       period_end = (p_draft->>'periodEnd')::date,
       total_amount = expected_total,
-      draft_data = p_draft,
+      draft_data = reviewed_draft,
       validation_issues = '[]'::jsonb,
       status = 'registered',
       reviewed_by = p_actor_id,
@@ -583,13 +625,24 @@ begin
     coalesce(element.value->>'description', ''),
     (element.value->>'amount')::bigint,
     element.ordinality - 1,
-    (element.value->>'confidence')::numeric,
-    coalesce(element.value->>'sourceText', ''),
-    trim(element.value->>'name') <> trim(element.value->>'sourceName')
+    (baseline.value->>'confidence')::numeric,
+    coalesce(baseline.value->>'sourceText', ''),
+    baseline.value is null
+      or trim(element.value->>'name')
+        is distinct from trim(baseline.value->>'name')
+      or coalesce(element.value->>'description', '')
+        is distinct from coalesce(baseline.value->>'description', '')
       or (element.value->>'amount')::bigint
-        is distinct from (element.value->>'sourceAmount')::bigint
-  from jsonb_array_elements(p_draft->'items') with ordinality
-    as element(value, ordinality);
+        is distinct from (baseline.value->>'amount')::bigint
+  from jsonb_array_elements(reviewed_draft->'items') with ordinality
+    as element(value, ordinality)
+  left join lateral (
+    select candidate.value
+    from jsonb_array_elements(coalesce(stored_draft->'items', '[]'::jsonb))
+      as candidate(value)
+    where candidate.value->>'id' = element.value->>'id'
+    limit 1
+  ) baseline on true;
 end;
 $$;
 

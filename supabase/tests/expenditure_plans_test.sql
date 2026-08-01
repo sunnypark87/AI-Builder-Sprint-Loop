@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(42);
+select plan(46);
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values
@@ -259,6 +259,16 @@ select is(
   '교재비 100,000원',
   'registration preserves OCR provenance instead of submitted source fields'
 );
+select is(
+  (select ocr_draft_data->>'title' from public.expenditure_plans where id = 'aaaaaaaa-1000-4000-8000-000000000001'),
+  '교육 지원',
+  'registration preserves the plan-level OCR baseline'
+);
+select is(
+  (select draft_data->>'title' from public.expenditure_plans where id = 'aaaaaaaa-1000-4000-8000-000000000001'),
+  '교육 지원 수정',
+  'registration stores the reviewed plan separately from its OCR baseline'
+);
 
 select lives_ok(
   $$
@@ -291,6 +301,9 @@ values (
   repeat('d', 64), 'description-edit-integration-key',
   '{"title":"교육 지원","periodStart":"2026-08-01","periodEnd":"2026-08-31","totalAmount":100000,"items":[{"id":"item-1","name":"교재비","description":"교재 구입","amount":100000,"confidence":0.98,"sourceText":"교재비 100,000원","sourceName":"교재비","sourceAmount":100000}]}'::jsonb
 );
+update public.expenditure_plans
+set ocr_draft_data = draft_data
+where id = 'aaaaaaaa-1000-4000-8000-000000000004';
 
 set local role service_role;
 select lives_ok(
@@ -332,6 +345,9 @@ values (
   repeat('7', 64), 'duplicate-item-integration-key',
   '{"title":"중복 방지","periodStart":"2026-08-01","periodEnd":"2026-08-31","totalAmount":100,"items":[{"id":"item-1","name":"교재비","description":"","amount":100,"confidence":0.98,"sourceText":"교재비 100원","sourceName":"교재비","sourceAmount":100}]}'::jsonb
 );
+update public.expenditure_plans
+set ocr_draft_data = draft_data
+where id = 'aaaaaaaa-1000-4000-8000-000000000007';
 
 set local role service_role;
 select throws_ok(
@@ -384,6 +400,16 @@ values
     repeat('6', 64), 'rate-limit-integration-key',
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/aaaaaaaa-1000-4000-8000-000000000006/source.pdf',
     'rate_limited'
+  ),
+  (
+    'aaaaaaaa-1000-4000-8000-000000000008',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'aaaaaaaa-0000-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'analysis_failed', 'upstream-rejected.pdf', 'application/pdf', 1024, 1,
+    repeat('8', 64), 'upstream-rejected-integration-key',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/aaaaaaaa-1000-4000-8000-000000000008/source.pdf',
+    'upstream_rejected'
   );
 
 set local role service_role;
@@ -399,6 +425,19 @@ select is(
   (select status from public.expenditure_plans where id = 'aaaaaaaa-1000-4000-8000-000000000005'),
   'analysis_failed',
   'a rejected retry leaves the failure state unchanged'
+);
+select is(
+  (select count(*) from public.claim_plan_analysis_retry(
+    '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-1000-4000-8000-000000000008'
+  )),
+  0::bigint,
+  'upstream request rejections cannot be claimed for retry'
+);
+select is(
+  (select status from public.expenditure_plans where id = 'aaaaaaaa-1000-4000-8000-000000000008'),
+  'analysis_failed',
+  'an upstream request rejection remains failed'
 );
 select is(
   (select count(*) from public.claim_plan_analysis_retry(

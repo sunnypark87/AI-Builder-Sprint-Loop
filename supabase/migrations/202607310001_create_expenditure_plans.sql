@@ -85,6 +85,7 @@ create table public.expenditure_plans (
   total_amount bigint
     check (total_amount is null or total_amount between 1 and 1000000000000),
   draft_data jsonb,
+  ocr_draft_data jsonb,
   validation_issues jsonb not null default '[]'::jsonb,
   source_path text,
   source_file_name text not null check (char_length(source_file_name) between 1 and 200),
@@ -377,6 +378,7 @@ begin
   update public.expenditure_plans
   set source_path = p_source_path,
       draft_data = p_draft,
+      ocr_draft_data = p_draft,
       validation_issues = p_validation_issues,
       ocr_metadata = p_ocr_metadata,
       status = 'review_required',
@@ -507,7 +509,7 @@ declare
   expected_total bigint;
   item_total bigint;
 begin
-  select plan.status, plan.draft_data
+  select plan.status, plan.ocr_draft_data
   into current_status, stored_draft
   from public.expenditure_plans plan
   where plan.id = p_plan_id

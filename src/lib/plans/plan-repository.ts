@@ -18,6 +18,10 @@ export type ExistingAnalysis = {
   issues: PlanValidationIssue[];
 };
 
+export type AnalysisCreation = ExistingAnalysis & {
+  created: boolean;
+};
+
 export type PlanListItem = {
   id: string;
   title: string;
@@ -67,7 +71,9 @@ export interface PlanRepository {
     organizationId: string,
     donationId: string,
   ): Promise<boolean>;
-  createAnalyzingPlan(input: CreateAnalyzingPlanInput): Promise<string>;
+  createAnalyzingPlan(
+    input: CreateAnalyzingPlanInput,
+  ): Promise<AnalysisCreation>;
   uploadSource(
     planId: string,
     organizationId: string,
@@ -160,26 +166,35 @@ export function createPlanRepository(supabase: SupabaseClient): PlanRepository {
 
     async createAnalyzingPlan(input) {
       const { data, error } = await supabase
-        .from('expenditure_plans')
-        .insert({
-          organization_id: input.organizationId,
-          donation_id: input.donationId,
-          created_by: input.userId,
-          status: 'analyzing',
-          source_file_name: input.fileName,
-          source_mime_type: input.document.type,
-          source_size_bytes: input.document.size,
-          source_page_count: input.document.pageCount,
-          source_fingerprint: input.document.fingerprint,
-          idempotency_key: input.idempotencyKey,
+        .rpc('create_expenditure_plan_analysis', {
+          p_organization_id: input.organizationId,
+          p_donation_id: input.donationId,
+          p_idempotency_key: input.idempotencyKey,
+          p_source_file_name: input.fileName,
+          p_source_mime_type: input.document.type,
+          p_source_size_bytes: input.document.size,
+          p_source_page_count: input.document.pageCount,
+          p_source_fingerprint: input.document.fingerprint,
         })
-        .select('id')
         .single();
 
       if (error || !data) {
         throw databaseError(error?.message ?? '계획을 만들 수 없습니다.');
       }
-      return data.id as string;
+      const created = data as {
+        plan_id: string;
+        plan_status: PlanStatus;
+        plan_draft: unknown;
+        plan_validation_issues: unknown;
+        was_created: boolean;
+      };
+      return {
+        id: created.plan_id,
+        status: created.plan_status,
+        draft: parsePlanDraft(created.plan_draft),
+        issues: asIssues(created.plan_validation_issues),
+        created: created.was_created,
+      };
     },
 
     async uploadSource(planId, organizationId, file) {
@@ -213,15 +228,11 @@ export function createPlanRepository(supabase: SupabaseClient): PlanRepository {
     },
 
     async saveFailure(planId, errorCode, sourcePath) {
-      const { error } = await supabase
-        .from('expenditure_plans')
-        .update({
-          status: 'analysis_failed',
-          analysis_error_code: errorCode,
-          ...(sourcePath ? { source_path: sourcePath } : {}),
-        })
-        .eq('id', planId)
-        .eq('status', 'analyzing');
+      const { error } = await supabase.rpc('mark_plan_analysis_failed', {
+        p_plan_id: planId,
+        p_error_code: errorCode,
+        p_source_path: sourcePath,
+      });
 
       if (error) {
         throw databaseError(error.message);
@@ -230,29 +241,32 @@ export function createPlanRepository(supabase: SupabaseClient): PlanRepository {
 
     async claimRetry(planId) {
       const { data, error } = await supabase
-        .from('expenditure_plans')
-        .update({ status: 'analyzing', analysis_error_code: null })
-        .eq('id', planId)
-        .eq('status', 'analysis_failed')
-        .not('source_path', 'is', null)
-        .select(
-          'id,organization_id,source_path,source_file_name,source_mime_type',
-        )
+        .rpc('claim_plan_analysis_retry', { p_plan_id: planId })
         .maybeSingle();
 
       if (error) {
         throw databaseError(error.message);
       }
-      if (!data?.source_path) {
+      if (!data) {
+        return null;
+      }
+      const source = data as {
+        plan_id: string;
+        organization_id: string;
+        source_path: string | null;
+        source_file_name: string;
+        source_mime_type: string;
+      };
+      if (!source.source_path) {
         return null;
       }
 
       return {
-        planId: data.id as string,
-        organizationId: data.organization_id as string,
-        sourcePath: data.source_path as string,
-        fileName: data.source_file_name as string,
-        mimeType: data.source_mime_type as string,
+        planId: source.plan_id,
+        organizationId: source.organization_id,
+        sourcePath: source.source_path,
+        fileName: source.source_file_name,
+        mimeType: source.source_mime_type,
       };
     },
 

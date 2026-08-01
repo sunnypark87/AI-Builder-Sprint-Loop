@@ -223,9 +223,9 @@ export async function analyzePlan(
     throw error;
   }
 
-  let planId: string;
+  let creation;
   try {
-    planId = await dependencies.repository.createAnalyzingPlan({
+    creation = await dependencies.repository.createAnalyzingPlan({
       organizationId: input.organizationId,
       donationId: input.donationId,
       userId: input.userId,
@@ -241,6 +241,12 @@ export async function analyzePlan(
       true,
     );
   }
+
+  if (!creation.created) {
+    return existingResult(creation);
+  }
+
+  const planId = creation.id;
 
   let sourcePath: string | undefined;
   try {

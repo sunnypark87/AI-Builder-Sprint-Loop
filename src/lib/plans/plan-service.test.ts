@@ -26,7 +26,13 @@ function repository(overrides: Partial<PlanRepository> = {}): PlanRepository {
   return {
     findByIdempotency: vi.fn().mockResolvedValue(null),
     assertDonationAccess: vi.fn().mockResolvedValue(true),
-    createAnalyzingPlan: vi.fn().mockResolvedValue(ids.plan),
+    createAnalyzingPlan: vi.fn().mockResolvedValue({
+      id: ids.plan,
+      status: 'analyzing',
+      draft: null,
+      issues: [],
+      created: true,
+    }),
     uploadSource: vi
       .fn()
       .mockResolvedValue(`${ids.organization}/${ids.plan}/source.png`),
@@ -113,6 +119,29 @@ describe('analyzePlan', () => {
     });
     expect(recognize).not.toHaveBeenCalled();
     expect(store.createAnalyzingPlan).not.toHaveBeenCalled();
+  });
+
+  it('returns the winning plan when atomic creation detects a concurrent request', async () => {
+    const recognize = vi.fn();
+    const store = repository({
+      createAnalyzingPlan: vi.fn().mockResolvedValue({
+        id: ids.plan,
+        status: 'analyzing',
+        draft: null,
+        issues: [],
+        created: false,
+      }),
+    });
+
+    const result = await analyzePlan(input, { repository: store, recognize });
+
+    expect(result).toMatchObject({
+      planId: ids.plan,
+      status: 'analyzing',
+      duplicate: true,
+    });
+    expect(store.uploadSource).not.toHaveBeenCalled();
+    expect(recognize).not.toHaveBeenCalled();
   });
 
   it('rejects another organization donation before file processing', async () => {

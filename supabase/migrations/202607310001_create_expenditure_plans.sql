@@ -119,10 +119,9 @@ alter table public.expenditure_plans enable row level security;
 alter table public.expenditure_plan_items enable row level security;
 alter table public.plan_ocr_runs enable row level security;
 
-grant select, insert, update on public.expenditure_plans to authenticated;
-grant select, insert, update, delete on public.expenditure_plan_items
-  to authenticated;
-grant select, insert on public.plan_ocr_runs to authenticated;
+grant select on public.expenditure_plans to authenticated;
+grant select on public.expenditure_plan_items to authenticated;
+grant select on public.plan_ocr_runs to authenticated;
 grant select, insert, update, delete on public.expenditure_plans
   to service_role;
 grant select, insert, update, delete on public.expenditure_plan_items
@@ -133,24 +132,6 @@ grant select, insert, update, delete on public.plan_ocr_runs
 create policy "Organization members can read plans"
 on public.expenditure_plans for select to authenticated
 using (private.is_organization_member(organization_id));
-
-create policy "Organization members can create plans"
-on public.expenditure_plans for insert to authenticated
-with check (
-  (select auth.uid()) = created_by
-  and private.is_organization_member(organization_id)
-  and exists (
-    select 1
-    from public.donations donation
-    where donation.id = donation_id
-      and donation.organization_id = organization_id
-  )
-);
-
-create policy "Organization members can update plans"
-on public.expenditure_plans for update to authenticated
-using (private.is_organization_member(organization_id))
-with check (private.is_organization_member(organization_id));
 
 create policy "Organization members can read plan items"
 on public.expenditure_plan_items for select to authenticated
@@ -163,39 +144,9 @@ using (
   )
 );
 
-create policy "Organization members can manage plan items"
-on public.expenditure_plan_items for all to authenticated
-using (
-  exists (
-    select 1
-    from public.expenditure_plans plan
-    where plan.id = plan_id
-      and private.is_organization_member(plan.organization_id)
-  )
-)
-with check (
-  exists (
-    select 1
-    from public.expenditure_plans plan
-    where plan.id = plan_id
-      and private.is_organization_member(plan.organization_id)
-  )
-);
-
 create policy "Organization members can read OCR runs"
 on public.plan_ocr_runs for select to authenticated
 using (
-  exists (
-    select 1
-    from public.expenditure_plans plan
-    where plan.id = plan_id
-      and private.is_organization_member(plan.organization_id)
-  )
-);
-
-create policy "Organization members can create OCR runs"
-on public.plan_ocr_runs for insert to authenticated
-with check (
   exists (
     select 1
     from public.expenditure_plans plan
@@ -244,6 +195,88 @@ using (
   and private.can_access_plan_document(name)
 );
 
+create or replace function public.create_expenditure_plan_analysis(
+  p_organization_id uuid,
+  p_donation_id uuid,
+  p_idempotency_key text,
+  p_source_file_name text,
+  p_source_mime_type text,
+  p_source_size_bytes bigint,
+  p_source_page_count integer,
+  p_source_fingerprint text
+)
+returns table (
+  plan_id uuid,
+  plan_status text,
+  plan_draft jsonb,
+  plan_validation_issues jsonb,
+  was_created boolean
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  current_user_id uuid := (select auth.uid());
+  inserted_plan_id uuid;
+begin
+  if current_user_id is null
+    or not private.is_organization_member(p_organization_id)
+    or not exists (
+      select 1
+      from public.donations donation
+      where donation.id = p_donation_id
+        and donation.organization_id = p_organization_id
+    ) then
+    raise exception 'Plan creation is not allowed';
+  end if;
+
+  insert into public.expenditure_plans (
+    organization_id,
+    donation_id,
+    created_by,
+    status,
+    source_file_name,
+    source_mime_type,
+    source_size_bytes,
+    source_page_count,
+    source_fingerprint,
+    idempotency_key
+  )
+  values (
+    p_organization_id,
+    p_donation_id,
+    current_user_id,
+    'analyzing',
+    p_source_file_name,
+    p_source_mime_type,
+    p_source_size_bytes,
+    p_source_page_count,
+    p_source_fingerprint,
+    p_idempotency_key
+  )
+  on conflict (created_by, idempotency_key) do nothing
+  returning id into inserted_plan_id;
+
+  if inserted_plan_id is not null then
+    return query
+    select inserted_plan_id, 'analyzing'::text, null::jsonb, '[]'::jsonb, true;
+    return;
+  end if;
+
+  return query
+  select
+    plan.id,
+    plan.status,
+    plan.draft_data,
+    plan.validation_issues,
+    false
+  from public.expenditure_plans plan
+  where plan.created_by = current_user_id
+    and plan.idempotency_key = p_idempotency_key;
+end;
+$$;
+
 create or replace function public.save_plan_analysis(
   p_plan_id uuid,
   p_source_path text,
@@ -253,6 +286,7 @@ create or replace function public.save_plan_analysis(
 )
 returns void
 language plpgsql
+security definer
 set search_path = ''
 as $$
 begin
@@ -265,7 +299,8 @@ begin
       analysis_error_code = null,
       updated_at = now()
   where id = p_plan_id
-    and status = 'analyzing';
+    and status = 'analyzing'
+    and private.is_organization_member(organization_id);
 
   if not found then
     raise exception 'Plan is not available for analysis';
@@ -290,12 +325,70 @@ begin
 end;
 $$;
 
+create or replace function public.mark_plan_analysis_failed(
+  p_plan_id uuid,
+  p_error_code text,
+  p_source_path text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update public.expenditure_plans
+  set status = 'analysis_failed',
+      analysis_error_code = p_error_code,
+      source_path = coalesce(p_source_path, source_path),
+      updated_at = now()
+  where id = p_plan_id
+    and status = 'analyzing'
+    and private.is_organization_member(organization_id);
+
+  if not found then
+    raise exception 'Plan is not available for failure recording';
+  end if;
+end;
+$$;
+
+create or replace function public.claim_plan_analysis_retry(p_plan_id uuid)
+returns table (
+  plan_id uuid,
+  organization_id uuid,
+  source_path text,
+  source_file_name text,
+  source_mime_type text
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  return query
+  update public.expenditure_plans plan
+  set status = 'analyzing',
+      analysis_error_code = null,
+      updated_at = now()
+  where plan.id = p_plan_id
+    and plan.status = 'analysis_failed'
+    and plan.source_path is not null
+    and private.is_organization_member(plan.organization_id)
+  returning
+    plan.id,
+    plan.organization_id,
+    plan.source_path,
+    plan.source_file_name,
+    plan.source_mime_type;
+end;
+$$;
+
 create or replace function public.register_expenditure_plan(
   p_plan_id uuid,
   p_draft jsonb
 )
 returns void
 language plpgsql
+security definer
 set search_path = ''
 as $$
 declare
@@ -307,6 +400,7 @@ begin
   into current_status
   from public.expenditure_plans
   where id = p_plan_id
+    and private.is_organization_member(organization_id)
   for update;
 
   if current_status = 'registered' then
@@ -396,13 +490,31 @@ $$;
 
 revoke all on function public.save_plan_analysis(uuid, text, jsonb, jsonb, jsonb)
   from public;
+revoke all on function public.create_expenditure_plan_analysis(uuid, uuid, text, text, text, bigint, integer, text)
+  from public;
+revoke all on function public.mark_plan_analysis_failed(uuid, text, text)
+  from public;
+revoke all on function public.claim_plan_analysis_retry(uuid)
+  from public;
 revoke all on function public.register_expenditure_plan(uuid, jsonb)
   from public;
+grant execute on function public.create_expenditure_plan_analysis(uuid, uuid, text, text, text, bigint, integer, text)
+  to authenticated;
 grant execute on function public.save_plan_analysis(uuid, text, jsonb, jsonb, jsonb)
+  to authenticated;
+grant execute on function public.mark_plan_analysis_failed(uuid, text, text)
+  to authenticated;
+grant execute on function public.claim_plan_analysis_retry(uuid)
   to authenticated;
 grant execute on function public.register_expenditure_plan(uuid, jsonb)
   to authenticated;
+grant execute on function public.create_expenditure_plan_analysis(uuid, uuid, text, text, text, bigint, integer, text)
+  to service_role;
 grant execute on function public.save_plan_analysis(uuid, text, jsonb, jsonb, jsonb)
+  to service_role;
+grant execute on function public.mark_plan_analysis_failed(uuid, text, text)
+  to service_role;
+grant execute on function public.claim_plan_analysis_retry(uuid)
   to service_role;
 grant execute on function public.register_expenditure_plan(uuid, jsonb)
   to service_role;

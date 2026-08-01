@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(17);
+select plan(23);
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values
@@ -73,6 +73,72 @@ select is(
   (select count(*) from storage.objects where bucket_id = 'plan-documents'),
   1::bigint,
   'organization A member reads only organization A source objects'
+);
+select ok(
+  not has_table_privilege('authenticated', 'public.expenditure_plans', 'UPDATE'),
+  'authenticated users cannot update plan rows directly'
+);
+select ok(
+  not has_table_privilege('authenticated', 'public.expenditure_plan_items', 'INSERT')
+    and not has_table_privilege('authenticated', 'public.expenditure_plan_items', 'UPDATE')
+    and not has_table_privilege('authenticated', 'public.expenditure_plan_items', 'DELETE'),
+  'authenticated users cannot mutate plan items directly'
+);
+select throws_ok(
+  $$
+    update public.expenditure_plans
+    set status = 'registered'
+    where id = 'aaaaaaaa-1000-4000-8000-000000000001'
+  $$,
+  '42501',
+  'permission denied for table expenditure_plans',
+  'direct plan status mutation is rejected'
+);
+select throws_ok(
+  $$
+    insert into public.expenditure_plan_items (
+      plan_id, name, amount, sort_order
+    ) values (
+      'aaaaaaaa-1000-4000-8000-000000000001', '우회 항목', 100000, 0
+    )
+  $$,
+  '42501',
+  'permission denied for table expenditure_plan_items',
+  'direct plan item mutation is rejected'
+);
+select is(
+  (
+    select plan_id
+    from public.create_expenditure_plan_analysis(
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      'aaaaaaaa-0000-4000-8000-000000000001',
+      'plan-a-integration-key',
+      'duplicate.pdf',
+      'application/pdf',
+      1024,
+      1,
+      repeat('d', 64)
+    )
+  ),
+  'aaaaaaaa-1000-4000-8000-000000000001'::uuid,
+  'an idempotency conflict returns the winning plan'
+);
+select is(
+  (
+    select was_created
+    from public.create_expenditure_plan_analysis(
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      'aaaaaaaa-0000-4000-8000-000000000001',
+      'plan-a-integration-key',
+      'duplicate.pdf',
+      'application/pdf',
+      1024,
+      1,
+      repeat('d', 64)
+    )
+  ),
+  false,
+  'an idempotency conflict is reported as an existing plan'
 );
 
 select lives_ok(

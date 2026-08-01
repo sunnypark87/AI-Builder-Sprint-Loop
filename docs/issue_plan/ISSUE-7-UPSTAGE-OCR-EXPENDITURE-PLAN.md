@@ -318,6 +318,9 @@ tests/
 - 후속 PR 리뷰에 따라 모든 계획 변경 RPC와 원본 업로드를 `SUPABASE_SECRET_KEY`를 사용하는 서버 전용 클라이언트로 제한하고 actor·조직 권한을 RPC에서 재검증함.
 - 인증 사용자의 원본 Storage 업로드·삭제를 차단하고, 결제 완료(`paid`) 기부만 계획 생성과 최종 등록이 가능하도록 UI·서비스·DB에 동일한 규칙을 적용함.
 - 분석 행에 2분 lease와 업로드 원본 경로를 기록해 중단된 분석을 단일 요청만 복구하고, 원본 없는 업로드 실패에는 재분석 대신 재업로드를 안내함.
+- Vercel Function의 4.5MB 요청 제한을 우회하도록 signed upload URL을 발급하고 브라우저에서 비공개 Supabase Storage로 직접 업로드한 뒤, 서버는 작은 JSON 요청과 저장된 원본으로 검증·OCR을 수행하도록 변경함.
+- 동일 idempotency key 재사용 시 조직·기부·파일명·MIME·크기·페이지 수·SHA-256 fingerprint가 모두 일치해야만 기존 계획을 반환하거나 stale 분석을 재개하도록 강화함.
+- 저장된 OCR 오류 코드를 기준으로 429·5xx·timeout·network 오류만 재시도하고, 400·401·403·413 오류에는 무효한 재시도 버튼을 노출하지 않도록 수정함.
 
 ### 완료 조건 추적표
 
@@ -327,23 +330,23 @@ tests/
 | 계획 필드와 예산 항목 구조화            | `parse-ocr-plan.ts`, `plan-review-form.tsx`      | 파서·검토 폼 테스트, 실제 Upstage 대표 문서 평가        | PASS |
 | 누락·금액·합계 오류 등록 차단           | `plan-schema.ts`, 등록 API·RPC                   | 스키마·검토 폼 테스트, pgTAP 원자성 테스트              | PASS |
 | 담당자 수정값 원자 저장                 | `register_expenditure_plan` RPC, 등록 API        | pgTAP, 로컬 Supabase Playwright와 DB 사후 조회          | PASS |
-| 조직·기부 연결과 조직 간 격리           | 참조·계획 마이그레이션 RLS·Storage 정책          | 서버 전용 RPC·Storage·paid·lease pgTAP 29개, 로컬 통합  | PASS |
+| 조직·기부 연결과 조직 간 격리           | 참조·계획 마이그레이션 RLS·Storage 정책          | 서버 전용 RPC·Storage·paid·lease pgTAP 30개, 로컬 통합  | PASS |
 | 원본과 OCR 감사 정보 추적               | 계획 저장소, 비공개 버킷, OCR 이력 테이블        | pgTAP OCR 이력, 서명 URL을 사용하는 실제 검토 화면      | PASS |
 | 파일·외부 API 실패와 재시도             | 파일 검증, OCR 어댑터, 조건부 재시도 서비스·버튼 | 오류 모킹, 429→부분 데이터 없음→같은 원본 재시도 E2E    | PASS |
 | 비밀정보·원문 노출 방지                 | 서버 전용 어댑터, 정제 오류, React 텍스트 렌더링 | 오류·악성 문자열 테스트, 빌드된 클라이언트 번들 값 검색 | PASS |
-| 대표 문서 정확도와 전체 검증            | 결정적 파서, 평가 전용 Playwright                | 합성 대표 문서 6종 30/30, `npm run check` 98개 테스트   | PASS |
+| 대표 문서 정확도와 전체 검증            | 결정적 파서, 평가 전용 Playwright                | 합성 대표 문서 6종 30/30, `npm run check` 104개 테스트  | PASS |
 
 ### 소프트웨어 품질 검증
 
 ```text
 명령: npm run check
-결과: PASS. format:check, lint, typecheck, Vitest 27개 파일 98개 테스트, Next.js 16.2.12 프로덕션 빌드 통과
+결과: PASS. format:check, lint, typecheck, Vitest 28개 파일 104개 테스트, Next.js 16.2.12 프로덕션 빌드 통과
 
 명령: npm run test:e2e -- expenditure-plan-registration.spec.ts
 결과: PASS. 등록 진입·안전한 빈 상태, 문서 없는 API 요청 거부, 360px 오버플로 3개 테스트 통과
 
 명령: npx supabase db reset --local && npx supabase test db
-결과: PASS. 두 마이그레이션을 빈 DB에 적용하고 조직 A/B RLS, 서버 전용 변경 RPC, Storage 삭제 차단, paid 기부 제한, stale lease 단일 복구, OCR 이력, 원자 등록·롤백 29개 pgTAP 테스트 통과
+결과: PASS. 두 마이그레이션을 빈 DB에 적용하고 조직 A/B RLS, 서버 전용 변경 RPC, Storage 삭제 차단, paid 기부 제한, stale lease 단일 복구, idempotency 원본 일치, OCR 이력, 원자 등록·롤백 30개 pgTAP 테스트 통과
 
 명령: npm run test:e2e:plans
 결과: PASS. 실제 로컬 Auth·Storage·DB와 목 Upstage를 사용한 업로드→검토→수정→등록, 429 실패→부분 데이터 없음→같은 원본 재시도 2개 통과
@@ -380,6 +383,9 @@ tests/
 - 조직 구성원이 등록 원본을 직접 삭제해 감사 근거를 소실할 수 있는 Storage DELETE 정책을 제거함.
 - 서버 중단 후 `analyzing` 상태가 영구 정체되거나 원본 없는 실패에 동작하지 않는 재시도 버튼이 노출되는 문제를 lease와 복구 가능 상태 구분으로 수정함.
 - 취소·환불된 기부 내역에 집행 계획을 생성하거나 등록할 수 있는 문제를 UI·서비스·RPC의 `paid` 검증으로 차단함.
+- 10MB 원본을 Vercel Function 본문으로 전송해 4.5MB 초과 구간이 운영에서 413으로 실패하는 문제를 signed direct upload로 제거함.
+- 동일 idempotency key에 다른 파일을 넣어 원본 객체와 감사용 fingerprint·MIME·파일명이 불일치할 수 있는 문제를 RPC 충돌 검사로 차단함.
+- 인증 실패·잘못된 요청·상류 용량 초과처럼 재시도 불가능한 OCR 오류에도 재시도 버튼이 표시되는 문제를 오류 코드 기반 복구 상태로 수정함.
 
 ### 차단 항목과 미검증 범위
 
@@ -390,10 +396,10 @@ tests/
 
 ### 실행한 명령과 결과
 
-- `npm run check`: PASS, 27개 파일 98개 테스트와 프로덕션 빌드 통과.
+- `npm run check`: PASS, 28개 파일 104개 테스트와 프로덕션 빌드 통과.
 - `npm run test:e2e -- expenditure-plan-registration.spec.ts`: PASS, 3개 통과.
 - `npx supabase db reset --local`: PASS, 빈 DB 마이그레이션 적용.
-- `npx supabase test db`: PASS, pgTAP 29개 통과.
+- `npx supabase test db`: PASS, pgTAP 30개 통과.
 - `npm run test:e2e:plans`: PASS, 로컬 Supabase 통합 E2E 2개 통과.
 - `npm run test:ai:ocr`: PASS, 실제 Upstage 대표 문서 6종 및 필수 필드 30/30 통과.
 - 빌드된 `.next/static`의 실제 Upstage 키 값 검색: NOT_FOUND.

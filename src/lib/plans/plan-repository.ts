@@ -19,7 +19,7 @@ export type ExistingAnalysis = {
 };
 
 export type AnalysisCreation = ExistingAnalysis & {
-  created: boolean;
+  shouldProcess: boolean;
 };
 
 export type PlanListItem = {
@@ -30,7 +30,28 @@ export type PlanListItem = {
   periodStart: string | null;
   periodEnd: string | null;
   updatedAt: string;
+  canRetry: boolean;
+  needsReupload: boolean;
 };
+
+export function getPlanRecoveryState(
+  status: PlanStatus,
+  sourcePath: string | null,
+  leaseExpiresAt: string | null,
+  now = Date.now(),
+) {
+  const leaseExpired =
+    status === 'analyzing' &&
+    leaseExpiresAt !== null &&
+    new Date(leaseExpiresAt).getTime() <= now;
+  const recoverableState = status === 'analysis_failed' || leaseExpired;
+  const sourceExists = sourcePath !== null;
+
+  return {
+    canRetry: recoverableState && sourceExists,
+    needsReupload: recoverableState && !sourceExists,
+  };
+}
 
 export type PlanReview = {
   id: string;
@@ -63,10 +84,6 @@ export type RetrySource = {
 };
 
 export interface PlanRepository {
-  findByIdempotency(
-    userId: string,
-    idempotencyKey: string,
-  ): Promise<ExistingAnalysis | null>;
   assertDonationAccess(
     organizationId: string,
     donationId: string,
@@ -79,6 +96,7 @@ export interface PlanRepository {
     organizationId: string,
     file: File,
   ): Promise<string>;
+  markSourceUploaded(planId: string, sourcePath: string): Promise<void>;
   saveAnalysis(
     planId: string,
     sourcePath: string,
@@ -125,37 +143,28 @@ function databaseError(message: string) {
   return new Error(`집행 계획 저장소 오류: ${message}`);
 }
 
-export function createPlanRepository(supabase: SupabaseClient): PlanRepository {
+export function createPlanRepository(
+  supabase: SupabaseClient,
+  mutationContext?: {
+    client: SupabaseClient;
+    actorUserId: string;
+  },
+): PlanRepository {
+  function mutationClient() {
+    if (!mutationContext) {
+      throw databaseError('서버 전용 변경 컨텍스트가 없습니다.');
+    }
+    return mutationContext;
+  }
+
   return {
-    async findByIdempotency(userId, idempotencyKey) {
-      const { data, error } = await supabase
-        .from('expenditure_plans')
-        .select('id,status,draft_data,validation_issues')
-        .eq('created_by', userId)
-        .eq('idempotency_key', idempotencyKey)
-        .maybeSingle();
-
-      if (error) {
-        throw databaseError(error.message);
-      }
-      if (!data) {
-        return null;
-      }
-
-      return {
-        id: data.id as string,
-        status: data.status as PlanStatus,
-        draft: parsePlanDraft(data.draft_data),
-        issues: asIssues(data.validation_issues),
-      };
-    },
-
     async assertDonationAccess(organizationId, donationId) {
       const { data, error } = await supabase
         .from('donations')
         .select('id')
         .eq('id', donationId)
         .eq('organization_id', organizationId)
+        .eq('status', 'paid')
         .maybeSingle();
 
       if (error) {
@@ -165,8 +174,10 @@ export function createPlanRepository(supabase: SupabaseClient): PlanRepository {
     },
 
     async createAnalyzingPlan(input) {
-      const { data, error } = await supabase
+      const { client, actorUserId } = mutationClient();
+      const { data, error } = await client
         .rpc('create_expenditure_plan_analysis', {
+          p_actor_id: actorUserId,
           p_organization_id: input.organizationId,
           p_donation_id: input.donationId,
           p_idempotency_key: input.idempotencyKey,
@@ -186,25 +197,26 @@ export function createPlanRepository(supabase: SupabaseClient): PlanRepository {
         plan_status: PlanStatus;
         plan_draft: unknown;
         plan_validation_issues: unknown;
-        was_created: boolean;
+        should_process: boolean;
       };
       return {
         id: created.plan_id,
         status: created.plan_status,
         draft: parsePlanDraft(created.plan_draft),
         issues: asIssues(created.plan_validation_issues),
-        created: created.was_created,
+        shouldProcess: created.should_process,
       };
     },
 
     async uploadSource(planId, organizationId, file) {
+      const { client } = mutationClient();
       const path = `${organizationId}/${planId}/source.${extensionFor(file.type)}`;
-      const { error } = await supabase.storage
+      const { error } = await client.storage
         .from(PLAN_DOCUMENT_BUCKET)
         .upload(path, file, {
           cacheControl: '3600',
           contentType: file.type,
-          upsert: false,
+          upsert: true,
         });
 
       if (error) {
@@ -213,8 +225,23 @@ export function createPlanRepository(supabase: SupabaseClient): PlanRepository {
       return path;
     },
 
+    async markSourceUploaded(planId, sourcePath) {
+      const { client, actorUserId } = mutationClient();
+      const { error } = await client.rpc('mark_plan_source_uploaded', {
+        p_actor_id: actorUserId,
+        p_plan_id: planId,
+        p_source_path: sourcePath,
+      });
+
+      if (error) {
+        throw databaseError(error.message);
+      }
+    },
+
     async saveAnalysis(planId, sourcePath, parsed) {
-      const { error } = await supabase.rpc('save_plan_analysis', {
+      const { client, actorUserId } = mutationClient();
+      const { error } = await client.rpc('save_plan_analysis', {
+        p_actor_id: actorUserId,
         p_plan_id: planId,
         p_source_path: sourcePath,
         p_draft: parsed.draft,
@@ -228,7 +255,9 @@ export function createPlanRepository(supabase: SupabaseClient): PlanRepository {
     },
 
     async saveFailure(planId, errorCode, sourcePath) {
-      const { error } = await supabase.rpc('mark_plan_analysis_failed', {
+      const { client, actorUserId } = mutationClient();
+      const { error } = await client.rpc('mark_plan_analysis_failed', {
+        p_actor_id: actorUserId,
         p_plan_id: planId,
         p_error_code: errorCode,
         p_source_path: sourcePath,
@@ -240,8 +269,12 @@ export function createPlanRepository(supabase: SupabaseClient): PlanRepository {
     },
 
     async claimRetry(planId) {
-      const { data, error } = await supabase
-        .rpc('claim_plan_analysis_retry', { p_plan_id: planId })
+      const { client, actorUserId } = mutationClient();
+      const { data, error } = await client
+        .rpc('claim_plan_analysis_retry', {
+          p_actor_id: actorUserId,
+          p_plan_id: planId,
+        })
         .maybeSingle();
 
       if (error) {
@@ -328,7 +361,9 @@ export function createPlanRepository(supabase: SupabaseClient): PlanRepository {
     },
 
     async register(planId, draft) {
-      const { error } = await supabase.rpc('register_expenditure_plan', {
+      const { client, actorUserId } = mutationClient();
+      const { error } = await client.rpc('register_expenditure_plan', {
+        p_actor_id: actorUserId,
         p_plan_id: planId,
         p_draft: draft,
       });
@@ -342,7 +377,7 @@ export function createPlanRepository(supabase: SupabaseClient): PlanRepository {
       const { data, error } = await supabase
         .from('expenditure_plans')
         .select(
-          'id,title,status,total_amount,period_start,period_end,updated_at',
+          'id,title,status,total_amount,period_start,period_end,updated_at,source_path,analysis_lease_expires_at',
         )
         .order('updated_at', { ascending: false });
 
@@ -350,15 +385,31 @@ export function createPlanRepository(supabase: SupabaseClient): PlanRepository {
         throw databaseError(error.message);
       }
 
-      return (data ?? []).map((plan) => ({
-        id: plan.id as string,
-        title: (plan.title as string | null) || '이름 없는 집행 계획',
-        status: plan.status as PlanStatus,
-        totalAmount: plan.total_amount as number | null,
-        periodStart: plan.period_start as string | null,
-        periodEnd: plan.period_end as string | null,
-        updatedAt: plan.updated_at as string,
-      }));
+      return (data ?? []).map((plan) => {
+        const status = plan.status as PlanStatus;
+        const sourcePath =
+          typeof plan.source_path === 'string' ? plan.source_path : null;
+        const leaseExpiresAt =
+          typeof plan.analysis_lease_expires_at === 'string'
+            ? plan.analysis_lease_expires_at
+            : null;
+        const recovery = getPlanRecoveryState(
+          status,
+          sourcePath,
+          leaseExpiresAt,
+        );
+
+        return {
+          id: plan.id as string,
+          title: (plan.title as string | null) || '이름 없는 집행 계획',
+          status,
+          totalAmount: plan.total_amount as number | null,
+          periodStart: plan.period_start as string | null,
+          periodEnd: plan.period_end as string | null,
+          updatedAt: plan.updated_at as string,
+          ...recovery,
+        };
+      });
     },
   };
 }

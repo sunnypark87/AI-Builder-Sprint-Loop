@@ -17,7 +17,8 @@ async function getEligibleDonations(): Promise<EligibleDonation[]> {
 
     const { data, error } = await supabase
       .from('donations')
-      .select('id,organization_id');
+      .select('id,organization_id')
+      .eq('status', 'paid');
     if (error) {
       return [];
     }

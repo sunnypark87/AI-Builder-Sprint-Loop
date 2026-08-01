@@ -71,7 +71,13 @@ export default async function Page({
       rows={plans.map((plan) => ({
         title: plan.title,
         description: formatMoney(plan.totalAmount),
-        status: statusLabel[plan.status].label,
+        status: plan.needsReupload
+          ? plan.status === 'analyzing'
+            ? '분석 중단·다시 업로드 필요'
+            : '원본 업로드 실패·다시 업로드 필요'
+          : plan.canRetry && plan.status === 'analyzing'
+            ? '분석 중단·재시도 필요'
+            : statusLabel[plan.status].label,
         statusKey: plan.status,
         tone: statusLabel[plan.status].tone,
         href:
@@ -79,8 +85,8 @@ export default async function Page({
             ? `/partner/plans/${plan.id}/review`
             : undefined,
         action:
-          plan.status === 'analysis_failed' ? (
-            <PlanRetryButton planId={plan.id} />
+          plan.canRetry || plan.needsReupload ? (
+            <PlanRetryButton canRetry={plan.canRetry} planId={plan.id} />
           ) : undefined,
         cells: {
           budget: formatMoney(plan.totalAmount),

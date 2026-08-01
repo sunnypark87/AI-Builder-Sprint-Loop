@@ -29,6 +29,7 @@ export function PlanUploadForm({
   const idempotencyKey = useRef<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
 
   return (
     <form
@@ -51,6 +52,7 @@ export function PlanUploadForm({
         submitting.current = true;
         setPending(true);
         setError('');
+        setStatusMessage('');
         formData.set('organizationId', donation.organizationId);
         idempotencyKey.current ??= `plan:${crypto.randomUUID()}`;
         formData.set('idempotencyKey', idempotencyKey.current);
@@ -64,6 +66,14 @@ export function PlanUploadForm({
             planId?: string;
             status?: string;
           };
+
+          if (response.ok && result.planId && result.status === 'analyzing') {
+            setStatusMessage(
+              '이전 분석이 아직 진행 중입니다. 잠시 후 이 화면에서 다시 시도해 주세요.',
+            );
+            return;
+          }
+
           idempotencyKey.current = null;
 
           if (!response.ok || !result.planId) {
@@ -101,6 +111,7 @@ export function PlanUploadForm({
           name="donationId"
           onChange={() => {
             idempotencyKey.current = null;
+            setStatusMessage('');
           }}
           required
         >
@@ -122,6 +133,7 @@ export function PlanUploadForm({
           name="document"
           onChange={() => {
             idempotencyKey.current = null;
+            setStatusMessage('');
           }}
           required
           type="file"
@@ -134,6 +146,12 @@ export function PlanUploadForm({
       {error ? (
         <InlineNotice title="계획서를 등록하지 못했습니다." tone="danger">
           {error}
+        </InlineNotice>
+      ) : null}
+
+      {statusMessage ? (
+        <InlineNotice title="기존 분석을 확인하고 있습니다.">
+          {statusMessage}
         </InlineNotice>
       ) : null}
 

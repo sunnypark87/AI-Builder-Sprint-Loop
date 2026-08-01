@@ -29,6 +29,27 @@ $$;
 revoke all on function private.is_organization_member(uuid) from public;
 grant execute on function private.is_organization_member(uuid) to authenticated;
 
+create or replace function private.is_organization_member_for(
+  target_organization_id uuid,
+  actor_user_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.organization_members member
+    where member.organization_id = target_organization_id
+      and member.user_id = actor_user_id
+  );
+$$;
+
+revoke all on function private.is_organization_member_for(uuid, uuid)
+  from public;
+
 create or replace function private.can_access_plan_document(object_name text)
 returns boolean
 language plpgsql
@@ -74,6 +95,7 @@ create table public.expenditure_plans (
   source_fingerprint text not null check (source_fingerprint ~ '^[0-9a-f]{64}$'),
   ocr_metadata jsonb,
   analysis_error_code text,
+  analysis_lease_expires_at timestamptz,
   idempotency_key text not null,
   reviewed_at timestamptz,
   created_at timestamptz not null default now(),
@@ -181,21 +203,8 @@ using (
   and private.can_access_plan_document(name)
 );
 
-create policy "Organization members can upload plan documents"
-on storage.objects for insert to authenticated
-with check (
-  bucket_id = 'plan-documents'
-  and private.can_access_plan_document(name)
-);
-
-create policy "Organization members can delete plan documents"
-on storage.objects for delete to authenticated
-using (
-  bucket_id = 'plan-documents'
-  and private.can_access_plan_document(name)
-);
-
 create or replace function public.create_expenditure_plan_analysis(
+  p_actor_id uuid,
   p_organization_id uuid,
   p_donation_id uuid,
   p_idempotency_key text,
@@ -210,23 +219,23 @@ returns table (
   plan_status text,
   plan_draft jsonb,
   plan_validation_issues jsonb,
-  was_created boolean
+  should_process boolean
 )
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  current_user_id uuid := (select auth.uid());
-  inserted_plan_id uuid;
+  process_plan_id uuid;
 begin
-  if current_user_id is null
-    or not private.is_organization_member(p_organization_id)
+  if p_actor_id is null
+    or not private.is_organization_member_for(p_organization_id, p_actor_id)
     or not exists (
       select 1
       from public.donations donation
       where donation.id = p_donation_id
         and donation.organization_id = p_organization_id
+        and donation.status = 'paid'
     ) then
     raise exception 'Plan creation is not allowed';
   end if;
@@ -241,26 +250,51 @@ begin
     source_size_bytes,
     source_page_count,
     source_fingerprint,
-    idempotency_key
+    idempotency_key,
+    analysis_lease_expires_at
   )
   values (
     p_organization_id,
     p_donation_id,
-    current_user_id,
+    p_actor_id,
     'analyzing',
     p_source_file_name,
     p_source_mime_type,
     p_source_size_bytes,
     p_source_page_count,
     p_source_fingerprint,
-    p_idempotency_key
+    p_idempotency_key,
+    now() + interval '2 minutes'
   )
   on conflict (created_by, idempotency_key) do nothing
-  returning id into inserted_plan_id;
+  returning id into process_plan_id;
 
-  if inserted_plan_id is not null then
+  if process_plan_id is null then
+    update public.expenditure_plans plan
+    set analysis_lease_expires_at = now() + interval '2 minutes',
+        updated_at = now()
+    where plan.created_by = p_actor_id
+      and plan.idempotency_key = p_idempotency_key
+      and plan.organization_id = p_organization_id
+      and plan.donation_id = p_donation_id
+      and plan.status = 'analyzing'
+      and (
+        plan.analysis_lease_expires_at is null
+        or plan.analysis_lease_expires_at <= now()
+      )
+    returning plan.id into process_plan_id;
+  end if;
+
+  if process_plan_id is not null then
     return query
-    select inserted_plan_id, 'analyzing'::text, null::jsonb, '[]'::jsonb, true;
+    select
+      plan.id,
+      plan.status,
+      plan.draft_data,
+      plan.validation_issues,
+      true
+    from public.expenditure_plans plan
+    where plan.id = process_plan_id;
     return;
   end if;
 
@@ -272,12 +306,41 @@ begin
     plan.validation_issues,
     false
   from public.expenditure_plans plan
-  where plan.created_by = current_user_id
-    and plan.idempotency_key = p_idempotency_key;
+  where plan.created_by = p_actor_id
+    and plan.idempotency_key = p_idempotency_key
+    and plan.organization_id = p_organization_id
+    and plan.donation_id = p_donation_id;
+end;
+$$;
+
+create or replace function public.mark_plan_source_uploaded(
+  p_actor_id uuid,
+  p_plan_id uuid,
+  p_source_path text
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update public.expenditure_plans
+  set source_path = p_source_path,
+      updated_at = now()
+  where id = p_plan_id
+    and status = 'analyzing'
+    and private.is_organization_member_for(organization_id, p_actor_id)
+    and p_source_path like
+      organization_id::text || '/' || id::text || '/source.%';
+
+  if not found then
+    raise exception 'Plan is not available for source recording';
+  end if;
 end;
 $$;
 
 create or replace function public.save_plan_analysis(
+  p_actor_id uuid,
   p_plan_id uuid,
   p_source_path text,
   p_draft jsonb,
@@ -297,10 +360,11 @@ begin
       ocr_metadata = p_ocr_metadata,
       status = 'review_required',
       analysis_error_code = null,
+      analysis_lease_expires_at = null,
       updated_at = now()
   where id = p_plan_id
     and status = 'analyzing'
-    and private.is_organization_member(organization_id);
+    and private.is_organization_member_for(organization_id, p_actor_id);
 
   if not found then
     raise exception 'Plan is not available for analysis';
@@ -326,6 +390,7 @@ end;
 $$;
 
 create or replace function public.mark_plan_analysis_failed(
+  p_actor_id uuid,
   p_plan_id uuid,
   p_error_code text,
   p_source_path text default null
@@ -340,10 +405,11 @@ begin
   set status = 'analysis_failed',
       analysis_error_code = p_error_code,
       source_path = coalesce(p_source_path, source_path),
+      analysis_lease_expires_at = null,
       updated_at = now()
   where id = p_plan_id
     and status = 'analyzing'
-    and private.is_organization_member(organization_id);
+    and private.is_organization_member_for(organization_id, p_actor_id);
 
   if not found then
     raise exception 'Plan is not available for failure recording';
@@ -351,7 +417,10 @@ begin
 end;
 $$;
 
-create or replace function public.claim_plan_analysis_retry(p_plan_id uuid)
+create or replace function public.claim_plan_analysis_retry(
+  p_actor_id uuid,
+  p_plan_id uuid
+)
 returns table (
   plan_id uuid,
   organization_id uuid,
@@ -368,11 +437,18 @@ begin
   update public.expenditure_plans plan
   set status = 'analyzing',
       analysis_error_code = null,
+      analysis_lease_expires_at = now() + interval '2 minutes',
       updated_at = now()
   where plan.id = p_plan_id
-    and plan.status = 'analysis_failed'
+    and (
+      plan.status = 'analysis_failed'
+      or (
+        plan.status = 'analyzing'
+        and plan.analysis_lease_expires_at <= now()
+      )
+    )
     and plan.source_path is not null
-    and private.is_organization_member(plan.organization_id)
+    and private.is_organization_member_for(plan.organization_id, p_actor_id)
   returning
     plan.id,
     plan.organization_id,
@@ -383,6 +459,7 @@ end;
 $$;
 
 create or replace function public.register_expenditure_plan(
+  p_actor_id uuid,
   p_plan_id uuid,
   p_draft jsonb
 )
@@ -396,11 +473,18 @@ declare
   expected_total bigint;
   item_total bigint;
 begin
-  select status
+  select plan.status
   into current_status
-  from public.expenditure_plans
-  where id = p_plan_id
-    and private.is_organization_member(organization_id)
+  from public.expenditure_plans plan
+  where plan.id = p_plan_id
+    and private.is_organization_member_for(plan.organization_id, p_actor_id)
+    and exists (
+      select 1
+      from public.donations donation
+      where donation.id = plan.donation_id
+        and donation.organization_id = plan.organization_id
+        and donation.status = 'paid'
+    )
   for update;
 
   if current_status = 'registered' then
@@ -455,7 +539,7 @@ begin
       draft_data = p_draft,
       validation_issues = '[]'::jsonb,
       status = 'registered',
-      reviewed_by = (select auth.uid()),
+      reviewed_by = p_actor_id,
       reviewed_at = now(),
       updated_at = now()
   where id = p_plan_id;
@@ -488,33 +572,27 @@ begin
 end;
 $$;
 
-revoke all on function public.save_plan_analysis(uuid, text, jsonb, jsonb, jsonb)
+revoke all on function public.save_plan_analysis(uuid, uuid, text, jsonb, jsonb, jsonb)
   from public;
-revoke all on function public.create_expenditure_plan_analysis(uuid, uuid, text, text, text, bigint, integer, text)
+revoke all on function public.create_expenditure_plan_analysis(uuid, uuid, uuid, text, text, text, bigint, integer, text)
   from public;
-revoke all on function public.mark_plan_analysis_failed(uuid, text, text)
+revoke all on function public.mark_plan_source_uploaded(uuid, uuid, text)
   from public;
-revoke all on function public.claim_plan_analysis_retry(uuid)
+revoke all on function public.mark_plan_analysis_failed(uuid, uuid, text, text)
   from public;
-revoke all on function public.register_expenditure_plan(uuid, jsonb)
+revoke all on function public.claim_plan_analysis_retry(uuid, uuid)
   from public;
-grant execute on function public.create_expenditure_plan_analysis(uuid, uuid, text, text, text, bigint, integer, text)
-  to authenticated;
-grant execute on function public.save_plan_analysis(uuid, text, jsonb, jsonb, jsonb)
-  to authenticated;
-grant execute on function public.mark_plan_analysis_failed(uuid, text, text)
-  to authenticated;
-grant execute on function public.claim_plan_analysis_retry(uuid)
-  to authenticated;
-grant execute on function public.register_expenditure_plan(uuid, jsonb)
-  to authenticated;
-grant execute on function public.create_expenditure_plan_analysis(uuid, uuid, text, text, text, bigint, integer, text)
+revoke all on function public.register_expenditure_plan(uuid, uuid, jsonb)
+  from public;
+grant execute on function public.create_expenditure_plan_analysis(uuid, uuid, uuid, text, text, text, bigint, integer, text)
   to service_role;
-grant execute on function public.save_plan_analysis(uuid, text, jsonb, jsonb, jsonb)
+grant execute on function public.mark_plan_source_uploaded(uuid, uuid, text)
   to service_role;
-grant execute on function public.mark_plan_analysis_failed(uuid, text, text)
+grant execute on function public.save_plan_analysis(uuid, uuid, text, jsonb, jsonb, jsonb)
   to service_role;
-grant execute on function public.claim_plan_analysis_retry(uuid)
+grant execute on function public.mark_plan_analysis_failed(uuid, uuid, text, text)
   to service_role;
-grant execute on function public.register_expenditure_plan(uuid, jsonb)
+grant execute on function public.claim_plan_analysis_retry(uuid, uuid)
+  to service_role;
+grant execute on function public.register_expenditure_plan(uuid, uuid, jsonb)
   to service_role;

@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { getSupabasePublishableKey, getSupabaseUrl } from './config';
+import {
+  getSupabasePublishableKey,
+  getSupabaseSecretKey,
+  getSupabaseUrl,
+} from './config';
 
 describe('Supabase configuration', () => {
   beforeEach(() => {
@@ -9,6 +13,7 @@ describe('Supabase configuration', () => {
     delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     delete process.env.SUPABASE_URL;
     delete process.env.SUPABASE_PUBLISHABLE_KEY;
+    delete process.env.SUPABASE_SECRET_KEY;
   });
 
   it('returns the public URL and publishable key when configured', () => {
@@ -31,6 +36,18 @@ describe('Supabase configuration', () => {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'legacy-anon-key';
 
     expect(getSupabasePublishableKey()).toBe('legacy-anon-key');
+  });
+
+  it('returns the server-only secret key when configured', () => {
+    process.env.SUPABASE_SECRET_KEY = 'server-secret-key';
+
+    expect(getSupabaseSecretKey()).toBe('server-secret-key');
+  });
+
+  it('fails safely when the server-only secret key is missing', () => {
+    expect(() => getSupabaseSecretKey()).toThrow(
+      'Supabase 서버 비밀 키가 설정되지 않았습니다.',
+    );
   });
 
   it('fails without exposing the missing value or a secret', () => {

@@ -21,6 +21,19 @@ afterEach(() => {
 });
 
 describe('PlanRetryButton', () => {
+  it('offers a new upload when no source document is available', () => {
+    render(
+      <PlanRetryButton
+        canRetry={false}
+        planId="44444444-4444-4444-8444-444444444444"
+      />,
+    );
+
+    expect(
+      screen.getByRole('link', { name: '다시 업로드' }).getAttribute('href'),
+    ).toBe('/partner/plans/new');
+  });
+
   it('retries a failed plan and opens the review page', async () => {
     const planId = '44444444-4444-4444-8444-444444444444';
     const fetchMock = vi

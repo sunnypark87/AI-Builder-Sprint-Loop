@@ -154,4 +154,59 @@ describe('PlanUploadForm', () => {
     );
     expect(randomUUID).toHaveBeenCalledOnce();
   });
+
+  it('keeps the idempotency key while an earlier analysis lease is active', async () => {
+    const planId = '44444444-4444-4444-8444-444444444444';
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ planId, status: 'analyzing', duplicate: true }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ planId, status: 'review_required', duplicate: true }),
+      );
+    const randomUUID = vi
+      .fn()
+      .mockReturnValue('55555555-5555-4555-8555-555555555555');
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('crypto', { randomUUID });
+    const user = userEvent.setup();
+
+    render(
+      <PlanUploadForm
+        donations={[
+          {
+            id: '33333333-3333-4333-8333-333333333333',
+            organizationId: '22222222-2222-4222-8222-222222222222',
+            label: '2026년 교육 지원 기부',
+          },
+        ]}
+      />,
+    );
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: '대상 기부 내역' }),
+      '33333333-3333-4333-8333-333333333333',
+    );
+    await user.upload(
+      screen.getByLabelText(/집행 계획서/),
+      new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'plan.png', {
+        type: 'image/png',
+      }),
+    );
+    const form = screen
+      .getByRole('button', { name: '계획서 분석' })
+      .closest('form')!;
+
+    fireEvent.submit(form);
+    await screen.findByText(/이전 분석이 아직 진행 중입니다/);
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const firstBody = fetchMock.mock.calls[0][1]?.body as FormData;
+    const secondBody = fetchMock.mock.calls[1][1]?.body as FormData;
+    expect(firstBody.get('idempotencyKey')).toBe(
+      secondBody.get('idempotencyKey'),
+    );
+    expect(randomUUID).toHaveBeenCalledOnce();
+  });
 });

@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(23);
+select plan(29);
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values
@@ -19,15 +19,17 @@ values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '11111111-1111-4111-8111-111111111111', 'manager'),
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '22222222-2222-4222-8222-222222222222', 'manager');
 
-insert into public.donations (id, organization_id, amount)
+insert into public.donations (id, organization_id, amount, status)
 values
-  ('aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 100000),
-  ('bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 200000);
+  ('aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 100000, 'paid'),
+  ('aaaaaaaa-0000-4000-8000-000000000002', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 100000, 'cancelled'),
+  ('bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 200000, 'paid');
 
 insert into public.expenditure_plans (
   id, organization_id, donation_id, created_by, status,
   source_file_name, source_mime_type, source_size_bytes,
-  source_page_count, source_fingerprint, idempotency_key
+  source_page_count, source_fingerprint, idempotency_key,
+  analysis_lease_expires_at
 )
 values
   (
@@ -36,7 +38,7 @@ values
     'aaaaaaaa-0000-4000-8000-000000000001',
     '11111111-1111-4111-8111-111111111111',
     'analyzing', 'plan-a.pdf', 'application/pdf', 1024, 1,
-    repeat('a', 64), 'plan-a-integration-key'
+    repeat('a', 64), 'plan-a-integration-key', now() + interval '2 minutes'
   ),
   (
     'bbbbbbbb-1000-4000-8000-000000000001',
@@ -44,7 +46,7 @@ values
     'bbbbbbbb-0000-4000-8000-000000000001',
     '22222222-2222-4222-8222-222222222222',
     'analyzing', 'plan-b.pdf', 'application/pdf', 1024, 1,
-    repeat('b', 64), 'plan-b-integration-key'
+    repeat('b', 64), 'plan-b-integration-key', now() + interval '2 minutes'
   );
 
 insert into storage.objects (bucket_id, name)
@@ -66,8 +68,8 @@ select is(
 );
 select is(
   (select count(*) from public.donations),
-  1::bigint,
-  'organization A member reads only organization A donations'
+  2::bigint,
+  'organization A member reads only organization A donations regardless of status'
 );
 select is(
   (select count(*) from storage.objects where bucket_id = 'plan-documents'),
@@ -106,10 +108,48 @@ select throws_ok(
   'permission denied for table expenditure_plan_items',
   'direct plan item mutation is rejected'
 );
+select ok(
+  not has_function_privilege(
+    'authenticated',
+    'public.create_expenditure_plan_analysis(uuid,uuid,uuid,text,text,text,bigint,integer,text)',
+    'EXECUTE'
+  )
+    and not has_function_privilege(
+      'authenticated',
+      'public.save_plan_analysis(uuid,uuid,text,jsonb,jsonb,jsonb)',
+      'EXECUTE'
+    )
+    and not has_function_privilege(
+      'authenticated',
+      'public.mark_plan_analysis_failed(uuid,uuid,text,text)',
+      'EXECUTE'
+    )
+    and not has_function_privilege(
+      'authenticated',
+      'public.claim_plan_analysis_retry(uuid,uuid)',
+      'EXECUTE'
+    ),
+  'authenticated users cannot invoke internal plan transition RPCs'
+);
+select is(
+  (
+    select count(*)
+    from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname = 'Organization members can delete plan documents'
+  ),
+  0::bigint,
+  'authenticated users have no source document delete policy'
+);
+
+reset role;
+set local role service_role;
 select is(
   (
     select plan_id
     from public.create_expenditure_plan_analysis(
+      '11111111-1111-4111-8111-111111111111',
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       'aaaaaaaa-0000-4000-8000-000000000001',
       'plan-a-integration-key',
@@ -125,8 +165,9 @@ select is(
 );
 select is(
   (
-    select was_created
+    select should_process
     from public.create_expenditure_plan_analysis(
+      '11111111-1111-4111-8111-111111111111',
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       'aaaaaaaa-0000-4000-8000-000000000001',
       'plan-a-integration-key',
@@ -144,6 +185,7 @@ select is(
 select lives_ok(
   $$
     select public.save_plan_analysis(
+      '11111111-1111-4111-8111-111111111111',
       'aaaaaaaa-1000-4000-8000-000000000001',
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/aaaaaaaa-1000-4000-8000-000000000001/source.pdf',
       '{"title":"교육 지원","periodStart":"2026-08-01","periodEnd":"2026-08-31","totalAmount":100000,"items":[{"id":"item-1","name":"교재비","description":"교재 구입","amount":100000,"confidence":0.98,"sourceText":"교재비 100,000원","sourceName":"교재비","sourceAmount":100000}]}'::jsonb,
@@ -167,6 +209,7 @@ select is(
 select lives_ok(
   $$
     select public.register_expenditure_plan(
+      '11111111-1111-4111-8111-111111111111',
       'aaaaaaaa-1000-4000-8000-000000000001',
       '{"title":"교육 지원 수정","periodStart":"2026-08-01","periodEnd":"2026-08-31","totalAmount":100000,"items":[{"id":"item-1","name":"교재비 수정","description":"교재 구입","amount":100000,"confidence":0.98,"sourceText":"교재비 100,000원","sourceName":"교재비","sourceAmount":100000}]}'::jsonb
     )
@@ -196,6 +239,7 @@ select ok(
 select lives_ok(
   $$
     select public.register_expenditure_plan(
+      '11111111-1111-4111-8111-111111111111',
       'aaaaaaaa-1000-4000-8000-000000000001',
       '{"title":"교육 지원 수정","periodStart":"2026-08-01","periodEnd":"2026-08-31","totalAmount":100000,"items":[{"id":"item-1","name":"교재비 수정","description":"교재 구입","amount":100000,"confidence":0.98,"sourceText":"교재비 100,000원","sourceName":"교재비","sourceAmount":100000}]}'::jsonb
     )
@@ -213,15 +257,11 @@ update public.expenditure_plans
 set status = 'review_required'
 where id = 'bbbbbbbb-1000-4000-8000-000000000001';
 
-set local role authenticated;
-select set_config(
-  'request.jwt.claims',
-  '{"sub":"11111111-1111-4111-8111-111111111111","role":"authenticated"}',
-  true
-);
+set local role service_role;
 select throws_ok(
   $$
     select public.register_expenditure_plan(
+      '11111111-1111-4111-8111-111111111111',
       'bbbbbbbb-1000-4000-8000-000000000001',
       '{"title":"침범 시도","periodStart":"2026-08-01","periodEnd":"2026-08-31","totalAmount":200000,"items":[{"id":"x","name":"침범","description":"","amount":200000,"confidence":null,"sourceText":"","sourceName":"","sourceAmount":null}]}'::jsonb
     )
@@ -246,15 +286,11 @@ values (
   repeat('c', 64), 'invalid-total-integration-key'
 );
 
-set local role authenticated;
-select set_config(
-  'request.jwt.claims',
-  '{"sub":"11111111-1111-4111-8111-111111111111","role":"authenticated"}',
-  true
-);
+set local role service_role;
 select throws_ok(
   $$
     select public.register_expenditure_plan(
+      '11111111-1111-4111-8111-111111111111',
       'aaaaaaaa-1000-4000-8000-000000000002',
       '{"title":"합계 오류","periodStart":"2026-08-01","periodEnd":"2026-08-31","totalAmount":200000,"items":[{"id":"item-1","name":"교재비","description":"","amount":100000,"confidence":null,"sourceText":"","sourceName":"","sourceAmount":null}]}'::jsonb
     )
@@ -272,6 +308,99 @@ select is(
   (select count(*) from public.expenditure_plan_items where plan_id = 'aaaaaaaa-1000-4000-8000-000000000002'),
   0::bigint,
   'failed registration does not partially store items'
+);
+
+reset role;
+insert into public.expenditure_plans (
+  id, organization_id, donation_id, created_by, status,
+  source_file_name, source_mime_type, source_size_bytes,
+  source_page_count, source_fingerprint, idempotency_key,
+  analysis_lease_expires_at
+)
+values (
+  'aaaaaaaa-1000-4000-8000-000000000003',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'aaaaaaaa-0000-4000-8000-000000000001',
+  '11111111-1111-4111-8111-111111111111',
+  'analyzing', 'stale.pdf', 'application/pdf', 1024, 1,
+  repeat('e', 64), 'stale-analysis-integration-key',
+  now() - interval '1 minute'
+);
+
+set local role service_role;
+select throws_ok(
+  $$
+    select *
+    from public.create_expenditure_plan_analysis(
+      '11111111-1111-4111-8111-111111111111',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      'aaaaaaaa-0000-4000-8000-000000000002',
+      'cancelled-donation-key',
+      'cancelled.pdf',
+      'application/pdf',
+      1024,
+      1,
+      repeat('f', 64)
+    )
+  $$,
+  'P0001',
+  'Plan creation is not allowed',
+  'cancelled donations cannot receive expenditure plans'
+);
+select is(
+  (
+    select should_process
+    from public.create_expenditure_plan_analysis(
+      '11111111-1111-4111-8111-111111111111',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      'aaaaaaaa-0000-4000-8000-000000000001',
+      'stale-analysis-integration-key',
+      'stale.pdf',
+      'application/pdf',
+      1024,
+      1,
+      repeat('e', 64)
+    )
+  ),
+  true,
+  'an expired analyzing lease is reclaimed'
+);
+select is(
+  (
+    select should_process
+    from public.create_expenditure_plan_analysis(
+      '11111111-1111-4111-8111-111111111111',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      'aaaaaaaa-0000-4000-8000-000000000001',
+      'stale-analysis-integration-key',
+      'stale.pdf',
+      'application/pdf',
+      1024,
+      1,
+      repeat('e', 64)
+    )
+  ),
+  false,
+  'a renewed analyzing lease blocks duplicate processing'
+);
+
+reset role;
+update public.donations
+set status = 'refunded'
+where id = 'aaaaaaaa-0000-4000-8000-000000000001';
+
+set local role service_role;
+select throws_ok(
+  $$
+    select public.register_expenditure_plan(
+      '11111111-1111-4111-8111-111111111111',
+      'aaaaaaaa-1000-4000-8000-000000000002',
+      '{"title":"환불 후 등록","periodStart":"2026-08-01","periodEnd":"2026-08-31","totalAmount":100000,"items":[{"id":"item-1","name":"교재비","description":"","amount":100000,"confidence":null,"sourceText":"","sourceName":"","sourceAmount":null}]}'::jsonb
+    )
+  $$,
+  'P0001',
+  'Plan is not available for registration',
+  'refunded donations cannot register expenditure plans'
 );
 
 select * from finish();

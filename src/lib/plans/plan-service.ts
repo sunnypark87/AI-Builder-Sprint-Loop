@@ -193,14 +193,6 @@ export async function analyzePlan(
     );
   }
 
-  const existing = await dependencies.repository.findByIdempotency(
-    input.userId,
-    input.idempotencyKey,
-  );
-  if (existing) {
-    return existingResult(existing);
-  }
-
   const hasAccess = await dependencies.repository.assertDonationAccess(
     input.organizationId,
     input.donationId,
@@ -242,7 +234,7 @@ export async function analyzePlan(
     );
   }
 
-  if (!creation.created) {
+  if (!creation.shouldProcess) {
     return existingResult(creation);
   }
 
@@ -255,6 +247,7 @@ export async function analyzePlan(
       input.organizationId,
       input.file,
     );
+    await dependencies.repository.markSourceUploaded(planId, sourcePath);
     const ocr = await (dependencies.recognize ?? recognizePlanDocument)(
       input.file,
     );
@@ -272,7 +265,11 @@ export async function analyzePlan(
     };
   } catch (error) {
     const code =
-      error instanceof DocumentOcrError ? error.code : 'persistence_failed';
+      error instanceof DocumentOcrError
+        ? error.code
+        : sourcePath
+          ? 'persistence_failed'
+          : 'source_upload_failed';
     try {
       await dependencies.repository.saveFailure(planId, code, sourcePath);
     } catch {

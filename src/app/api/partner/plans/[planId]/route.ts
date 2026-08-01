@@ -6,6 +6,7 @@ import { parsePlanDraft, validatePlanDraft } from '@/lib/plans/plan-schema';
 import { AuthenticationError, requireUserId } from '@/lib/supabase/auth';
 import {
   createClient,
+  createServiceClient,
   SupabaseConfigurationError,
 } from '@/lib/supabase/server';
 
@@ -56,9 +57,12 @@ export async function POST(
   try {
     const { planId } = await params;
     const supabase = await createClient();
-    await requireUserId(supabase);
+    const userId = await requireUserId(supabase);
     const result = await retryPlanAnalysis(planId, {
-      repository: createPlanRepository(supabase),
+      repository: createPlanRepository(supabase, {
+        actorUserId: userId,
+        client: createServiceClient(),
+      }),
     });
 
     return NextResponse.json({
@@ -70,10 +74,15 @@ export async function POST(
   }
 }
 
-async function authorizedRepository() {
+async function authorizedRepository(mutations = false) {
   const supabase = await createClient();
-  await requireUserId(supabase);
-  return createPlanRepository(supabase);
+  const userId = await requireUserId(supabase);
+  return createPlanRepository(
+    supabase,
+    mutations
+      ? { actorUserId: userId, client: createServiceClient() }
+      : undefined,
+  );
 }
 
 export async function GET(
@@ -155,7 +164,7 @@ export async function PATCH(
       );
     }
 
-    const repository = await authorizedRepository();
+    const repository = await authorizedRepository(true);
     const plan = await repository.getReview(planId);
     if (!plan) {
       return responseError(404, 'not_found', '집행 계획을 찾을 수 없습니다.');

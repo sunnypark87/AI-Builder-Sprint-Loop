@@ -24,18 +24,18 @@ function png() {
 
 function repository(overrides: Partial<PlanRepository> = {}): PlanRepository {
   return {
-    findByIdempotency: vi.fn().mockResolvedValue(null),
     assertDonationAccess: vi.fn().mockResolvedValue(true),
     createAnalyzingPlan: vi.fn().mockResolvedValue({
       id: ids.plan,
       status: 'analyzing',
       draft: null,
       issues: [],
-      created: true,
+      shouldProcess: true,
     }),
     uploadSource: vi
       .fn()
       .mockResolvedValue(`${ids.organization}/${ids.plan}/source.png`),
+    markSourceUploaded: vi.fn().mockResolvedValue(undefined),
     saveAnalysis: vi.fn().mockResolvedValue(undefined),
     saveFailure: vi.fn().mockResolvedValue(undefined),
     claimRetry: vi.fn().mockResolvedValue(null),
@@ -92,10 +92,14 @@ describe('analyzePlan', () => {
       },
     });
     expect(store.saveAnalysis).toHaveBeenCalledOnce();
+    expect(store.markSourceUploaded).toHaveBeenCalledWith(
+      ids.plan,
+      `${ids.organization}/${ids.plan}/source.png`,
+    );
     expect(store.saveFailure).not.toHaveBeenCalled();
   });
 
-  it('returns an existing submission without another OCR call', async () => {
+  it('returns an active existing submission without another OCR call', async () => {
     const existing: ExistingAnalysis = {
       id: ids.plan,
       status: 'review_required',
@@ -103,7 +107,10 @@ describe('analyzePlan', () => {
       issues: [],
     };
     const store = repository({
-      findByIdempotency: vi.fn().mockResolvedValue(existing),
+      createAnalyzingPlan: vi.fn().mockResolvedValue({
+        ...existing,
+        shouldProcess: false,
+      }),
     });
     const recognize = vi.fn();
 
@@ -118,7 +125,7 @@ describe('analyzePlan', () => {
       duplicate: true,
     });
     expect(recognize).not.toHaveBeenCalled();
-    expect(store.createAnalyzingPlan).not.toHaveBeenCalled();
+    expect(store.createAnalyzingPlan).toHaveBeenCalledOnce();
   });
 
   it('returns the winning plan when atomic creation detects a concurrent request', async () => {
@@ -129,7 +136,7 @@ describe('analyzePlan', () => {
         status: 'analyzing',
         draft: null,
         issues: [],
-        created: false,
+        shouldProcess: false,
       }),
     });
 
@@ -184,6 +191,25 @@ describe('analyzePlan', () => {
       `${ids.organization}/${ids.plan}/source.png`,
     );
     expect(store.saveAnalysis).not.toHaveBeenCalled();
+  });
+
+  it('marks a source upload failure as requiring a new upload', async () => {
+    const store = repository({
+      uploadSource: vi.fn().mockRejectedValue(new Error('storage unavailable')),
+    });
+
+    await expect(
+      analyzePlan(input, { repository: store }),
+    ).rejects.toMatchObject({
+      code: 'persistence_failed',
+      retryable: true,
+    });
+    expect(store.saveFailure).toHaveBeenCalledWith(
+      ids.plan,
+      'source_upload_failed',
+      undefined,
+    );
+    expect(store.markSourceUploaded).not.toHaveBeenCalled();
   });
 });
 

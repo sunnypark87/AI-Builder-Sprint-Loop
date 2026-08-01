@@ -1,15 +1,33 @@
 'use client';
 
 import { LoaderCircleIcon, RefreshCwIcon } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { buttonClassName } from '@/components/ui/button';
 
-export function PlanRetryButton({ planId }: { planId: string }) {
+export function PlanRetryButton({
+  planId,
+  canRetry = true,
+}: {
+  planId: string;
+  canRetry?: boolean;
+}) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
+
+  if (!canRetry) {
+    return (
+      <Link
+        className={buttonClassName({ size: 'small', variant: 'secondary' })}
+        href="/partner/plans/new"
+      >
+        다시 업로드
+      </Link>
+    );
+  }
 
   return (
     <div className="mt-2 grid gap-1">

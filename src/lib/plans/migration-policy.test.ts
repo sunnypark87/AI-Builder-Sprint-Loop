@@ -27,6 +27,12 @@ describe('expenditure plan migration security', () => {
     expect(migration).toContain("'plan-documents'");
     expect(migration).toMatch(/'plan-documents',\s*'plan-documents',\s*false,/);
     expect(migration).toContain('private.can_access_plan_document(name)');
+    expect(migration).not.toContain(
+      'Organization members can delete plan documents',
+    );
+    expect(migration).not.toContain(
+      'Organization members can upload plan documents',
+    );
   });
 
   it('keeps anonymous access disabled and scopes app access to server or users', () => {
@@ -34,5 +40,14 @@ describe('expenditure plan migration security', () => {
     expect(migration).toContain('to service_role');
     expect(migration).toContain('to authenticated');
     expect(migration).toContain('auth.uid()');
+  });
+
+  it('keeps mutations server-only and validates lifecycle eligibility', () => {
+    expect(migration).not.toMatch(
+      /grant execute on function public\.[\s\S]*?to authenticated/,
+    );
+    expect(migration).toContain("donation.status = 'paid'");
+    expect(migration).toContain('analysis_lease_expires_at');
+    expect(migration).toContain("interval '2 minutes'");
   });
 });

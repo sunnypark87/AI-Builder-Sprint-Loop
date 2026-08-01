@@ -19,6 +19,7 @@ describe('.env.example', () => {
       'UPSTAGE_OCR_URL',
       'NEXT_PUBLIC_SUPABASE_URL',
       'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+      'SUPABASE_SECRET_KEY',
     ]);
     expect(new Set(variableNames).size).toBe(variableNames.length);
   });

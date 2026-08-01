@@ -5,6 +5,7 @@ import { analyzePlan, PlanServiceError } from '@/lib/plans/plan-service';
 import { AuthenticationError, requireUserId } from '@/lib/supabase/auth';
 import {
   createClient,
+  createServiceClient,
   SupabaseConfigurationError,
 } from '@/lib/supabase/server';
 
@@ -80,6 +81,10 @@ export async function POST(request: Request) {
 
     const supabase = await createClient();
     const userId = await requireUserId(supabase);
+    const repository = createPlanRepository(supabase, {
+      actorUserId: userId,
+      client: createServiceClient(),
+    });
     const result = await analyzePlan(
       {
         userId,
@@ -89,7 +94,7 @@ export async function POST(request: Request) {
         file,
       },
       {
-        repository: createPlanRepository(supabase),
+        repository,
       },
     );
 

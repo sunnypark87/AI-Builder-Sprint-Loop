@@ -323,6 +323,7 @@ tests/
 - 검증 전 pending 원본은 경로의 업로더 본인만 조회하고, 최종 계획 원본만 같은 조직 구성원에게 허용하도록 Storage SELECT 정책을 분리함.
 - 동일 idempotency key 재사용 시 조직·기부·파일명·MIME·크기·페이지 수·SHA-256 fingerprint가 모두 일치해야만 기존 계획을 반환하거나 stale 분석을 재개하도록 강화함.
 - 저장된 OCR 오류 코드를 기준으로 429·5xx·timeout·network 오류만 재시도하고, 400·401·403·413 오류에는 무효한 재시도 버튼을 노출하지 않도록 수정함.
+- 관리 목록 행에 불변 ID를 전달하고 React key로 사용해 같은 제목의 계획을 필터링하거나 재정렬해도 행별 상태와 액션을 유지함.
 
 ### 완료 조건 추적표
 
@@ -336,13 +337,13 @@ tests/
 | 원본과 OCR 감사 정보 추적               | 계획 저장소, 비공개 버킷, OCR 이력 테이블        | pgTAP OCR 이력, 서명 URL을 사용하는 실제 검토 화면      | PASS |
 | 파일·외부 API 실패와 재시도             | 파일 검증, OCR 어댑터, 조건부 재시도 서비스·버튼 | 오류 모킹, 429→부분 데이터 없음→같은 원본 재시도 E2E    | PASS |
 | 비밀정보·원문 노출 방지                 | 서버 전용 어댑터, 정제 오류, React 텍스트 렌더링 | 오류·악성 문자열 테스트, 빌드된 클라이언트 번들 값 검색 | PASS |
-| 대표 문서 정확도와 전체 검증            | 결정적 파서, 평가 전용 Playwright                | 합성 대표 문서 6종 30/30, `npm run check` 115개 테스트  | PASS |
+| 대표 문서 정확도와 전체 검증            | 결정적 파서, 평가 전용 Playwright                | 합성 대표 문서 6종 30/30, `npm run check` 116개 테스트  | PASS |
 
 ### 소프트웨어 품질 검증
 
 ```text
 명령: npm run check
-결과: PASS. format:check, lint, typecheck, Vitest 28개 파일 115개 테스트, Next.js 16.2.12 프로덕션 빌드 통과
+결과: PASS. format:check, lint, typecheck, Vitest 29개 파일 116개 테스트, Next.js 16.2.12 프로덕션 빌드 통과
 
 명령: npm run test:e2e -- expenditure-plan-registration.spec.ts
 결과: PASS. 등록 진입·안전한 빈 상태, 문서 없는 API 요청 거부, 360px 오버플로 3개 테스트 통과
@@ -398,6 +399,7 @@ tests/
 - 404·422 등 영구 Upstage 4xx를 재시도 가능한 `upstream_failure`로 저장하는 문제를 `upstream_rejected` 코드로 분리함.
 - lease 만료 후 새 worker가 분석을 인계해도 이전 worker가 성공 또는 실패 상태를 기록할 수 있는 경쟁 조건을 세대별 lease token 검증으로 차단함.
 - 조직 ID만 검사하는 Storage SELECT 정책 때문에 같은 조직의 다른 사용자가 검증 전 pending 원본을 읽을 수 있는 문제를 업로더 UUID 검증으로 차단함.
+- 같은 제목을 React key로 사용해 목록 재정렬 시 다른 계획의 재시도 버튼 상태가 재사용될 수 있는 문제를 불변 계획 ID key로 차단함.
 
 ### 차단 항목과 미검증 범위
 
@@ -408,7 +410,7 @@ tests/
 
 ### 실행한 명령과 결과
 
-- `npm run check`: PASS, 28개 파일 115개 테스트와 프로덕션 빌드 통과.
+- `npm run check`: PASS, 29개 파일 116개 테스트와 프로덕션 빌드 통과.
 - `npm run test:e2e -- expenditure-plan-registration.spec.ts`: PASS, 3개 통과.
 - `npx supabase db reset --local`: PASS, 빈 DB 마이그레이션 적용.
 - `npx supabase test db`: PASS, pgTAP 54개 통과.

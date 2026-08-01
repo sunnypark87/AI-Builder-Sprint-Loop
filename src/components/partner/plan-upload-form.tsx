@@ -26,6 +26,7 @@ export function PlanUploadForm({
 }) {
   const router = useRouter();
   const submitting = useRef(false);
+  const idempotencyKey = useRef<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
 
@@ -51,7 +52,8 @@ export function PlanUploadForm({
         setPending(true);
         setError('');
         formData.set('organizationId', donation.organizationId);
-        formData.set('idempotencyKey', `plan:${crypto.randomUUID()}`);
+        idempotencyKey.current ??= `plan:${crypto.randomUUID()}`;
+        formData.set('idempotencyKey', idempotencyKey.current);
 
         try {
           const response = await fetch('/api/partner/plans', {
@@ -62,6 +64,7 @@ export function PlanUploadForm({
             planId?: string;
             status?: string;
           };
+          idempotencyKey.current = null;
 
           if (!response.ok || !result.planId) {
             setError(
@@ -96,6 +99,9 @@ export function PlanUploadForm({
           className="h-10 w-full rounded-[var(--radius-sm)] border border-line bg-panel px-3 text-sm text-copy hover:border-copy-disabled"
           disabled={pending || donations.length === 0}
           name="donationId"
+          onChange={() => {
+            idempotencyKey.current = null;
+          }}
           required
         >
           <option value="">기부 내역 선택</option>
@@ -114,6 +120,9 @@ export function PlanUploadForm({
           className="min-h-12 rounded-[var(--radius-sm)] border border-dashed border-line px-3 py-2 text-sm file:mr-3 file:border-0 file:bg-panel-muted file:px-3 file:py-1.5 file:text-sm"
           disabled={pending || donations.length === 0}
           name="document"
+          onChange={() => {
+            idempotencyKey.current = null;
+          }}
           required
           type="file"
         />

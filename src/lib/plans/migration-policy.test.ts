@@ -48,6 +48,8 @@ describe('expenditure plan migration security', () => {
     );
     expect(migration).toContain("donation.status = 'paid'");
     expect(migration).toContain('analysis_lease_expires_at');
+    expect(migration).toContain('analysis_lease_token');
+    expect(migration).toContain('analysis_lease_token = p_lease_token');
     expect(migration).toContain("interval '2 minutes'");
   });
 });

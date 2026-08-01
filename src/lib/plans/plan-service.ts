@@ -123,6 +123,7 @@ export async function retryPlanAnalysis(
       source.planId,
       source.sourcePath,
       parsed,
+      source.leaseToken,
     );
 
     return {
@@ -138,6 +139,7 @@ export async function retryPlanAnalysis(
       await dependencies.repository.saveFailure(
         source.planId,
         code,
+        source.leaseToken,
         source.sourcePath,
       );
     } catch {
@@ -332,6 +334,18 @@ export async function analyzePlan(
   }
 
   const planId = creation.id;
+  const leaseToken = creation.leaseToken;
+
+  if (!leaseToken) {
+    await removePendingSource(dependencies.repository, input.sourcePath);
+    throw new PlanServiceError(
+      'persistence_failed',
+      '집행 계획 분석 소유권을 확인할 수 없습니다.',
+      500,
+      true,
+      planId,
+    );
+  }
 
   let sourcePath: string | undefined;
   try {
@@ -342,13 +356,22 @@ export async function analyzePlan(
       file,
       creation.sourcePath,
     );
-    await dependencies.repository.markSourceUploaded(planId, sourcePath);
+    await dependencies.repository.markSourceUploaded(
+      planId,
+      sourcePath,
+      leaseToken,
+    );
     const ocr = await (dependencies.recognize ?? recognizePlanDocument)(file);
     const parsed = parseOcrPlan(
       ocr,
       (dependencies.now ?? (() => new Date()))().toISOString(),
     );
-    await dependencies.repository.saveAnalysis(planId, sourcePath, parsed);
+    await dependencies.repository.saveAnalysis(
+      planId,
+      sourcePath,
+      parsed,
+      leaseToken,
+    );
 
     return {
       planId,
@@ -367,7 +390,12 @@ export async function analyzePlan(
       await removePendingSource(dependencies.repository, input.sourcePath);
     }
     try {
-      await dependencies.repository.saveFailure(planId, code, sourcePath);
+      await dependencies.repository.saveFailure(
+        planId,
+        code,
+        leaseToken,
+        sourcePath,
+      );
     } catch {
       // Preserve the primary safe error; cleanup is tracked by the analyzing row.
     }

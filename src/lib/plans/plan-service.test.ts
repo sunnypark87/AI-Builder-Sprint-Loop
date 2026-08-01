@@ -13,6 +13,7 @@ const ids = {
   organization: '22222222-2222-4222-8222-222222222222',
   donation: '33333333-3333-4333-8333-333333333333',
   plan: '44444444-4444-4444-8444-444444444444',
+  lease: '66666666-6666-4666-8666-666666666666',
 };
 
 function png() {
@@ -32,6 +33,7 @@ function repository(overrides: Partial<PlanRepository> = {}): PlanRepository {
       draft: null,
       issues: [],
       sourcePath: null,
+      leaseToken: ids.lease,
       shouldProcess: true,
     }),
     downloadPendingSource: vi.fn().mockResolvedValue(png()),
@@ -102,6 +104,7 @@ describe('analyzePlan', () => {
     expect(store.markSourceUploaded).toHaveBeenCalledWith(
       ids.plan,
       `${ids.organization}/${ids.plan}/source.png`,
+      ids.lease,
     );
     expect(store.saveFailure).not.toHaveBeenCalled();
   });
@@ -117,6 +120,7 @@ describe('analyzePlan', () => {
     const store = repository({
       createAnalyzingPlan: vi.fn().mockResolvedValue({
         ...existing,
+        leaseToken: null,
         shouldProcess: false,
       }),
     });
@@ -145,6 +149,7 @@ describe('analyzePlan', () => {
         draft: null,
         issues: [],
         sourcePath: null,
+        leaseToken: null,
         shouldProcess: false,
       }),
     });
@@ -158,6 +163,32 @@ describe('analyzePlan', () => {
     });
     expect(store.promoteSource).not.toHaveBeenCalled();
     expect(store.removeSource).toHaveBeenCalledWith(input.sourcePath);
+    expect(recognize).not.toHaveBeenCalled();
+  });
+
+  it('stops before OCR when a claimed analysis has no lease token', async () => {
+    const recognize = vi.fn();
+    const store = repository({
+      createAnalyzingPlan: vi.fn().mockResolvedValue({
+        id: ids.plan,
+        status: 'analyzing',
+        draft: null,
+        issues: [],
+        sourcePath: null,
+        leaseToken: null,
+        shouldProcess: true,
+      }),
+    });
+
+    await expect(
+      analyzePlan(input, { repository: store, recognize }),
+    ).rejects.toMatchObject({
+      code: 'persistence_failed',
+      retryable: true,
+      planId: ids.plan,
+    });
+    expect(store.removeSource).toHaveBeenCalledWith(input.sourcePath);
+    expect(store.promoteSource).not.toHaveBeenCalled();
     expect(recognize).not.toHaveBeenCalled();
   });
 
@@ -218,6 +249,7 @@ describe('analyzePlan', () => {
     expect(store.saveFailure).toHaveBeenCalledWith(
       ids.plan,
       'timeout',
+      ids.lease,
       `${ids.organization}/${ids.plan}/source.png`,
     );
     expect(store.saveAnalysis).not.toHaveBeenCalled();
@@ -240,6 +272,7 @@ describe('analyzePlan', () => {
     expect(store.saveFailure).toHaveBeenCalledWith(
       ids.plan,
       'source_upload_failed',
+      ids.lease,
       undefined,
     );
     expect(store.markSourceUploaded).not.toHaveBeenCalled();
@@ -253,6 +286,7 @@ describe('retryPlanAnalysis', () => {
     sourcePath: `${ids.organization}/${ids.plan}/source.png`,
     fileName: 'plan.png',
     mimeType: 'image/png',
+    leaseToken: ids.lease,
   };
 
   it('claims a failed plan and stores a new review draft from its source', async () => {
@@ -284,6 +318,12 @@ describe('retryPlanAnalysis', () => {
     expect(result.status).toBe('review_required');
     expect(store.downloadSource).toHaveBeenCalledWith(source);
     expect(store.saveAnalysis).toHaveBeenCalledOnce();
+    expect(store.saveAnalysis).toHaveBeenCalledWith(
+      ids.plan,
+      source.sourcePath,
+      expect.any(Object),
+      ids.lease,
+    );
   });
 
   it('rejects a retry when another request already claimed the failed plan', async () => {
@@ -356,6 +396,7 @@ describe('retryPlanAnalysis', () => {
     expect(store.saveFailure).toHaveBeenCalledWith(
       ids.plan,
       'rate_limited',
+      ids.lease,
       source.sourcePath,
     );
   });

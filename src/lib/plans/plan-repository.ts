@@ -20,6 +20,7 @@ export type ExistingAnalysis = {
 };
 
 export type AnalysisCreation = ExistingAnalysis & {
+  leaseToken: string | null;
   shouldProcess: boolean;
 };
 
@@ -100,6 +101,7 @@ export type RetrySource = {
   sourcePath: string;
   fileName: string;
   mimeType: string;
+  leaseToken: string;
 };
 
 export interface PlanRepository {
@@ -123,15 +125,21 @@ export interface PlanRepository {
     existingSourcePath: string | null,
   ): Promise<string>;
   removeSource(sourcePath: string): Promise<void>;
-  markSourceUploaded(planId: string, sourcePath: string): Promise<void>;
+  markSourceUploaded(
+    planId: string,
+    sourcePath: string,
+    leaseToken: string,
+  ): Promise<void>;
   saveAnalysis(
     planId: string,
     sourcePath: string,
     parsed: ParsedPlan,
+    leaseToken: string,
   ): Promise<void>;
   saveFailure(
     planId: string,
     errorCode: string,
+    leaseToken: string,
     sourcePath?: string,
   ): Promise<void>;
   claimRetry(planId: string): Promise<RetrySource | null>;
@@ -236,6 +244,7 @@ export function createPlanRepository(
         plan_draft: unknown;
         plan_validation_issues: unknown;
         plan_source_path: string | null;
+        lease_token: string | null;
         should_process: boolean;
       };
       return {
@@ -244,6 +253,8 @@ export function createPlanRepository(
         draft: parsePlanDraft(created.plan_draft),
         issues: asIssues(created.plan_validation_issues),
         sourcePath: created.plan_source_path,
+        leaseToken:
+          typeof created.lease_token === 'string' ? created.lease_token : null,
         shouldProcess: created.should_process,
       };
     },
@@ -313,12 +324,13 @@ export function createPlanRepository(
       }
     },
 
-    async markSourceUploaded(planId, sourcePath) {
+    async markSourceUploaded(planId, sourcePath, leaseToken) {
       const { client, actorUserId } = mutationClient();
       const { error } = await client.rpc('mark_plan_source_uploaded', {
         p_actor_id: actorUserId,
         p_plan_id: planId,
         p_source_path: sourcePath,
+        p_lease_token: leaseToken,
       });
 
       if (error) {
@@ -326,11 +338,12 @@ export function createPlanRepository(
       }
     },
 
-    async saveAnalysis(planId, sourcePath, parsed) {
+    async saveAnalysis(planId, sourcePath, parsed, leaseToken) {
       const { client, actorUserId } = mutationClient();
       const { error } = await client.rpc('save_plan_analysis', {
         p_actor_id: actorUserId,
         p_plan_id: planId,
+        p_lease_token: leaseToken,
         p_source_path: sourcePath,
         p_draft: parsed.draft,
         p_validation_issues: parsed.issues,
@@ -342,11 +355,12 @@ export function createPlanRepository(
       }
     },
 
-    async saveFailure(planId, errorCode, sourcePath) {
+    async saveFailure(planId, errorCode, leaseToken, sourcePath) {
       const { client, actorUserId } = mutationClient();
       const { error } = await client.rpc('mark_plan_analysis_failed', {
         p_actor_id: actorUserId,
         p_plan_id: planId,
+        p_lease_token: leaseToken,
         p_error_code: errorCode,
         p_source_path: sourcePath,
       });
@@ -377,9 +391,10 @@ export function createPlanRepository(
         source_path: string | null;
         source_file_name: string;
         source_mime_type: string;
+        lease_token: string;
       };
-      if (!source.source_path) {
-        return null;
+      if (!source.source_path || typeof source.lease_token !== 'string') {
+        throw databaseError('분석 소유권 정보를 확인할 수 없습니다.');
       }
 
       return {
@@ -388,6 +403,7 @@ export function createPlanRepository(
         sourcePath: source.source_path,
         fileName: source.source_file_name,
         mimeType: source.source_mime_type,
+        leaseToken: source.lease_token,
       };
     },
 

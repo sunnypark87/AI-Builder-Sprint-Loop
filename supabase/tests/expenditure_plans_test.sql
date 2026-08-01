@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(46);
+select plan(51);
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values
@@ -29,7 +29,7 @@ insert into public.expenditure_plans (
   id, organization_id, donation_id, created_by, status,
   source_file_name, source_mime_type, source_size_bytes,
   source_page_count, source_fingerprint, idempotency_key,
-  analysis_lease_expires_at
+  analysis_lease_expires_at, analysis_lease_token
 )
 values
   (
@@ -38,7 +38,8 @@ values
     'aaaaaaaa-0000-4000-8000-000000000001',
     '11111111-1111-4111-8111-111111111111',
     'analyzing', 'plan-a.pdf', 'application/pdf', 1024, 1,
-    repeat('a', 64), 'plan-a-integration-key', now() + interval '2 minutes'
+    repeat('a', 64), 'plan-a-integration-key', now() + interval '2 minutes',
+    'aaaaaaaa-2000-4000-8000-000000000001'
   ),
   (
     'bbbbbbbb-1000-4000-8000-000000000001',
@@ -46,7 +47,8 @@ values
     'bbbbbbbb-0000-4000-8000-000000000001',
     '22222222-2222-4222-8222-222222222222',
     'analyzing', 'plan-b.pdf', 'application/pdf', 1024, 1,
-    repeat('b', 64), 'plan-b-integration-key', now() + interval '2 minutes'
+    repeat('b', 64), 'plan-b-integration-key', now() + interval '2 minutes',
+    'bbbbbbbb-2000-4000-8000-000000000001'
   );
 
 insert into storage.objects (bucket_id, name)
@@ -116,12 +118,12 @@ select ok(
   )
     and not has_function_privilege(
       'authenticated',
-      'public.save_plan_analysis(uuid,uuid,text,jsonb,jsonb,jsonb)',
+      'public.save_plan_analysis(uuid,uuid,uuid,text,jsonb,jsonb,jsonb)',
       'EXECUTE'
     )
     and not has_function_privilege(
       'authenticated',
-      'public.mark_plan_analysis_failed(uuid,uuid,text,text)',
+      'public.mark_plan_analysis_failed(uuid,uuid,uuid,text,text)',
       'EXECUTE'
     )
     and not has_function_privilege(
@@ -206,6 +208,7 @@ select lives_ok(
     select public.save_plan_analysis(
       '11111111-1111-4111-8111-111111111111',
       'aaaaaaaa-1000-4000-8000-000000000001',
+      'aaaaaaaa-2000-4000-8000-000000000001',
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/aaaaaaaa-1000-4000-8000-000000000001/source.pdf',
       '{"title":"교육 지원","periodStart":"2026-08-01","periodEnd":"2026-08-31","totalAmount":100000,"items":[{"id":"item-1","name":"교재비","description":"교재 구입","amount":100000,"confidence":0.98,"sourceText":"교재비 100,000원","sourceName":"교재비","sourceAmount":100000}]}'::jsonb,
       '[]'::jsonb,
@@ -516,7 +519,7 @@ insert into public.expenditure_plans (
   id, organization_id, donation_id, created_by, status,
   source_file_name, source_mime_type, source_size_bytes,
   source_page_count, source_fingerprint, idempotency_key,
-  analysis_lease_expires_at
+  analysis_lease_expires_at, analysis_lease_token
 )
 values (
   'aaaaaaaa-1000-4000-8000-000000000003',
@@ -525,7 +528,8 @@ values (
   '11111111-1111-4111-8111-111111111111',
   'analyzing', 'stale.pdf', 'application/pdf', 1024, 1,
   repeat('e', 64), 'stale-analysis-integration-key',
-  now() - interval '1 minute'
+  now() - interval '1 minute',
+  'aaaaaaaa-2000-4000-8000-000000000003'
 );
 
 set local role service_role;
@@ -583,6 +587,60 @@ select is(
   ),
   false,
   'a renewed analyzing lease blocks duplicate processing'
+);
+select throws_ok(
+  $$
+    select public.save_plan_analysis(
+      '11111111-1111-4111-8111-111111111111',
+      'aaaaaaaa-1000-4000-8000-000000000003',
+      'aaaaaaaa-2000-4000-8000-000000000003',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/aaaaaaaa-1000-4000-8000-000000000003/source.pdf',
+      '{"title":"만료 작업","periodStart":"2026-08-01","periodEnd":"2026-08-31","totalAmount":100000,"items":[]}'::jsonb,
+      '[]'::jsonb,
+      '{"apiVersion":"1.1","modelVersion":"stale","pageCount":1,"processedAt":"2026-08-01T00:00:00Z"}'::jsonb
+    )
+  $$,
+  'P0001',
+  'Plan is not available for analysis',
+  'an expired worker cannot save analysis after lease reclamation'
+);
+select throws_ok(
+  $$
+    select public.mark_plan_analysis_failed(
+      '11111111-1111-4111-8111-111111111111',
+      'aaaaaaaa-1000-4000-8000-000000000003',
+      'aaaaaaaa-2000-4000-8000-000000000003',
+      'timeout',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/aaaaaaaa-1000-4000-8000-000000000003/source.pdf'
+    )
+  $$,
+  'P0001',
+  'Plan is not available for failure recording',
+  'an expired worker cannot fail analysis after lease reclamation'
+);
+select is(
+  (select status from public.expenditure_plans where id = 'aaaaaaaa-1000-4000-8000-000000000003'),
+  'analyzing',
+  'stale worker writes leave the replacement analysis active'
+);
+select lives_ok(
+  $$
+    select public.save_plan_analysis(
+      '11111111-1111-4111-8111-111111111111',
+      'aaaaaaaa-1000-4000-8000-000000000003',
+      (select analysis_lease_token from public.expenditure_plans where id = 'aaaaaaaa-1000-4000-8000-000000000003'),
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/aaaaaaaa-1000-4000-8000-000000000003/source.pdf',
+      '{"title":"인계 작업","periodStart":"2026-08-01","periodEnd":"2026-08-31","totalAmount":100000,"items":[]}'::jsonb,
+      '[]'::jsonb,
+      '{"apiVersion":"1.1","modelVersion":"replacement","pageCount":1,"processedAt":"2026-08-01T00:01:00Z"}'::jsonb
+    )
+  $$,
+  'the current lease owner can save analysis'
+);
+select is(
+  (select status from public.expenditure_plans where id = 'aaaaaaaa-1000-4000-8000-000000000003'),
+  'review_required',
+  'the current lease owner completes the replacement analysis'
 );
 
 reset role;

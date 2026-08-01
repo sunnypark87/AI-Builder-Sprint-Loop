@@ -97,6 +97,7 @@ create table public.expenditure_plans (
   ocr_metadata jsonb,
   analysis_error_code text,
   analysis_lease_expires_at timestamptz,
+  analysis_lease_token uuid,
   idempotency_key text not null,
   reviewed_at timestamptz,
   created_at timestamptz not null default now(),
@@ -221,6 +222,7 @@ returns table (
   plan_draft jsonb,
   plan_validation_issues jsonb,
   plan_source_path text,
+  lease_token uuid,
   should_process boolean
 )
 language plpgsql
@@ -229,6 +231,7 @@ set search_path = ''
 as $$
 declare
   process_plan_id uuid;
+  process_lease_token uuid;
 begin
   if p_actor_id is null
     or not private.is_organization_member_for(p_organization_id, p_actor_id)
@@ -253,7 +256,8 @@ begin
     source_page_count,
     source_fingerprint,
     idempotency_key,
-    analysis_lease_expires_at
+    analysis_lease_expires_at,
+    analysis_lease_token
   )
   values (
     p_organization_id,
@@ -266,10 +270,12 @@ begin
     p_source_page_count,
     p_source_fingerprint,
     p_idempotency_key,
-    now() + interval '2 minutes'
+    now() + interval '2 minutes',
+    gen_random_uuid()
   )
   on conflict (created_by, idempotency_key) do nothing
-  returning id into process_plan_id;
+  returning id, analysis_lease_token
+    into process_plan_id, process_lease_token;
 
   if process_plan_id is null then
     if exists (
@@ -292,6 +298,7 @@ begin
 
     update public.expenditure_plans plan
     set analysis_lease_expires_at = now() + interval '2 minutes',
+        analysis_lease_token = gen_random_uuid(),
         updated_at = now()
     where plan.created_by = p_actor_id
       and plan.idempotency_key = p_idempotency_key
@@ -302,7 +309,8 @@ begin
         plan.analysis_lease_expires_at is null
         or plan.analysis_lease_expires_at <= now()
       )
-    returning plan.id into process_plan_id;
+    returning plan.id, plan.analysis_lease_token
+      into process_plan_id, process_lease_token;
   end if;
 
   if process_plan_id is not null then
@@ -313,6 +321,7 @@ begin
       plan.draft_data,
       plan.validation_issues,
       plan.source_path,
+      process_lease_token,
       true
     from public.expenditure_plans plan
     where plan.id = process_plan_id;
@@ -326,6 +335,7 @@ begin
     plan.draft_data,
     plan.validation_issues,
     plan.source_path,
+    null::uuid,
     false
   from public.expenditure_plans plan
   where plan.created_by = p_actor_id
@@ -338,7 +348,8 @@ $$;
 create or replace function public.mark_plan_source_uploaded(
   p_actor_id uuid,
   p_plan_id uuid,
-  p_source_path text
+  p_source_path text,
+  p_lease_token uuid
 )
 returns void
 language plpgsql
@@ -351,6 +362,7 @@ begin
       updated_at = now()
   where id = p_plan_id
     and status = 'analyzing'
+    and analysis_lease_token = p_lease_token
     and private.is_organization_member_for(organization_id, p_actor_id)
     and p_source_path like
       organization_id::text || '/' || id::text || '/source.%';
@@ -364,6 +376,7 @@ $$;
 create or replace function public.save_plan_analysis(
   p_actor_id uuid,
   p_plan_id uuid,
+  p_lease_token uuid,
   p_source_path text,
   p_draft jsonb,
   p_validation_issues jsonb,
@@ -384,9 +397,11 @@ begin
       status = 'review_required',
       analysis_error_code = null,
       analysis_lease_expires_at = null,
+      analysis_lease_token = null,
       updated_at = now()
   where id = p_plan_id
     and status = 'analyzing'
+    and analysis_lease_token = p_lease_token
     and private.is_organization_member_for(organization_id, p_actor_id);
 
   if not found then
@@ -415,6 +430,7 @@ $$;
 create or replace function public.mark_plan_analysis_failed(
   p_actor_id uuid,
   p_plan_id uuid,
+  p_lease_token uuid,
   p_error_code text,
   p_source_path text default null
 )
@@ -429,9 +445,11 @@ begin
       analysis_error_code = p_error_code,
       source_path = coalesce(p_source_path, source_path),
       analysis_lease_expires_at = null,
+      analysis_lease_token = null,
       updated_at = now()
   where id = p_plan_id
     and status = 'analyzing'
+    and analysis_lease_token = p_lease_token
     and private.is_organization_member_for(organization_id, p_actor_id);
 
   if not found then
@@ -449,7 +467,8 @@ returns table (
   organization_id uuid,
   source_path text,
   source_file_name text,
-  source_mime_type text
+  source_mime_type text,
+  lease_token uuid
 )
 language plpgsql
 security definer
@@ -461,6 +480,7 @@ begin
   set status = 'analyzing',
       analysis_error_code = null,
       analysis_lease_expires_at = now() + interval '2 minutes',
+      analysis_lease_token = gen_random_uuid(),
       updated_at = now()
   where plan.id = p_plan_id
     and (
@@ -487,7 +507,8 @@ begin
     plan.organization_id,
     plan.source_path,
     plan.source_file_name,
-    plan.source_mime_type;
+    plan.source_mime_type,
+    plan.analysis_lease_token;
 end;
 $$;
 
@@ -658,13 +679,13 @@ begin
 end;
 $$;
 
-revoke all on function public.save_plan_analysis(uuid, uuid, text, jsonb, jsonb, jsonb)
+revoke all on function public.save_plan_analysis(uuid, uuid, uuid, text, jsonb, jsonb, jsonb)
   from public;
 revoke all on function public.create_expenditure_plan_analysis(uuid, uuid, uuid, text, text, text, bigint, integer, text)
   from public;
-revoke all on function public.mark_plan_source_uploaded(uuid, uuid, text)
+revoke all on function public.mark_plan_source_uploaded(uuid, uuid, text, uuid)
   from public;
-revoke all on function public.mark_plan_analysis_failed(uuid, uuid, text, text)
+revoke all on function public.mark_plan_analysis_failed(uuid, uuid, uuid, text, text)
   from public;
 revoke all on function public.claim_plan_analysis_retry(uuid, uuid)
   from public;
@@ -672,11 +693,11 @@ revoke all on function public.register_expenditure_plan(uuid, uuid, jsonb)
   from public;
 grant execute on function public.create_expenditure_plan_analysis(uuid, uuid, uuid, text, text, text, bigint, integer, text)
   to service_role;
-grant execute on function public.mark_plan_source_uploaded(uuid, uuid, text)
+grant execute on function public.mark_plan_source_uploaded(uuid, uuid, text, uuid)
   to service_role;
-grant execute on function public.save_plan_analysis(uuid, uuid, text, jsonb, jsonb, jsonb)
+grant execute on function public.save_plan_analysis(uuid, uuid, uuid, text, jsonb, jsonb, jsonb)
   to service_role;
-grant execute on function public.mark_plan_analysis_failed(uuid, uuid, text, text)
+grant execute on function public.mark_plan_analysis_failed(uuid, uuid, uuid, text, text)
   to service_role;
 grant execute on function public.claim_plan_analysis_retry(uuid, uuid)
   to service_role;

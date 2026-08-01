@@ -69,6 +69,7 @@ export default async function Page({
         { key: 'analysis_failed', label: '분석 실패' },
       ]}
       rows={plans.map((plan) => ({
+        id: plan.id,
         title: plan.title,
         description: formatMoney(plan.totalAmount),
         status: plan.needsReupload

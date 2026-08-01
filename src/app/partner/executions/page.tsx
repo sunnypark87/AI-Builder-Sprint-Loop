@@ -35,6 +35,7 @@ export default async function Page({
       ]}
       rows={[
         {
+          id: 'execution-meal-demo',
           title: '급식 재료 구매 · 영수증 3건',
           description: '총 428,000원 · 상호명과 금액 추출 완료',
           status: '개인정보 마스킹 확인 필요',
@@ -48,6 +49,7 @@ export default async function Page({
           },
         },
         {
+          id: 'execution-education-demo',
           title: '교육 교재 구매 · 거래명세서',
           description: '총 610,000원',
           status: '기부자 공개 완료',

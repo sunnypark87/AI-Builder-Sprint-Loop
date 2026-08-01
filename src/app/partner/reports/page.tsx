@@ -25,6 +25,7 @@ export default async function Page({
       ]}
       rows={[
         {
+          id: 'report-meal-july-demo',
           title: '7월 급식 지원 완료 보고',
           description: '집행 내역 8건을 바탕으로 초안 생성',
           status: '담당자 사실 확인 필요',
@@ -38,6 +39,7 @@ export default async function Page({
           },
         },
         {
+          id: 'report-education-june-demo',
           title: '2026년 6월 교육 프로그램 보고',
           description: '기부자 12명에게 발행됨',
           status: '기부자 발행 완료',

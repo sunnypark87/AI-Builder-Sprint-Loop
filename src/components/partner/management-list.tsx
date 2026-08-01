@@ -8,6 +8,7 @@ import {
 import { cn } from '@/lib/cn';
 
 type Row = {
+  id: string;
   title: string;
   description: string;
   status: string;
@@ -161,13 +162,13 @@ export function ManagementList({
               <Link
                 className={className}
                 href={row.href}
-                key={row.title}
+                key={row.id}
                 style={style}
               >
                 {content}
               </Link>
             ) : (
-              <div className={className} key={row.title} style={style}>
+              <div className={className} key={row.id} style={style}>
                 {content}
               </div>
             );

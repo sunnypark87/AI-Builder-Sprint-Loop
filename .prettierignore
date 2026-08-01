@@ -1,6 +1,7 @@
 .next
 node_modules
 coverage
+supabase/.temp
 package-lock.json
 public/*.svg
 .github/ISSUE_TEMPLATE/*.md

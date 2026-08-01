@@ -19,6 +19,8 @@ The repository currently contains a starter Next.js web application. Keep this d
 ├── README.md
 ├── package.json
 ├── public/
+├── supabase/
+│   └── migrations/ # Database, RLS, RPC, and private Storage schema changes
 └── src/
     ├── app/          # App Router pages, public/donor/partner layouts, and API routes
     │   ├── api/health/supabase/ # Supabase Auth connectivity health check
@@ -88,6 +90,8 @@ The routes below reflect the App Router structure in `src/app`. `[organizationId
 | `/partner/donations`                | Manage donation agreements and fulfillment statuses                                     |
 | `/partner/donations/demo`           | Review an individual donation's pledge, payment, plan, expenditure, and report progress |
 | `/partner/plans`                    | Manage expenditure plans and AI review statuses                                         |
+| `/partner/plans/new`                | Select a donation and upload an expenditure plan for OCR analysis                       |
+| `/partner/plans/[planId]/review`    | Compare OCR extraction with the private source and register reviewed plan data          |
 | `/partner/plans/demo/review`        | Compare and review the source plan against AI extraction before publishing              |
 | `/partner/executions`               | Manage expenditure evidence and analysis/redaction statuses                             |
 | `/partner/executions/demo/review`   | Review source evidence, AI extraction, and personal-data redaction before publishing    |
@@ -99,9 +103,15 @@ The routes below reflect the App Router structure in `src/app`. `[organizationId
 
 ### API
 
-| Route             | Responsibility           |
-| ----------------- | ------------------------ |
-| `GET /api/health` | Check application health |
+| Route                                  | Responsibility                                                    |
+| -------------------------------------- | ----------------------------------------------------------------- |
+| `GET /api/health`                      | Check application health                                          |
+| `POST /api/partner/plans/upload-url`   | Authorize and prepare a signed direct upload to private Storage   |
+| `DELETE /api/partner/plans/upload-url` | Remove the user's abandoned pending source upload                 |
+| `POST /api/partner/plans`              | Validate a stored source, call Upstage OCR, and save a draft      |
+| `GET /api/partner/plans/[planId]`      | Read an authorized review draft and short-lived source URL        |
+| `PATCH /api/partner/plans/[planId]`    | Validate and transactionally register a reviewed expenditure plan |
+| `POST /api/partner/plans/[planId]`     | Retry OCR for a failed plan from its privately stored source      |
 
 ## Technology Stack
 
@@ -135,6 +145,9 @@ npm run format:check  # Check formatting
 npm run lint          # ESLint
 npm run typecheck     # TypeScript type checking
 npm run test          # Vitest unit tests
+npm run test:e2e      # Mocked browser regression tests
+npm run test:e2e:plans # Local Supabase plan flow; requires `npx supabase start`
+npm run test:ai:ocr   # Live representative OCR evaluation; requires Upstage key
 npm run build         # Next.js production build
 npm run check         # Run format:check, lint, typecheck, test, and build
 ```
@@ -157,6 +170,9 @@ npm run check         # Run format:check, lint, typecheck, test, and build
 - Browser-exposed variables are `NEXT_PUBLIC_SUPABASE_URL` and either
   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or the legacy
   `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+- Use the `NEXT_PUBLIC_*` names documented in `.env.example` for local setup.
+  Server-only Vercel aliases remain compatibility fallbacks and should not be
+  declared alongside the canonical variables.
 - Never expose `SUPABASE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, database
   passwords, or other server secrets to the browser, logs, or Git.
 - Store real values only in `.env` or `.env.local`; document names only in

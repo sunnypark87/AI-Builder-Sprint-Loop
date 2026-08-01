@@ -1,13 +1,24 @@
 import { createServerClient } from '@supabase/ssr';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  createClient as createSupabaseClient,
+  type SupabaseClient,
+} from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
-import { getSupabasePublishableKey, getSupabaseUrl } from './config';
+import {
+  getSupabasePublishableKey,
+  getSupabaseSecretKey,
+  getSupabaseUrl,
+} from './config';
+
+export { SupabaseConfigurationError } from './config';
 
 export async function createClient(): Promise<SupabaseClient> {
+  const url = getSupabaseUrl();
+  const publishableKey = getSupabasePublishableKey();
   const cookieStore = await cookies();
 
-  return createServerClient(getSupabaseUrl(), getSupabasePublishableKey(), {
+  return createServerClient(url, publishableKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -22,5 +33,11 @@ export async function createClient(): Promise<SupabaseClient> {
         }
       },
     },
+  });
+}
+
+export function createServiceClient(): SupabaseClient {
+  return createSupabaseClient(getSupabaseUrl(), getSupabaseSecretKey(), {
+    auth: { autoRefreshToken: false, persistSession: false },
   });
 }

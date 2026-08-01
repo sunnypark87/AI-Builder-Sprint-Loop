@@ -1,0 +1,81 @@
+'use client';
+
+import { LoaderCircleIcon, RefreshCwIcon } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+
+import { buttonClassName } from '@/components/ui/button';
+
+export function PlanRetryButton({
+  planId,
+  canRetry = true,
+}: {
+  planId: string;
+  canRetry?: boolean;
+}) {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState('');
+
+  if (!canRetry) {
+    return (
+      <Link
+        className={buttonClassName({ size: 'small', variant: 'secondary' })}
+        href="/partner/plans/new"
+      >
+        다시 업로드
+      </Link>
+    );
+  }
+
+  return (
+    <div className="mt-2 grid gap-1">
+      <button
+        className={buttonClassName({ size: 'small', variant: 'secondary' })}
+        disabled={pending}
+        onClick={async () => {
+          setPending(true);
+          setError('');
+          try {
+            const response = await fetch(`/api/partner/plans/${planId}`, {
+              method: 'POST',
+            });
+            const result = (await response.json()) as {
+              planId?: string;
+              status?: string;
+              error?: { message?: string };
+            };
+            if (!response.ok || !result.planId) {
+              setError(result.error?.message ?? '재분석할 수 없습니다.');
+              return;
+            }
+            if (result.status === 'analyzing') {
+              setError('재분석이 아직 진행 중입니다. 잠시 후 확인해 주세요.');
+              router.refresh();
+              return;
+            }
+            router.push(`/partner/plans/${result.planId}/review`);
+            router.refresh();
+          } catch {
+            setError('서버에 연결할 수 없습니다.');
+          } finally {
+            setPending(false);
+          }
+        }}
+        type="button"
+      >
+        {pending ? (
+          <LoaderCircleIcon
+            aria-hidden="true"
+            className="size-4 animate-spin"
+          />
+        ) : (
+          <RefreshCwIcon aria-hidden="true" className="size-4" />
+        )}
+        {pending ? '재분석 중' : '재시도'}
+      </button>
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
+    </div>
+  );
+}

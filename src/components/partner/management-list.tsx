@@ -8,12 +8,14 @@ import {
 import { cn } from '@/lib/cn';
 
 type Row = {
+  id: string;
   title: string;
   description: string;
   status: string;
   statusKey: string;
   tone?: StatusTone;
   href?: string;
+  action?: React.ReactNode;
   cells: Record<string, string>;
 };
 
@@ -144,6 +146,7 @@ export function ManagementList({
                   <StatusIndicator tone={row.tone}>
                     {row.status}
                   </StatusIndicator>
+                  {row.action}
                 </div>
               </>
             );
@@ -159,13 +162,13 @@ export function ManagementList({
               <Link
                 className={className}
                 href={row.href}
-                key={row.title}
+                key={row.id}
                 style={style}
               >
                 {content}
               </Link>
             ) : (
-              <div className={className} key={row.title} style={style}>
+              <div className={className} key={row.id} style={style}>
                 {content}
               </div>
             );

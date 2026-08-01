@@ -26,6 +26,7 @@ export default async function Page({
       ]}
       rows={[
         {
+          id: 'donation-education-demo',
           title: '김모아 님 · 아동 교육 프로그램',
           description: '2026. 08. ~ 2027. 07.',
           status: '집행 증빙 등록 필요',
@@ -39,6 +40,7 @@ export default async function Page({
           },
         },
         {
+          id: 'donation-meal-demo',
           title: '이푸름 님 · 급식 지원',
           description: '2026. 07. 일시 기부',
           status: '담당자 보고서 발행 필요',

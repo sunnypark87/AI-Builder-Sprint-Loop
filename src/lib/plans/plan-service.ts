@@ -1,0 +1,422 @@
+import {
+  PlanDocumentValidationError,
+  validatePlanDocument,
+} from '@/lib/plans/file-validation';
+import {
+  PlanIdempotencyConflictError,
+  type ExistingAnalysis,
+  type PlanRepository,
+} from '@/lib/plans/plan-repository';
+import { parseOcrPlan } from '@/lib/plans/parse-ocr-plan';
+import type { ParsedPlan, PlanStatus } from '@/lib/plans/types';
+import {
+  DocumentOcrError,
+  recognizePlanDocument,
+  type DocumentOcrResult,
+} from '@/lib/upstage/document-ocr';
+
+const UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const IDEMPOTENCY_KEY = /^[A-Za-z0-9:_-]{16,128}$/;
+
+export type AnalyzePlanInput = {
+  userId: string;
+  organizationId: string;
+  donationId: string;
+  idempotencyKey: string;
+  sourcePath: string;
+  fileName: string;
+  mimeType: string;
+};
+
+export type AnalyzePlanResult = {
+  planId: string;
+  status: PlanStatus;
+  parsed: ParsedPlan | null;
+  duplicate: boolean;
+};
+
+export class PlanServiceError extends Error {
+  constructor(
+    public readonly code:
+      | 'invalid_identifier'
+      | 'invalid_idempotency_key'
+      | 'forbidden'
+      | 'invalid_file'
+      | 'retry_unavailable'
+      | 'analysis_failed'
+      | 'persistence_failed',
+    message: string,
+    public readonly httpStatus: number,
+    public readonly retryable = false,
+    public readonly planId?: string,
+  ) {
+    super(message);
+    this.name = 'PlanServiceError';
+  }
+}
+
+export async function retryPlanAnalysis(
+  planId: string,
+  dependencies: {
+    repository: PlanRepository;
+    recognize?: (file: File) => Promise<DocumentOcrResult>;
+    now?: () => Date;
+  },
+): Promise<AnalyzePlanResult> {
+  if (!UUID.test(planId)) {
+    throw new PlanServiceError(
+      'invalid_identifier',
+      '집행 계획 식별자가 올바르지 않습니다.',
+      400,
+    );
+  }
+
+  let source;
+  try {
+    source = await dependencies.repository.claimRetry(planId);
+  } catch {
+    throw new PlanServiceError(
+      'persistence_failed',
+      '집행 계획 재분석을 시작할 수 없습니다.',
+      500,
+      true,
+    );
+  }
+
+  if (!source) {
+    let existing;
+    try {
+      existing = await dependencies.repository.getAnalysis(planId);
+    } catch {
+      throw new PlanServiceError(
+        'persistence_failed',
+        '집행 계획 재분석 결과를 확인할 수 없습니다.',
+        500,
+        true,
+      );
+    }
+
+    if (
+      existing &&
+      (existing.status === 'review_required' ||
+        existing.status === 'registered' ||
+        existing.status === 'analyzing')
+    ) {
+      return existingResult(existing);
+    }
+
+    throw new PlanServiceError(
+      'retry_unavailable',
+      '재시도할 수 있는 실패 상태의 집행 계획이 없습니다.',
+      409,
+    );
+  }
+
+  try {
+    const file = await dependencies.repository.downloadSource(source);
+    const ocr = await (dependencies.recognize ?? recognizePlanDocument)(file);
+    const parsed = parseOcrPlan(
+      ocr,
+      (dependencies.now ?? (() => new Date()))().toISOString(),
+    );
+    await dependencies.repository.saveAnalysis(
+      source.planId,
+      source.sourcePath,
+      parsed,
+      source.leaseToken,
+    );
+
+    return {
+      planId: source.planId,
+      status: 'review_required',
+      parsed,
+      duplicate: false,
+    };
+  } catch (error) {
+    const code =
+      error instanceof DocumentOcrError ? error.code : 'persistence_failed';
+    try {
+      await dependencies.repository.saveFailure(
+        source.planId,
+        code,
+        source.leaseToken,
+        source.sourcePath,
+      );
+    } catch {
+      // The analyzing row remains traceable when failure recording also fails.
+    }
+
+    if (error instanceof DocumentOcrError) {
+      throw new PlanServiceError(
+        'analysis_failed',
+        error.message,
+        error.status && error.status < 500 ? error.status : 502,
+        error.retryable,
+        source.planId,
+      );
+    }
+
+    throw new PlanServiceError(
+      'persistence_failed',
+      '집행 계획 재분석 결과를 저장할 수 없습니다.',
+      500,
+      true,
+      source.planId,
+    );
+  }
+}
+
+function existingResult(existing: ExistingAnalysis): AnalyzePlanResult {
+  return {
+    planId: existing.id,
+    status: existing.status,
+    parsed:
+      existing.draft === null
+        ? null
+        : {
+            draft: existing.draft,
+            issues: existing.issues,
+            metadata: {
+              provider: 'upstage',
+              apiVersion: '',
+              modelVersion: '',
+              processedAt: '',
+              pageCount: 0,
+            },
+            pages: [],
+          },
+    duplicate: true,
+  };
+}
+
+function safeFileName(name: string) {
+  return name.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 200);
+}
+
+function isPendingSourcePath(input: AnalyzePlanInput) {
+  const extension =
+    input.mimeType === 'application/pdf'
+      ? 'pdf'
+      : input.mimeType === 'image/png'
+        ? 'png'
+        : input.mimeType === 'image/jpeg'
+          ? 'jpg'
+          : '';
+  if (!extension) {
+    return false;
+  }
+
+  const prefix = `${input.organizationId}/pending/${input.userId}/`;
+  const suffix = `/source.${extension}`;
+  const uploadId = input.sourcePath.slice(
+    prefix.length,
+    input.sourcePath.length - suffix.length,
+  );
+  return (
+    input.sourcePath.startsWith(prefix) &&
+    input.sourcePath.endsWith(suffix) &&
+    UUID.test(uploadId)
+  );
+}
+
+async function removePendingSource(
+  repository: PlanRepository,
+  sourcePath: string,
+) {
+  try {
+    await repository.removeSource(sourcePath);
+  } catch {
+    // Pending uploads are best-effort cleanup; lifecycle cleanup remains a fallback.
+  }
+}
+
+export async function analyzePlan(
+  input: AnalyzePlanInput,
+  dependencies: {
+    repository: PlanRepository;
+    recognize?: (file: File) => Promise<DocumentOcrResult>;
+    now?: () => Date;
+  },
+): Promise<AnalyzePlanResult> {
+  if (
+    !UUID.test(input.organizationId) ||
+    !UUID.test(input.donationId) ||
+    !UUID.test(input.userId)
+  ) {
+    throw new PlanServiceError(
+      'invalid_identifier',
+      '기부처 또는 기부 내역 식별자가 올바르지 않습니다.',
+      400,
+    );
+  }
+
+  if (!IDEMPOTENCY_KEY.test(input.idempotencyKey)) {
+    throw new PlanServiceError(
+      'invalid_idempotency_key',
+      '중복 제출 방지 키가 올바르지 않습니다.',
+      400,
+    );
+  }
+
+  if (!isPendingSourcePath(input) || !safeFileName(input.fileName)) {
+    throw new PlanServiceError(
+      'invalid_file',
+      '업로드된 집행 계획서 경로가 올바르지 않습니다.',
+      400,
+    );
+  }
+
+  const hasAccess = await dependencies.repository.assertDonationAccess(
+    input.organizationId,
+    input.donationId,
+  );
+  if (!hasAccess) {
+    await removePendingSource(dependencies.repository, input.sourcePath);
+    throw new PlanServiceError(
+      'forbidden',
+      '선택한 기부 내역에 집행 계획을 등록할 권한이 없습니다.',
+      403,
+    );
+  }
+
+  let file: File;
+  try {
+    file = await dependencies.repository.downloadPendingSource(
+      input.sourcePath,
+      safeFileName(input.fileName),
+      input.mimeType,
+    );
+  } catch {
+    throw new PlanServiceError(
+      'invalid_file',
+      '업로드된 집행 계획서를 읽을 수 없습니다.',
+      400,
+    );
+  }
+
+  let document;
+  try {
+    document = await validatePlanDocument(file);
+  } catch (error) {
+    await removePendingSource(dependencies.repository, input.sourcePath);
+    if (error instanceof PlanDocumentValidationError) {
+      throw new PlanServiceError('invalid_file', error.message, 400);
+    }
+    throw error;
+  }
+
+  let creation;
+  try {
+    creation = await dependencies.repository.createAnalyzingPlan({
+      organizationId: input.organizationId,
+      donationId: input.donationId,
+      userId: input.userId,
+      idempotencyKey: input.idempotencyKey,
+      fileName: safeFileName(input.fileName),
+      document,
+    });
+  } catch (error) {
+    await removePendingSource(dependencies.repository, input.sourcePath);
+    if (error instanceof PlanIdempotencyConflictError) {
+      throw new PlanServiceError('invalid_file', error.message, 409);
+    }
+    throw new PlanServiceError(
+      'persistence_failed',
+      '집행 계획 분석을 시작할 수 없습니다.',
+      500,
+      true,
+    );
+  }
+
+  if (!creation.shouldProcess) {
+    await removePendingSource(dependencies.repository, input.sourcePath);
+    return existingResult(creation);
+  }
+
+  const planId = creation.id;
+  const leaseToken = creation.leaseToken;
+
+  if (!leaseToken) {
+    await removePendingSource(dependencies.repository, input.sourcePath);
+    throw new PlanServiceError(
+      'persistence_failed',
+      '집행 계획 분석 소유권을 확인할 수 없습니다.',
+      500,
+      true,
+      planId,
+    );
+  }
+
+  let sourcePath: string | undefined;
+  try {
+    sourcePath = await dependencies.repository.promoteSource(
+      planId,
+      input.organizationId,
+      input.sourcePath,
+      file,
+      creation.sourcePath,
+    );
+    await dependencies.repository.markSourceUploaded(
+      planId,
+      sourcePath,
+      leaseToken,
+    );
+    const ocr = await (dependencies.recognize ?? recognizePlanDocument)(file);
+    const parsed = parseOcrPlan(
+      ocr,
+      (dependencies.now ?? (() => new Date()))().toISOString(),
+    );
+    await dependencies.repository.saveAnalysis(
+      planId,
+      sourcePath,
+      parsed,
+      leaseToken,
+    );
+
+    return {
+      planId,
+      status: 'review_required',
+      parsed,
+      duplicate: false,
+    };
+  } catch (error) {
+    const code =
+      error instanceof DocumentOcrError
+        ? error.code
+        : sourcePath
+          ? 'persistence_failed'
+          : 'source_upload_failed';
+    if (!sourcePath) {
+      await removePendingSource(dependencies.repository, input.sourcePath);
+    }
+    try {
+      await dependencies.repository.saveFailure(
+        planId,
+        code,
+        leaseToken,
+        sourcePath,
+      );
+    } catch {
+      // Preserve the primary safe error; cleanup is tracked by the analyzing row.
+    }
+
+    if (error instanceof DocumentOcrError) {
+      throw new PlanServiceError(
+        'analysis_failed',
+        error.message,
+        error.status && error.status < 500 ? error.status : 502,
+        error.retryable,
+        planId,
+      );
+    }
+
+    throw new PlanServiceError(
+      'persistence_failed',
+      '집행 계획 분석 결과를 저장할 수 없습니다.',
+      500,
+      Boolean(sourcePath),
+      sourcePath ? planId : undefined,
+    );
+  }
+}

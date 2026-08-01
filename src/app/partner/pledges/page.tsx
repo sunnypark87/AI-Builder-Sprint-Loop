@@ -25,6 +25,7 @@ export default async function Page({
       ]}
       rows={[
         {
+          id: 'pledge-education-demo',
           title: '김모아 님 · 아동 교육 정기 기부',
           description: '월 50,000원 · 12개월',
           status: '기부처 서명 필요',
@@ -38,6 +39,7 @@ export default async function Page({
           },
         },
         {
+          id: 'pledge-meal-demo',
           title: '이푸름 님 · 급식 지원 일시 기부',
           description: '300,000원 · 양측 서명 완료',
           status: '양측 서명 완료',

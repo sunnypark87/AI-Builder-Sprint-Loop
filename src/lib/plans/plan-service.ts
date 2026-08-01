@@ -2,9 +2,10 @@ import {
   PlanDocumentValidationError,
   validatePlanDocument,
 } from '@/lib/plans/file-validation';
-import type {
-  ExistingAnalysis,
-  PlanRepository,
+import {
+  PlanIdempotencyConflictError,
+  type ExistingAnalysis,
+  type PlanRepository,
 } from '@/lib/plans/plan-repository';
 import { parseOcrPlan } from '@/lib/plans/parse-ocr-plan';
 import type { ParsedPlan, PlanStatus } from '@/lib/plans/types';
@@ -23,7 +24,9 @@ export type AnalyzePlanInput = {
   organizationId: string;
   donationId: string;
   idempotencyKey: string;
-  file: File;
+  sourcePath: string;
+  fileName: string;
+  mimeType: string;
 };
 
 export type AnalyzePlanResult = {
@@ -165,6 +168,43 @@ function safeFileName(name: string) {
   return name.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 200);
 }
 
+function isPendingSourcePath(input: AnalyzePlanInput) {
+  const extension =
+    input.mimeType === 'application/pdf'
+      ? 'pdf'
+      : input.mimeType === 'image/png'
+        ? 'png'
+        : input.mimeType === 'image/jpeg'
+          ? 'jpg'
+          : '';
+  if (!extension) {
+    return false;
+  }
+
+  const prefix = `${input.organizationId}/pending/${input.userId}/`;
+  const suffix = `/source.${extension}`;
+  const uploadId = input.sourcePath.slice(
+    prefix.length,
+    input.sourcePath.length - suffix.length,
+  );
+  return (
+    input.sourcePath.startsWith(prefix) &&
+    input.sourcePath.endsWith(suffix) &&
+    UUID.test(uploadId)
+  );
+}
+
+async function removePendingSource(
+  repository: PlanRepository,
+  sourcePath: string,
+) {
+  try {
+    await repository.removeSource(sourcePath);
+  } catch {
+    // Pending uploads are best-effort cleanup; lifecycle cleanup remains a fallback.
+  }
+}
+
 export async function analyzePlan(
   input: AnalyzePlanInput,
   dependencies: {
@@ -193,11 +233,20 @@ export async function analyzePlan(
     );
   }
 
+  if (!isPendingSourcePath(input) || !safeFileName(input.fileName)) {
+    throw new PlanServiceError(
+      'invalid_file',
+      '업로드된 집행 계획서 경로가 올바르지 않습니다.',
+      400,
+    );
+  }
+
   const hasAccess = await dependencies.repository.assertDonationAccess(
     input.organizationId,
     input.donationId,
   );
   if (!hasAccess) {
+    await removePendingSource(dependencies.repository, input.sourcePath);
     throw new PlanServiceError(
       'forbidden',
       '선택한 기부 내역에 집행 계획을 등록할 권한이 없습니다.',
@@ -205,10 +254,26 @@ export async function analyzePlan(
     );
   }
 
+  let file: File;
+  try {
+    file = await dependencies.repository.downloadPendingSource(
+      input.sourcePath,
+      safeFileName(input.fileName),
+      input.mimeType,
+    );
+  } catch {
+    throw new PlanServiceError(
+      'invalid_file',
+      '업로드된 집행 계획서를 읽을 수 없습니다.',
+      400,
+    );
+  }
+
   let document;
   try {
-    document = await validatePlanDocument(input.file);
+    document = await validatePlanDocument(file);
   } catch (error) {
+    await removePendingSource(dependencies.repository, input.sourcePath);
     if (error instanceof PlanDocumentValidationError) {
       throw new PlanServiceError('invalid_file', error.message, 400);
     }
@@ -222,10 +287,14 @@ export async function analyzePlan(
       donationId: input.donationId,
       userId: input.userId,
       idempotencyKey: input.idempotencyKey,
-      fileName: safeFileName(input.file.name),
+      fileName: safeFileName(input.fileName),
       document,
     });
-  } catch {
+  } catch (error) {
+    await removePendingSource(dependencies.repository, input.sourcePath);
+    if (error instanceof PlanIdempotencyConflictError) {
+      throw new PlanServiceError('invalid_file', error.message, 409);
+    }
     throw new PlanServiceError(
       'persistence_failed',
       '집행 계획 분석을 시작할 수 없습니다.',
@@ -235,6 +304,7 @@ export async function analyzePlan(
   }
 
   if (!creation.shouldProcess) {
+    await removePendingSource(dependencies.repository, input.sourcePath);
     return existingResult(creation);
   }
 
@@ -242,15 +312,15 @@ export async function analyzePlan(
 
   let sourcePath: string | undefined;
   try {
-    sourcePath = await dependencies.repository.uploadSource(
+    sourcePath = await dependencies.repository.promoteSource(
       planId,
       input.organizationId,
-      input.file,
+      input.sourcePath,
+      file,
+      creation.sourcePath,
     );
     await dependencies.repository.markSourceUploaded(planId, sourcePath);
-    const ocr = await (dependencies.recognize ?? recognizePlanDocument)(
-      input.file,
-    );
+    const ocr = await (dependencies.recognize ?? recognizePlanDocument)(file);
     const parsed = parseOcrPlan(
       ocr,
       (dependencies.now ?? (() => new Date()))().toISOString(),
@@ -270,6 +340,9 @@ export async function analyzePlan(
         : sourcePath
           ? 'persistence_failed'
           : 'source_upload_failed';
+    if (!sourcePath) {
+      await removePendingSource(dependencies.repository, input.sourcePath);
+    }
     try {
       await dependencies.repository.saveFailure(planId, code, sourcePath);
     } catch {

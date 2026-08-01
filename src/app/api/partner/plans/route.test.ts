@@ -8,6 +8,7 @@ const supabaseEnvironmentNames = [
   'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
   'NEXT_PUBLIC_SUPABASE_ANON_KEY',
   'SUPABASE_PUBLISHABLE_KEY',
+  'SUPABASE_SECRET_KEY',
 ] as const;
 const originalEnvironment = Object.fromEntries(
   supabaseEnvironmentNames.map((name) => [name, process.env[name]]),
@@ -25,11 +26,11 @@ afterEach(() => {
 });
 
 describe('POST /api/partner/plans', () => {
-  it('rejects a request without a document before external access', async () => {
+  it('rejects a request without uploaded document metadata before external access', async () => {
     const response = await POST(
       new Request('http://localhost/api/partner/plans', {
         method: 'POST',
-        body: new FormData(),
+        body: 'not-json',
       }),
     );
 
@@ -46,20 +47,19 @@ describe('POST /api/partner/plans', () => {
     for (const name of supabaseEnvironmentNames) {
       delete process.env[name];
     }
-    const body = new FormData();
-    body.set(
-      'document',
-      new File(
-        [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
-        'plan.png',
-        { type: 'image/png' },
-      ),
-    );
-
     const response = await POST(
       new Request('http://localhost/api/partner/plans', {
         method: 'POST',
-        body,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          organizationId: '22222222-2222-4222-8222-222222222222',
+          donationId: '33333333-3333-4333-8333-333333333333',
+          idempotencyKey: 'plan-submit-1234567890',
+          sourcePath:
+            '22222222-2222-4222-8222-222222222222/pending/11111111-1111-4111-8111-111111111111/55555555-5555-4555-8555-555555555555/source.png',
+          fileName: 'plan.png',
+          mimeType: 'image/png',
+        }),
       }),
     );
 

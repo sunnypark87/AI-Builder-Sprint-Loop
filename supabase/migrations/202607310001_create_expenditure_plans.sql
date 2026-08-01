@@ -219,6 +219,7 @@ returns table (
   plan_status text,
   plan_draft jsonb,
   plan_validation_issues jsonb,
+  plan_source_path text,
   should_process boolean
 )
 language plpgsql
@@ -270,6 +271,24 @@ begin
   returning id into process_plan_id;
 
   if process_plan_id is null then
+    if exists (
+      select 1
+      from public.expenditure_plans plan
+      where plan.created_by = p_actor_id
+        and plan.idempotency_key = p_idempotency_key
+        and (
+          plan.organization_id is distinct from p_organization_id
+          or plan.donation_id is distinct from p_donation_id
+          or plan.source_file_name is distinct from p_source_file_name
+          or plan.source_mime_type is distinct from p_source_mime_type
+          or plan.source_size_bytes is distinct from p_source_size_bytes
+          or plan.source_page_count is distinct from p_source_page_count
+          or plan.source_fingerprint is distinct from p_source_fingerprint
+        )
+    ) then
+      raise exception 'Plan idempotency key does not match source document';
+    end if;
+
     update public.expenditure_plans plan
     set analysis_lease_expires_at = now() + interval '2 minutes',
         updated_at = now()
@@ -292,6 +311,7 @@ begin
       plan.status,
       plan.draft_data,
       plan.validation_issues,
+      plan.source_path,
       true
     from public.expenditure_plans plan
     where plan.id = process_plan_id;
@@ -304,6 +324,7 @@ begin
     plan.status,
     plan.draft_data,
     plan.validation_issues,
+    plan.source_path,
     false
   from public.expenditure_plans plan
   where plan.created_by = p_actor_id

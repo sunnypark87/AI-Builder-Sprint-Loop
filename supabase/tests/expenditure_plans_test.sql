@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(29);
+select plan(30);
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values
@@ -153,11 +153,11 @@ select is(
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       'aaaaaaaa-0000-4000-8000-000000000001',
       'plan-a-integration-key',
-      'duplicate.pdf',
+      'plan-a.pdf',
       'application/pdf',
       1024,
       1,
-      repeat('d', 64)
+      repeat('a', 64)
     )
   ),
   'aaaaaaaa-1000-4000-8000-000000000001'::uuid,
@@ -171,15 +171,34 @@ select is(
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       'aaaaaaaa-0000-4000-8000-000000000001',
       'plan-a-integration-key',
-      'duplicate.pdf',
+      'plan-a.pdf',
       'application/pdf',
       1024,
       1,
-      repeat('d', 64)
+      repeat('a', 64)
     )
   ),
   false,
   'an idempotency conflict is reported as an existing plan'
+);
+select throws_ok(
+  $$
+    select *
+    from public.create_expenditure_plan_analysis(
+      '11111111-1111-4111-8111-111111111111',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      'aaaaaaaa-0000-4000-8000-000000000001',
+      'plan-a-integration-key',
+      'different.pdf',
+      'application/pdf',
+      2048,
+      1,
+      repeat('e', 64)
+    )
+  $$,
+  'P0001',
+  'Plan idempotency key does not match source document',
+  'an idempotency key cannot be reused for another source document'
 );
 
 select lives_ok(

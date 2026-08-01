@@ -4,6 +4,7 @@ import type {
   ExistingAnalysis,
   PlanRepository,
 } from '@/lib/plans/plan-repository';
+import { PlanIdempotencyConflictError } from '@/lib/plans/plan-repository';
 import { analyzePlan, retryPlanAnalysis } from '@/lib/plans/plan-service';
 import { DocumentOcrError } from '@/lib/upstage/document-ocr';
 
@@ -30,11 +31,14 @@ function repository(overrides: Partial<PlanRepository> = {}): PlanRepository {
       status: 'analyzing',
       draft: null,
       issues: [],
+      sourcePath: null,
       shouldProcess: true,
     }),
-    uploadSource: vi
+    downloadPendingSource: vi.fn().mockResolvedValue(png()),
+    promoteSource: vi
       .fn()
       .mockResolvedValue(`${ids.organization}/${ids.plan}/source.png`),
+    removeSource: vi.fn().mockResolvedValue(undefined),
     markSourceUploaded: vi.fn().mockResolvedValue(undefined),
     saveAnalysis: vi.fn().mockResolvedValue(undefined),
     saveFailure: vi.fn().mockResolvedValue(undefined),
@@ -52,7 +56,9 @@ const input = {
   organizationId: ids.organization,
   donationId: ids.donation,
   idempotencyKey: 'plan-submit-1234567890',
-  file: png(),
+  sourcePath: `${ids.organization}/pending/${ids.user}/55555555-5555-4555-8555-555555555555/source.png`,
+  fileName: 'plan.png',
+  mimeType: 'image/png',
 };
 
 describe('analyzePlan', () => {
@@ -105,6 +111,7 @@ describe('analyzePlan', () => {
       status: 'review_required',
       draft: null,
       issues: [],
+      sourcePath: `${ids.organization}/${ids.plan}/source.png`,
     };
     const store = repository({
       createAnalyzingPlan: vi.fn().mockResolvedValue({
@@ -136,6 +143,7 @@ describe('analyzePlan', () => {
         status: 'analyzing',
         draft: null,
         issues: [],
+        sourcePath: null,
         shouldProcess: false,
       }),
     });
@@ -147,8 +155,27 @@ describe('analyzePlan', () => {
       status: 'analyzing',
       duplicate: true,
     });
-    expect(store.uploadSource).not.toHaveBeenCalled();
+    expect(store.promoteSource).not.toHaveBeenCalled();
+    expect(store.removeSource).toHaveBeenCalledWith(input.sourcePath);
     expect(recognize).not.toHaveBeenCalled();
+  });
+
+  it('rejects an idempotency key reused for another source document', async () => {
+    const store = repository({
+      createAnalyzingPlan: vi
+        .fn()
+        .mockRejectedValue(new PlanIdempotencyConflictError()),
+    });
+
+    await expect(
+      analyzePlan(input, { repository: store }),
+    ).rejects.toMatchObject({
+      code: 'invalid_file',
+      httpStatus: 409,
+      retryable: false,
+    });
+    expect(store.removeSource).toHaveBeenCalledWith(input.sourcePath);
+    expect(store.promoteSource).not.toHaveBeenCalled();
   });
 
   it('rejects another organization donation before file processing', async () => {
@@ -163,6 +190,7 @@ describe('analyzePlan', () => {
       httpStatus: 403,
     });
     expect(store.createAnalyzingPlan).not.toHaveBeenCalled();
+    expect(store.removeSource).toHaveBeenCalledWith(input.sourcePath);
   });
 
   it('records a safe retryable failure after an upstream timeout', async () => {
@@ -193,9 +221,11 @@ describe('analyzePlan', () => {
     expect(store.saveAnalysis).not.toHaveBeenCalled();
   });
 
-  it('marks a source upload failure as requiring a new upload', async () => {
+  it('marks a source promotion failure as requiring a new upload', async () => {
     const store = repository({
-      uploadSource: vi.fn().mockRejectedValue(new Error('storage unavailable')),
+      promoteSource: vi
+        .fn()
+        .mockRejectedValue(new Error('storage unavailable')),
     });
 
     await expect(

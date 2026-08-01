@@ -25,7 +25,7 @@ test('plan registration rejects a request without a document', async ({
   request,
 }) => {
   const response = await request.post('/api/partner/plans', {
-    multipart: {
+    data: {
       donationId: '00000000-0000-4000-8000-000000000001',
       organizationId: '00000000-0000-4000-8000-000000000002',
       idempotencyKey: 'e2e-missing-document',

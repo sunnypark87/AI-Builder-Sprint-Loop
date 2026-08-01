@@ -13,28 +13,45 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PlanUploadForm } from '@/components/partner/plan-upload-form';
 
 const push = vi.fn();
+const uploadToSignedUrl = vi.fn().mockResolvedValue({ data: {}, error: null });
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
 }));
 
+vi.mock('@/lib/supabase/client', () => ({
+  createClient: () => ({
+    storage: { from: () => ({ uploadToSignedUrl }) },
+  }),
+}));
+
+const preparedUpload = {
+  sourcePath:
+    '22222222-2222-4222-8222-222222222222/pending/11111111-1111-4111-8111-111111111111/66666666-6666-4666-8666-666666666666/source.png',
+  token: 'signed-upload-token',
+};
+
 afterEach(() => {
   cleanup();
   push.mockReset();
+  uploadToSignedUrl.mockClear();
   vi.unstubAllGlobals();
 });
 
 describe('PlanUploadForm', () => {
   it('uploads the selected donation plan and opens its review page', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      Response.json(
-        {
-          planId: '44444444-4444-4444-8444-444444444444',
-          status: 'review_required',
-        },
-        { status: 201 },
-      ),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json(preparedUpload))
+      .mockResolvedValueOnce(
+        Response.json(
+          {
+            planId: '44444444-4444-4444-8444-444444444444',
+            status: 'review_required',
+          },
+          { status: 201 },
+        ),
+      );
     vi.stubGlobal('fetch', fetchMock);
     vi.stubGlobal('crypto', {
       randomUUID: () => '55555555-5555-4555-8555-555555555555',
@@ -74,11 +91,15 @@ describe('PlanUploadForm', () => {
         '/partner/plans/44444444-4444-4444-8444-444444444444/review',
       );
     });
-    const body = fetchMock.mock.calls[0][1]?.body as FormData;
-    expect(body.get('organizationId')).toBe(
-      '22222222-2222-4222-8222-222222222222',
+    expect(uploadToSignedUrl).toHaveBeenCalledWith(
+      preparedUpload.sourcePath,
+      preparedUpload.token,
+      expect.any(File),
+      expect.objectContaining({ contentType: 'image/png' }),
     );
-    expect(body.get('idempotencyKey')).toMatch(/^plan:/);
+    const body = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
+    expect(body.organizationId).toBe('22222222-2222-4222-8222-222222222222');
+    expect(body.idempotencyKey).toMatch(/^plan:/);
   });
 
   it('disables submission when no eligible donation exists', () => {
@@ -97,7 +118,9 @@ describe('PlanUploadForm', () => {
   it('reuses the idempotency key after an uncertain network failure', async () => {
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(Response.json(preparedUpload))
       .mockRejectedValueOnce(new TypeError('network error'))
+      .mockResolvedValueOnce(Response.json(preparedUpload))
       .mockResolvedValueOnce(
         Response.json(
           {
@@ -146,12 +169,10 @@ describe('PlanUploadForm', () => {
     );
     fireEvent.submit(form);
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    const firstBody = fetchMock.mock.calls[0][1]?.body as FormData;
-    const secondBody = fetchMock.mock.calls[1][1]?.body as FormData;
-    expect(firstBody.get('idempotencyKey')).toBe(
-      secondBody.get('idempotencyKey'),
-    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    const firstBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
+    const secondBody = JSON.parse(String(fetchMock.mock.calls[3][1]?.body));
+    expect(firstBody.idempotencyKey).toBe(secondBody.idempotencyKey);
     expect(randomUUID).toHaveBeenCalledOnce();
   });
 
@@ -159,9 +180,11 @@ describe('PlanUploadForm', () => {
     const planId = '44444444-4444-4444-8444-444444444444';
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(Response.json(preparedUpload))
       .mockResolvedValueOnce(
         Response.json({ planId, status: 'analyzing', duplicate: true }),
       )
+      .mockResolvedValueOnce(Response.json(preparedUpload))
       .mockResolvedValueOnce(
         Response.json({ planId, status: 'review_required', duplicate: true }),
       );
@@ -201,12 +224,10 @@ describe('PlanUploadForm', () => {
     await screen.findByText(/이전 분석이 아직 진행 중입니다/);
     fireEvent.submit(form);
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    const firstBody = fetchMock.mock.calls[0][1]?.body as FormData;
-    const secondBody = fetchMock.mock.calls[1][1]?.body as FormData;
-    expect(firstBody.get('idempotencyKey')).toBe(
-      secondBody.get('idempotencyKey'),
-    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    const firstBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
+    const secondBody = JSON.parse(String(fetchMock.mock.calls[3][1]?.body));
+    expect(firstBody.idempotencyKey).toBe(secondBody.idempotencyKey);
     expect(randomUUID).toHaveBeenCalledOnce();
   });
 });

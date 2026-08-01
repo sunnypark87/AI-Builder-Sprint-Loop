@@ -16,6 +16,7 @@ export type ExistingAnalysis = {
   status: PlanStatus;
   draft: PlanDraft | null;
   issues: PlanValidationIssue[];
+  sourcePath: string | null;
 };
 
 export type AnalysisCreation = ExistingAnalysis & {
@@ -38,18 +39,36 @@ export function getPlanRecoveryState(
   status: PlanStatus,
   sourcePath: string | null,
   leaseExpiresAt: string | null,
+  analysisErrorCode: string | null = null,
   now = Date.now(),
 ) {
   const leaseExpired =
     status === 'analyzing' &&
     leaseExpiresAt !== null &&
     new Date(leaseExpiresAt).getTime() <= now;
-  const recoverableState = status === 'analysis_failed' || leaseExpired;
+  const retryableAnalysisErrors = new Set([
+    'rate_limited',
+    'upstream_failure',
+    'timeout',
+    'network_failure',
+    'invalid_response',
+    'persistence_failed',
+  ]);
+  const recoverableState =
+    leaseExpired ||
+    (status === 'analysis_failed' &&
+      analysisErrorCode !== null &&
+      retryableAnalysisErrors.has(analysisErrorCode));
+  const requiresNewUpload =
+    status === 'analysis_failed' &&
+    (analysisErrorCode === 'source_upload_failed' ||
+      analysisErrorCode === 'invalid_request' ||
+      analysisErrorCode === 'payload_too_large');
   const sourceExists = sourcePath !== null;
 
   return {
     canRetry: recoverableState && sourceExists,
-    needsReupload: recoverableState && !sourceExists,
+    needsReupload: (recoverableState && !sourceExists) || requiresNewUpload,
   };
 }
 
@@ -91,11 +110,19 @@ export interface PlanRepository {
   createAnalyzingPlan(
     input: CreateAnalyzingPlanInput,
   ): Promise<AnalysisCreation>;
-  uploadSource(
+  downloadPendingSource(
+    sourcePath: string,
+    fileName: string,
+    mimeType: string,
+  ): Promise<File>;
+  promoteSource(
     planId: string,
     organizationId: string,
+    pendingSourcePath: string,
     file: File,
+    existingSourcePath: string | null,
   ): Promise<string>;
+  removeSource(sourcePath: string): Promise<void>;
   markSourceUploaded(planId: string, sourcePath: string): Promise<void>;
   saveAnalysis(
     planId: string,
@@ -141,6 +168,13 @@ function extensionFor(type: string) {
 
 function databaseError(message: string) {
   return new Error(`집행 계획 저장소 오류: ${message}`);
+}
+
+export class PlanIdempotencyConflictError extends Error {
+  constructor() {
+    super('같은 중복 제출 방지 키에 다른 파일을 사용할 수 없습니다.');
+    this.name = 'PlanIdempotencyConflictError';
+  }
 }
 
 export function createPlanRepository(
@@ -190,6 +224,9 @@ export function createPlanRepository(
         .single();
 
       if (error || !data) {
+        if (error?.message.includes('idempotency key does not match')) {
+          throw new PlanIdempotencyConflictError();
+        }
         throw databaseError(error?.message ?? '계획을 만들 수 없습니다.');
       }
       const created = data as {
@@ -197,6 +234,7 @@ export function createPlanRepository(
         plan_status: PlanStatus;
         plan_draft: unknown;
         plan_validation_issues: unknown;
+        plan_source_path: string | null;
         should_process: boolean;
       };
       return {
@@ -204,25 +242,74 @@ export function createPlanRepository(
         status: created.plan_status,
         draft: parsePlanDraft(created.plan_draft),
         issues: asIssues(created.plan_validation_issues),
+        sourcePath: created.plan_source_path,
         shouldProcess: created.should_process,
       };
     },
 
-    async uploadSource(planId, organizationId, file) {
+    async downloadPendingSource(sourcePath, fileName, mimeType) {
       const { client } = mutationClient();
-      const path = `${organizationId}/${planId}/source.${extensionFor(file.type)}`;
+      const { data, error } = await client.storage
+        .from(PLAN_DOCUMENT_BUCKET)
+        .download(sourcePath);
+
+      if (error || !data) {
+        throw databaseError(
+          error?.message ?? '업로드 원본을 읽을 수 없습니다.',
+        );
+      }
+
+      return new File([data], fileName, { type: mimeType });
+    },
+
+    async promoteSource(
+      planId,
+      organizationId,
+      pendingSourcePath,
+      file,
+      existingSourcePath,
+    ) {
+      const { client } = mutationClient();
+      if (existingSourcePath) {
+        const { error } = await client.storage
+          .from(PLAN_DOCUMENT_BUCKET)
+          .remove([pendingSourcePath]);
+        if (error) {
+          throw databaseError(error.message);
+        }
+        return existingSourcePath;
+      }
+
+      const finalPath = `${organizationId}/${planId}/source.${extensionFor(file.type)}`;
       const { error } = await client.storage
         .from(PLAN_DOCUMENT_BUCKET)
-        .upload(path, file, {
-          cacheControl: '3600',
-          contentType: file.type,
-          upsert: true,
-        });
+        .move(pendingSourcePath, finalPath);
+      if (error) {
+        const { data: finalExists } = await client.storage
+          .from(PLAN_DOCUMENT_BUCKET)
+          .exists(finalPath);
+        if (finalExists) {
+          const { error: cleanupError } = await client.storage
+            .from(PLAN_DOCUMENT_BUCKET)
+            .remove([pendingSourcePath]);
+          if (cleanupError) {
+            throw databaseError(cleanupError.message);
+          }
+          return finalPath;
+        }
+        throw databaseError(error.message);
+      }
+      return finalPath;
+    },
 
+    async removeSource(sourcePath) {
+      const { client } = mutationClient();
+      const { error } = await client.storage
+        .from(PLAN_DOCUMENT_BUCKET)
+        .remove([sourcePath]);
       if (error) {
         throw databaseError(error.message);
       }
-      return path;
     },
 
     async markSourceUploaded(planId, sourcePath) {
@@ -377,7 +464,7 @@ export function createPlanRepository(
       const { data, error } = await supabase
         .from('expenditure_plans')
         .select(
-          'id,title,status,total_amount,period_start,period_end,updated_at,source_path,analysis_lease_expires_at',
+          'id,title,status,total_amount,period_start,period_end,updated_at,source_path,analysis_lease_expires_at,analysis_error_code',
         )
         .order('updated_at', { ascending: false });
 
@@ -397,6 +484,9 @@ export function createPlanRepository(
           status,
           sourcePath,
           leaseExpiresAt,
+          typeof plan.analysis_error_code === 'string'
+            ? plan.analysis_error_code
+            : null,
         );
 
         return {

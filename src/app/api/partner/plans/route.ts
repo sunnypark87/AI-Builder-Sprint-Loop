@@ -9,8 +9,11 @@ import {
   SupabaseConfigurationError,
 } from '@/lib/supabase/server';
 
-function stringField(form: FormData, name: string) {
-  const value = form.get(name);
+function stringField(payload: unknown, name: string) {
+  const value =
+    typeof payload === 'object' && payload !== null
+      ? (payload as Record<string, unknown>)[name]
+      : undefined;
   return typeof value === 'string' ? value : '';
 }
 
@@ -68,13 +71,13 @@ function safeError(error: unknown) {
 
 export async function POST(request: Request) {
   try {
-    const form = await request.formData();
-    const file = form.get('document');
-
-    if (!(file instanceof File)) {
+    let payload: unknown;
+    try {
+      payload = await request.json();
+    } catch {
       throw new PlanServiceError(
         'invalid_file',
-        '집행 계획서 파일을 선택해 주세요.',
+        '업로드된 집행 계획서 정보를 확인해 주세요.',
         400,
       );
     }
@@ -88,10 +91,12 @@ export async function POST(request: Request) {
     const result = await analyzePlan(
       {
         userId,
-        organizationId: stringField(form, 'organizationId'),
-        donationId: stringField(form, 'donationId'),
-        idempotencyKey: stringField(form, 'idempotencyKey'),
-        file,
+        organizationId: stringField(payload, 'organizationId'),
+        donationId: stringField(payload, 'donationId'),
+        idempotencyKey: stringField(payload, 'idempotencyKey'),
+        sourcePath: stringField(payload, 'sourcePath'),
+        fileName: stringField(payload, 'fileName'),
+        mimeType: stringField(payload, 'mimeType'),
       },
       {
         repository,

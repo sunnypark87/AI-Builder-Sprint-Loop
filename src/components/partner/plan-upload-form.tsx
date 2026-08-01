@@ -6,6 +6,8 @@ import { useRef, useState } from 'react';
 
 import { buttonClassName } from '@/components/ui/button';
 import { InlineNotice } from '@/components/ui/inline-notice';
+import { PLAN_DOCUMENT_BUCKET } from '@/lib/plans/plan-repository';
+import { createClient } from '@/lib/supabase/client';
 
 export type EligibleDonation = {
   id: string;
@@ -43,9 +45,13 @@ export function PlanUploadForm({
         const form = event.currentTarget;
         const formData = new FormData(form);
         const donationId = String(formData.get('donationId') ?? '');
+        const fileInput = form.elements.namedItem(
+          'document',
+        ) as HTMLInputElement | null;
+        const file = fileInput?.files?.[0];
         const donation = donations.find((item) => item.id === donationId);
-        if (!donation) {
-          setError('대상 기부 내역을 선택해 주세요.');
+        if (!donation || !file) {
+          setError('대상 기부 내역과 집행 계획서를 확인해 주세요.');
           return;
         }
 
@@ -53,14 +59,54 @@ export function PlanUploadForm({
         setPending(true);
         setError('');
         setStatusMessage('');
-        formData.set('organizationId', donation.organizationId);
         idempotencyKey.current ??= `plan:${crypto.randomUUID()}`;
-        formData.set('idempotencyKey', idempotencyKey.current);
 
         try {
+          const uploadResponse = await fetch('/api/partner/plans/upload-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              organizationId: donation.organizationId,
+              donationId,
+              fileName: file.name,
+              mimeType: file.type,
+              size: file.size,
+            }),
+          });
+          const upload = (await uploadResponse.json()) as ApiError & {
+            sourcePath?: string;
+            token?: string;
+          };
+          if (!uploadResponse.ok || !upload.sourcePath || !upload.token) {
+            idempotencyKey.current = null;
+            setError(
+              upload.error?.message ?? '파일 업로드를 준비할 수 없습니다.',
+            );
+            return;
+          }
+
+          const { error: uploadError } = await createClient()
+            .storage.from(PLAN_DOCUMENT_BUCKET)
+            .uploadToSignedUrl(upload.sourcePath, upload.token, file, {
+              contentType: file.type,
+              upsert: false,
+            });
+          if (uploadError) {
+            setError('집행 계획서 원본을 업로드할 수 없습니다.');
+            return;
+          }
+
           const response = await fetch('/api/partner/plans', {
             method: 'POST',
-            body: formData,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              organizationId: donation.organizationId,
+              donationId,
+              idempotencyKey: idempotencyKey.current,
+              sourcePath: upload.sourcePath,
+              fileName: file.name,
+              mimeType: file.type,
+            }),
           });
           const result = (await response.json()) as ApiError & {
             planId?: string;

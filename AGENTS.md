@@ -168,6 +168,9 @@ npm run check         # Run format:check, lint, typecheck, test, and build
 - Browser-exposed variables are `NEXT_PUBLIC_SUPABASE_URL` and either
   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or the legacy
   `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+- Use the `NEXT_PUBLIC_*` names documented in `.env.example` for local setup.
+  Server-only Vercel aliases remain compatibility fallbacks and should not be
+  declared alongside the canonical variables.
 - Never expose `SUPABASE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, database
   passwords, or other server secrets to the browser, logs, or Git.
 - Store real values only in `.env` or `.env.local`; document names only in

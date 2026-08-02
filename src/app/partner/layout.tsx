@@ -1,9 +1,26 @@
 import type { ReactNode } from 'react';
+import { redirect } from 'next/navigation';
 
 import { PartnerHeader } from '@/components/layout/partner-header';
 import { PartnerSidebar } from '@/components/layout/partner-sidebar';
+import { getCurrentUser } from '@/lib/supabase/auth';
+import { createClient } from '@/lib/supabase/server';
 
-export default function PartnerLayout({ children }: { children: ReactNode }) {
+export default async function PartnerLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const user = await getCurrentUser();
+  if (!user) redirect('/login?next=/partner');
+  const supabase = await createClient();
+  const { data: membership } = await supabase
+    .from('organization_members')
+    .select('organization_id')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (!membership) redirect('/account');
+
   return (
     <div className="flex min-h-screen bg-panel">
       <PartnerSidebar />

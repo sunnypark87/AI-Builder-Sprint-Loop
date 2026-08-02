@@ -11,9 +11,11 @@ const SYNC_INTERVAL_MS = 2_500;
 export function PledgeStatusSyncButton({
   pledgeId,
   role = 'donor',
+  waitForSigned = false,
 }: {
   pledgeId: string;
   role?: 'donor' | 'organization';
+  waitForSigned?: boolean;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -33,7 +35,10 @@ export function PledgeStatusSyncButton({
         status?: string;
       } | null;
 
-      if (response.ok && hasSignatureAdvanced(role, result?.status)) {
+      if (
+        response.ok &&
+        shouldCompleteSignatureSync(role, result?.status, waitForSigned)
+      ) {
         setMessage('서명 처리가 확인됐어요. 화면을 새로고침합니다.');
         router.refresh();
         setLoading(false);
@@ -62,6 +67,16 @@ export function PledgeStatusSyncButton({
       ) : null}
     </div>
   );
+}
+
+export function shouldCompleteSignatureSync(
+  role: 'donor' | 'organization',
+  status?: string,
+  waitForSigned = false,
+) {
+  return waitForSigned
+    ? status === 'signed'
+    : hasSignatureAdvanced(role, status);
 }
 
 export function hasSignatureAdvanced(

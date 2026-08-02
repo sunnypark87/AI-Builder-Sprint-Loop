@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { hasSignatureAdvanced } from './pledge-status-sync-button';
+import {
+  hasSignatureAdvanced,
+  shouldCompleteSignatureSync,
+} from './pledge-status-sync-button';
 
 describe('signature status polling', () => {
   it('keeps polling while the donor signature is pending', () => {
@@ -21,5 +24,16 @@ describe('signature status polling', () => {
 
   it('does not treat a failed response without status as completion', () => {
     expect(hasSignatureAdvanced('donor')).toBe(false);
+  });
+
+  it('waits for the final signed state when the waiting page syncs', () => {
+    expect(
+      shouldCompleteSignatureSync(
+        'donor',
+        'awaiting_organization_signature',
+        true,
+      ),
+    ).toBe(false);
+    expect(shouldCompleteSignatureSync('donor', 'signed', true)).toBe(true);
   });
 });

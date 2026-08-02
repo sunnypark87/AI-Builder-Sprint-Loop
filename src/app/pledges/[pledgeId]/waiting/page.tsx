@@ -51,7 +51,9 @@ export default async function PledgeWaitingPage({
         </p>
       </Card>
       <div className="mt-8 flex justify-end gap-2">
-        {!signed ? <PledgeStatusSyncButton pledgeId={pledgeId} /> : null}
+        {!signed ? (
+          <PledgeStatusSyncButton pledgeId={pledgeId} waitForSigned />
+        ) : null}
         <Link
           className={buttonClassName({ variant: 'secondary' })}
           href="/my-donations"

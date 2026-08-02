@@ -17,7 +17,7 @@ npm run dev
 cp .env.example .env.local
 ```
 
-집행 계획 OCR 등록에는 서버 전용 `UPSTAGE_API_KEY`와 Supabase 프로젝트 설정이 필요합니다. 필요한 변수와 용도는 [`.env.example`](.env.example)에 정리되어 있으며 실제 비밀 값은 저장소에 커밋하지 않습니다.
+집행 계획은 계획명·기간·예산 항목을 직접 작성해 등록할 수 있습니다. 계획서 PDF 또는 이미지가 있는 경우에만 선택적으로 OCR 자동 입력을 사용하며, 이 기능에는 서버 전용 `UPSTAGE_API_KEY`와 Supabase 프로젝트 설정이 필요합니다. 필요한 변수와 용도는 [`.env.example`](.env.example)에 정리되어 있으며 실제 비밀 값은 저장소에 커밋하지 않습니다.
 
 검증 명령은 `npm run check`로 한 번에 실행할 수 있습니다. 세부 명령은 `AGENTS.md`에 정리되어 있습니다.
 

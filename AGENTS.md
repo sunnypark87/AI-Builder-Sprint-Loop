@@ -98,7 +98,7 @@ The routes below reflect the App Router structure in `src/app`. `[organizationId
 | `/partner/donations`                       | Manage donation agreements and fulfillment statuses                                     |
 | `/partner/donations/demo`                  | Review an individual donation's pledge, payment, plan, expenditure, and report progress |
 | `/partner/plans`                           | Manage expenditure plans and AI review statuses                                         |
-| `/partner/plans/new`                       | Select a donation and upload an expenditure plan for OCR analysis                       |
+| `/partner/plans/new`                       | Select a donation and enter a plan directly or optionally upload it for OCR analysis    |
 | `/partner/plans/[planId]/review`           | Compare OCR extraction with the private source and register reviewed plan data          |
 | `/partner/plans/demo/review`               | Compare and review the source plan against AI extraction before publishing              |
 | `/partner/executions`                      | Manage expenditure evidence and analysis/redaction statuses                             |
@@ -118,7 +118,7 @@ The routes below reflect the App Router structure in `src/app`. `[organizationId
 | `GET /api/health`                             | Check application health                                           |
 | `POST /api/partner/plans/upload-url`          | Authorize and prepare a signed direct upload to private Storage    |
 | `DELETE /api/partner/plans/upload-url`        | Remove the user's abandoned pending source upload                  |
-| `POST /api/partner/plans`                     | Validate a stored source, call Upstage OCR, and save a draft       |
+| `POST /api/partner/plans`                     | Register a validated manual plan or analyze an optional source     |
 | `GET /api/partner/plans/[planId]`             | Read an authorized review draft and short-lived source URL         |
 | `PATCH /api/partner/plans/[planId]`           | Validate and transactionally register a reviewed expenditure plan  |
 | `POST /api/partner/plans/[planId]`            | Retry OCR for a failed plan from its privately stored source       |

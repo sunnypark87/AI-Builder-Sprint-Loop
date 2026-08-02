@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   parseDocumentOcrResponse,
@@ -7,6 +7,10 @@ import {
 
 const plan = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'plan.png', {
   type: 'image/png',
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe('parseDocumentOcrResponse', () => {
@@ -50,6 +54,7 @@ describe('parseDocumentOcrResponse', () => {
 
 describe('recognizePlanDocument', () => {
   it('sends the API key only in the upstream authorization header', async () => {
+    vi.stubEnv('UPSTAGE_MODEL', 'solar-pro3');
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({
         apiVersion: '1.1',
@@ -69,6 +74,7 @@ describe('recognizePlanDocument', () => {
       Authorization: 'Bearer secret-test-key',
     });
     expect(request?.body).toBeInstanceOf(FormData);
+    expect((request?.body as FormData).get('model')).toBe('ocr');
   });
 
   it('maps rate limits to a retryable safe error', async () => {

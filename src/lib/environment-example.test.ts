@@ -15,7 +15,7 @@ describe('.env.example', () => {
   it('documents only the canonical application environment variables once', () => {
     expect(variableNames).toEqual([
       'UPSTAGE_API_KEY',
-      'UPSTAGE_MODEL',
+      'UPSTAGE_OCR_MODEL',
       'UPSTAGE_OCR_URL',
       'NEXT_PUBLIC_SUPABASE_URL',
       'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',

@@ -69,8 +69,6 @@ export async function POST(_request: Request, context: RouteContext) {
     ['donation_designation', pledge.donation_designation],
     ['payment_schedule', pledge.payment_schedule],
     ['payment_method', pledge.payment_method],
-    ['personal_info_consent', pledge.personal_info_consent],
-    ['third_party_info_consent', pledge.third_party_info_consent],
   ] as const;
   const missingFields: string[] = requiredFields
     .filter(
@@ -91,6 +89,12 @@ export async function POST(_request: Request, context: RouteContext) {
     !pledge.payment_method_other?.trim()
   ) {
     missingFields.push('payment_method_other');
+  }
+  if (pledge.personal_info_consent !== true) {
+    missingFields.push('personal_info_consent');
+  }
+  if (pledge.third_party_info_consent !== true) {
+    missingFields.push('third_party_info_consent');
   }
   if (missingFields.length) {
     return NextResponse.json(

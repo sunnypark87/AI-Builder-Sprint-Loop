@@ -247,6 +247,28 @@ describe('POST /api/pledges/[pledgeId]/signature-request', () => {
     });
   });
 
+  it.each(['personal_info_consent', 'third_party_info_consent'])(
+    'requires affirmative %s before sending personal data',
+    async (consentField) => {
+      createClient.mockResolvedValue(
+        pledgeClient({ ...completePledge, [consentField]: false }),
+      );
+
+      const response = await POST(
+        new Request('http://localhost/api/pledges/pledge-1/signature-request'),
+        context,
+      );
+
+      expect(response.status).toBe(409);
+      await expect(response.json()).resolves.toMatchObject({
+        code: 'pledge_incomplete',
+        fields: [consentField],
+      });
+      expect(createAdminClient).not.toHaveBeenCalled();
+      expect(createModusignClient).not.toHaveBeenCalled();
+    },
+  );
+
   it('creates one sequential signing request for a complete pledge', async () => {
     createClient.mockResolvedValue(pledgeClient(completePledge));
     const admin = signingAdmin();

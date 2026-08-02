@@ -591,7 +591,8 @@ export async function POST(_request: Request, context: RouteContext) {
       .update({
         sync_status:
           providerDocumentCreated ||
-          failure.code === 'modusign_timeout'
+          failure.code === 'modusign_timeout' ||
+          failure.code === 'modusign_invalid_response'
             ? 'reconciliation_required'
             : 'failed',
         last_error_code: failure.code,

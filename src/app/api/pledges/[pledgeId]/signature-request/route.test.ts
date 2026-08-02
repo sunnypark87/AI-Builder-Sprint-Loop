@@ -536,6 +536,30 @@ describe('POST /api/pledges/[pledgeId]/signature-request', () => {
     );
   });
 
+  it('reconciles malformed successful creation responses', async () => {
+    createClient.mockResolvedValue(pledgeClient(completePledge));
+    const admin = signingAdmin();
+    createAdminClient.mockReturnValue(admin);
+    createModusignClient.mockReturnValue({
+      createDocumentWithTemplate: vi
+        .fn()
+        .mockRejectedValue(new ModusignApiError('invalid_response')),
+    });
+
+    const response = await POST(
+      new Request('http://localhost/api/pledges/pledge-1/signature-request'),
+      context,
+    );
+
+    expect(response.status).toBe(502);
+    expect(admin.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        last_error_code: 'modusign_invalid_response',
+        sync_status: 'reconciliation_required',
+      }),
+    );
+  });
+
   it('recovers a timed-out request from provider metadata without creating a duplicate', async () => {
     createClient.mockResolvedValue(pledgeClient(completePledge));
     const admin = signingAdmin({

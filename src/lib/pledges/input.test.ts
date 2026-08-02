@@ -75,20 +75,16 @@ describe('create pledge input validation', () => {
     }
   });
 
-  it('requires recipient details when a demo receipt is requested', () => {
+  it('uses donor details when a receipt is requested', () => {
     const result = validateCreatePledgeInput({
       ...validInput,
       receiptRequested: true,
     });
 
-    expect(result).toMatchObject({ ok: false });
-    if (!result.ok) {
-      expect(result.errors.map((error) => error.field)).toEqual(
-        expect.arrayContaining([
-          'receiptRecipientName',
-          'receiptRecipientAddress',
-        ]),
-      );
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) {
+      expect(result.value.receiptRecipientName).toBe(validInput.donorName);
+      expect(result.value.receiptRecipientAddress).toBe(validInput.address);
     }
   });
 });

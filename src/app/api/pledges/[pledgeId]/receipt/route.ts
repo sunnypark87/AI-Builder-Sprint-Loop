@@ -50,7 +50,7 @@ export async function POST(_request: Request, context: RouteContext) {
   const { data: pledge, error: pledgeError } = await userClient
     .from('pledges')
     .select(
-      'id, status, donor_name, amount, pledge_date, receipt_requested, receipt_recipient_name, receipt_recipient_address',
+      'id, status, donor_name, donor_address, amount, pledge_date, receipt_requested',
     )
     .eq('id', pledgeId)
     .eq('donor_user_id', user.id)
@@ -70,8 +70,8 @@ export async function POST(_request: Request, context: RouteContext) {
 
   if (
     !pledge.receipt_requested ||
-    !pledge.receipt_recipient_name ||
-    !pledge.receipt_recipient_address
+    !pledge.donor_name ||
+    !pledge.donor_address
   ) {
     return NextResponse.json(
       { code: 'receipt_details_missing' },
@@ -112,8 +112,8 @@ export async function POST(_request: Request, context: RouteContext) {
     donorName: pledge.donor_name,
     pledgeDate: pledge.pledge_date,
     pledgeId,
-    recipientAddress: pledge.receipt_recipient_address,
-    recipientName: pledge.receipt_recipient_name,
+    recipientAddress: pledge.donor_address,
+    recipientName: pledge.donor_name,
   });
   const { data: insertedReceipt, error: insertError } = await adminClient
     .from('demo_receipts')

@@ -71,8 +71,6 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
     paymentScheduleOther: pledge.payment_schedule_other ?? '',
     personalInfoConsent: pledge.personal_info_consent,
     purpose: pledge.purpose ?? '',
-    receiptRecipientAddress: pledge.receipt_recipient_address ?? '',
-    receiptRecipientName: pledge.receipt_recipient_name ?? '',
     receiptRequested: pledge.receipt_requested,
     thirdPartyInfoConsent: pledge.third_party_info_consent,
     identityInfoConsent: pledge.identity_info_consent,
@@ -550,19 +548,8 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
               않습니다.
             </ConsentBlock>
             {form.receiptRequested ? (
-              <div className="grid gap-2 border border-copy p-3 sm:grid-cols-2">
-                <DocumentInput
-                  ariaLabel="영수증 수령인"
-                  placeholder="영수증 수령인"
-                  value={form.receiptRecipientName}
-                  onChange={(value) => update('receiptRecipientName', value)}
-                />
-                <DocumentInput
-                  ariaLabel="영수증 수령 주소"
-                  placeholder="영수증 수령 주소"
-                  value={form.receiptRecipientAddress}
-                  onChange={(value) => update('receiptRecipientAddress', value)}
-                />
+              <div className="border border-copy p-3">
+                영수증 수령 정보는 위에 입력한 기부자명과 주소를 사용합니다.
               </div>
             ) : null}
             <div className="border-t-2 border-copy pt-6 text-center">

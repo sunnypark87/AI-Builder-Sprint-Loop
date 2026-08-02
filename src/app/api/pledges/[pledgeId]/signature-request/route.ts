@@ -452,8 +452,12 @@ export async function POST(_request: Request, context: RouteContext) {
       personalInfoConsent: pledge.personal_info_consent ?? undefined,
       pledgeDate: pledge.pledge_date,
       purpose: pledge.purpose,
-      receiptRecipientAddress: pledge.receipt_recipient_address || undefined,
-      receiptRecipientName: pledge.receipt_recipient_name || undefined,
+      receiptRecipientAddress: pledge.receipt_requested
+        ? pledge.donor_address
+        : undefined,
+      receiptRecipientName: pledge.receipt_requested
+        ? pledge.donor_name
+        : undefined,
       receiptRequested: Boolean(pledge.receipt_requested),
       thirdPartyInfoConsent: pledge.third_party_info_consent ?? undefined,
     },

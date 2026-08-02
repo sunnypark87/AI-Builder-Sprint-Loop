@@ -54,7 +54,9 @@ export async function PATCH(request: Request, context: RouteContext) {
   const supabase = await createClient();
   const { data: existing, error: lookupError } = await supabase
     .from('pledges')
-    .select('id, status, organization_id')
+    .select(
+      'id, status, organization_id, donor_name, donor_address, receipt_requested',
+    )
     .eq('id', pledgeId)
     .eq('donor_user_id', user.id)
     .maybeSingle();
@@ -138,8 +140,6 @@ export async function PATCH(request: Request, context: RouteContext) {
     paymentScheduleOther: 'payment_schedule_other',
     personalInfoConsent: 'personal_info_consent',
     purpose: 'purpose',
-    receiptRecipientAddress: 'receipt_recipient_address',
-    receiptRecipientName: 'receipt_recipient_name',
     receiptRequested: 'receipt_requested',
     thirdPartyInfoConsent: 'third_party_info_consent',
   };
@@ -181,6 +181,20 @@ export async function PATCH(request: Request, context: RouteContext) {
           : value[inputField as keyof typeof value];
       updates[column] = nextValue ?? null;
     }
+  }
+  const receiptRequested =
+    'receiptRequested' in raw
+      ? value.receiptRequested
+      : Boolean(existing.receipt_requested);
+  if (
+    receiptRequested &&
+    ('receiptRequested' in raw || 'donorName' in raw || 'address' in raw)
+  ) {
+    updates.receipt_recipient_name = value.donorName ?? existing.donor_name;
+    updates.receipt_recipient_address = value.address ?? existing.donor_address;
+  } else if ('receiptRequested' in raw && !receiptRequested) {
+    updates.receipt_recipient_name = null;
+    updates.receipt_recipient_address = null;
   }
 
   const { data, error } = await supabase

@@ -103,27 +103,6 @@ export function validateCreatePledgeInput(
     });
   }
 
-  if (input.receiptRequested === true) {
-    if (
-      typeof input.receiptRecipientName !== 'string' ||
-      !input.receiptRecipientName.trim()
-    ) {
-      errors.push({
-        field: 'receiptRecipientName',
-        message: '영수증 수령인명을 입력해 주세요.',
-      });
-    }
-    if (
-      typeof input.receiptRecipientAddress !== 'string' ||
-      !input.receiptRecipientAddress.trim()
-    ) {
-      errors.push({
-        field: 'receiptRecipientAddress',
-        message: '영수증 수령인 주소를 입력해 주세요.',
-      });
-    }
-  }
-
   if (
     input.identityNumber !== undefined &&
     (typeof input.identityNumber !== 'string' ||
@@ -208,8 +187,14 @@ export function validateCreatePledgeInput(
         : {}),
       pledgeDate: pledgeDate as string,
       purpose: requiredString(input.purpose),
-      receiptRecipientAddress: optionalString(input.receiptRecipientAddress),
-      receiptRecipientName: optionalString(input.receiptRecipientName),
+      receiptRecipientAddress:
+        input.receiptRequested === true
+          ? requiredString(input.address)
+          : undefined,
+      receiptRecipientName:
+        input.receiptRequested === true
+          ? requiredString(input.donorName)
+          : undefined,
       receiptRequested: input.receiptRequested === true,
       ...(typeof input.thirdPartyInfoConsent === 'boolean'
         ? { thirdPartyInfoConsent: input.thirdPartyInfoConsent }
@@ -372,12 +357,6 @@ export function validateDraftPledgeInput(
         : {}),
       ...(typeof input.purpose === 'string'
         ? { purpose: input.purpose.trim() }
-        : {}),
-      ...(typeof input.receiptRecipientAddress === 'string'
-        ? { receiptRecipientAddress: input.receiptRecipientAddress.trim() }
-        : {}),
-      ...(typeof input.receiptRecipientName === 'string'
-        ? { receiptRecipientName: input.receiptRecipientName.trim() }
         : {}),
       receiptRequested: input.receiptRequested === true,
       ...(typeof input.thirdPartyInfoConsent === 'boolean'

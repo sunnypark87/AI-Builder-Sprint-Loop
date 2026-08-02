@@ -40,6 +40,7 @@ export type ExistingExecutionAnalysis = {
   issues: ReceiptValidationIssue[];
   verificationResults: ReceiptVerificationResult[];
   sourcePath: string | null;
+  leaseToken: string | null;
   shouldProcess: boolean;
 };
 
@@ -64,6 +65,7 @@ export type ExecutionRetrySource = {
   fileName: string;
   mimeType: string;
   fingerprint: string;
+  leaseToken: string;
 };
 
 export interface ExecutionRepository {
@@ -90,8 +92,14 @@ export interface ExecutionRepository {
     existingSourcePath: string | null,
   ): Promise<string>;
   removeSource(sourcePath: string): Promise<void>;
+  markSourceUploaded(
+    executionId: string,
+    sourcePath: string,
+    leaseToken: string,
+  ): Promise<void>;
   saveAnalysis(
     executionId: string,
+    leaseToken: string,
     sourcePath: string,
     parsed: ParsedReceipt,
     verificationResults: ReceiptVerificationResult[],
@@ -99,6 +107,7 @@ export interface ExecutionRepository {
   ): Promise<ExecutionStatus>;
   saveFailure(
     executionId: string,
+    leaseToken: string,
     errorCode: string,
     sourcePath?: string,
   ): Promise<void>;
@@ -317,6 +326,8 @@ export function createExecutionRepository(
           typeof row.execution_source_path === 'string'
             ? row.execution_source_path
             : null,
+        leaseToken:
+          typeof row.lease_token === 'string' ? row.lease_token : null,
         shouldProcess: Boolean(row.should_process),
       };
     },
@@ -352,7 +363,16 @@ export function createExecutionRepository(
       const { error } = await client.storage
         .from(RECEIPT_DOCUMENT_BUCKET)
         .move(pendingSourcePath, finalPath);
-      if (error) throw databaseError(error.message);
+      if (error) {
+        const { data: finalExists } = await client.storage
+          .from(RECEIPT_DOCUMENT_BUCKET)
+          .exists(finalPath);
+        if (!finalExists) throw databaseError(error.message);
+        const { error: cleanupError } = await client.storage
+          .from(RECEIPT_DOCUMENT_BUCKET)
+          .remove([pendingSourcePath]);
+        if (cleanupError) throw databaseError(cleanupError.message);
+      }
       return finalPath;
     },
 
@@ -364,8 +384,20 @@ export function createExecutionRepository(
       if (error) throw databaseError(error.message);
     },
 
+    async markSourceUploaded(executionId, sourcePath, leaseToken) {
+      const { client, actorUserId } = mutationClient();
+      const { error } = await client.rpc('mark_execution_source_uploaded', {
+        p_actor_id: actorUserId,
+        p_execution_id: executionId,
+        p_source_path: sourcePath,
+        p_lease_token: leaseToken,
+      });
+      if (error) throw databaseError(error.message);
+    },
+
     async saveAnalysis(
       executionId,
+      leaseToken,
       sourcePath,
       parsed,
       verificationResults,
@@ -377,6 +409,7 @@ export function createExecutionRepository(
         {
           p_actor_id: actorUserId,
           p_execution_id: executionId,
+          p_lease_token: leaseToken,
           p_source_path: sourcePath,
           p_draft: parsed.draft,
           p_validation_issues: parsed.issues,
@@ -392,11 +425,12 @@ export function createExecutionRepository(
       return data as ExecutionStatus;
     },
 
-    async saveFailure(executionId, errorCode, sourcePath) {
+    async saveFailure(executionId, leaseToken, errorCode, sourcePath) {
       const { client, actorUserId } = mutationClient();
       const { error } = await client.rpc('mark_expenditure_execution_failed', {
         p_actor_id: actorUserId,
         p_execution_id: executionId,
+        p_lease_token: leaseToken,
         p_error_code: errorCode,
         p_source_path: sourcePath ?? null,
       });
@@ -539,17 +573,20 @@ export function createExecutionRepository(
       const { data, error } = await supabase
         .from('expenditure_executions')
         .select(
-          'id,merchant_name,status,total_amount,transaction_at,plan_item_id,updated_at',
+          'id,merchant_name,status,total_amount,transaction_at,plan_item_id,updated_at,analysis_lease_expires_at',
         )
         .order('updated_at', { ascending: false });
       if (error) throw databaseError(error.message);
       const items: ExecutionListItem[] = [];
+      const listedAt = Date.now();
       for (const execution of data ?? []) {
         const { data: planItem } = await supabase
           .from('expenditure_plan_items')
           .select('name')
           .eq('id', execution.plan_item_id)
           .maybeSingle();
+        const leaseExpiresAt =
+          (execution.analysis_lease_expires_at as string | null) ?? null;
         items.push({
           id: execution.id as string,
           merchantName:
@@ -559,6 +596,12 @@ export function createExecutionRepository(
           transactionAt: execution.transaction_at as string | null,
           planItemName: (planItem?.name as string | null) || '-',
           updatedAt: execution.updated_at as string,
+          analysisLeaseExpiresAt: leaseExpiresAt,
+          retryAvailable:
+            execution.status === 'analysis_failed' ||
+            (execution.status === 'analyzing' &&
+              (!leaseExpiresAt ||
+                new Date(leaseExpiresAt).getTime() <= listedAt)),
         });
       }
       return items;
@@ -566,40 +609,32 @@ export function createExecutionRepository(
 
     async claimRetry(executionId) {
       const { client, actorUserId } = mutationClient();
-      const { data: execution } = await client
-        .from('expenditure_executions')
-        .select('id,organization_id,donation_id,plan_id,plan_item_id,status')
-        .eq('id', executionId)
-        .eq('created_by', actorUserId)
-        .eq('status', 'analysis_failed')
+      const { data, error } = await client
+        .rpc('claim_execution_analysis_retry', {
+          p_actor_id: actorUserId,
+          p_execution_id: executionId,
+        })
         .maybeSingle();
-      if (!execution) return null;
-      const { data: receipt } = await client
-        .from('execution_receipts')
-        .select(
-          'source_path,source_file_name,source_mime_type,source_fingerprint',
-        )
-        .eq('execution_id', executionId)
-        .maybeSingle();
-      if (!receipt?.source_path) return null;
-      const { data: claimed, error } = await client
-        .from('expenditure_executions')
-        .update({ status: 'analyzing', analysis_error_code: null })
-        .eq('id', executionId)
-        .eq('status', 'analysis_failed')
-        .select('id')
-        .maybeSingle();
-      if (error || !claimed) return null;
+      if (error) throw databaseError(error.message);
+      if (!data) return null;
+      const source = data as Record<string, unknown>;
+      if (
+        typeof source.source_path !== 'string' ||
+        typeof source.lease_token !== 'string'
+      ) {
+        throw databaseError('분석 재시도 소유권을 확인할 수 없습니다.');
+      }
       return {
-        executionId,
-        organizationId: execution.organization_id as string,
-        donationId: execution.donation_id as string,
-        planId: execution.plan_id as string,
-        planItemId: execution.plan_item_id as string,
-        sourcePath: receipt.source_path as string,
-        fileName: receipt.source_file_name as string,
-        mimeType: receipt.source_mime_type as string,
-        fingerprint: receipt.source_fingerprint as string,
+        executionId: source.execution_id as string,
+        organizationId: source.organization_id as string,
+        donationId: source.donation_id as string,
+        planId: source.plan_id as string,
+        planItemId: source.plan_item_id as string,
+        sourcePath: source.source_path,
+        fileName: source.source_file_name as string,
+        mimeType: source.source_mime_type as string,
+        fingerprint: source.source_fingerprint as string,
+        leaseToken: source.lease_token,
       };
     },
 

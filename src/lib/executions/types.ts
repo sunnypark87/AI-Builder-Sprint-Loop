@@ -1,5 +1,7 @@
 import type { DocumentOcrPage } from '@/lib/upstage/document-ocr';
 
+export const RECEIPT_OCR_CONFIDENCE_THRESHOLD = 0.8;
+
 export type ExecutionStatus =
   | 'analyzing'
   | 'review_required'
@@ -42,7 +44,8 @@ export type ReceiptIssueCode =
   | 'item_name_required'
   | 'item_name_too_long'
   | 'item_quantity_invalid'
-  | 'item_amount_invalid';
+  | 'item_amount_invalid'
+  | 'ocr_confidence_low';
 
 export type ReceiptValidationIssue = {
   code: ReceiptIssueCode;
@@ -104,6 +107,8 @@ export type ExecutionListItem = {
   transactionAt: string | null;
   planItemName: string;
   updatedAt: string;
+  analysisLeaseExpiresAt: string | null;
+  retryAvailable: boolean;
 };
 
 export type ExecutionReview = {

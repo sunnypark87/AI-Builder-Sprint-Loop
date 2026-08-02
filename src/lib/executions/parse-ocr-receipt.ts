@@ -1,5 +1,9 @@
 import { validateReceiptDraft } from '@/lib/executions/receipt-schema';
-import type { ParsedReceipt, ReceiptItemDraft } from '@/lib/executions/types';
+import {
+  RECEIPT_OCR_CONFIDENCE_THRESHOLD,
+  type ParsedReceipt,
+  type ReceiptItemDraft,
+} from '@/lib/executions/types';
 import type { DocumentOcrResult } from '@/lib/upstage/document-ocr';
 
 function clean(value: string) {
@@ -112,9 +116,18 @@ export function parseOcrReceipt(
     items: parseItems(text, confidence),
   };
 
+  const issues = validateReceiptDraft(draft);
+  if (confidence !== null && confidence < RECEIPT_OCR_CONFIDENCE_THRESHOLD) {
+    issues.push({
+      code: 'ocr_confidence_low',
+      message: 'OCR 신뢰도가 낮아 원본 대조가 필요합니다.',
+      path: 'pages',
+    });
+  }
+
   return {
     draft,
-    issues: validateReceiptDraft(draft),
+    issues,
     metadata: {
       provider: 'upstage',
       apiVersion: ocr.apiVersion,

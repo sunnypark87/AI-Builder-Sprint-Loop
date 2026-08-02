@@ -1,8 +1,9 @@
-import type {
-  ReceiptDraft,
-  ReceiptValidationIssue,
-  ReceiptVerificationContext,
-  ReceiptVerificationResult,
+import {
+  RECEIPT_OCR_CONFIDENCE_THRESHOLD,
+  type ReceiptDraft,
+  type ReceiptValidationIssue,
+  type ReceiptVerificationContext,
+  type ReceiptVerificationResult,
 } from '@/lib/executions/types';
 
 function result(
@@ -37,6 +38,11 @@ export function verifyReceipt(
 ) {
   const results: ReceiptVerificationResult[] = [];
   const itemAmounts = draft.items.map((item) => item.amount);
+  const lowConfidenceItems = draft.items.filter(
+    (item) =>
+      item.confidence !== null &&
+      item.confidence < RECEIPT_OCR_CONFIDENCE_THRESHOLD,
+  );
   const itemTotal = itemAmounts.every((amount) => amount !== null)
     ? (itemAmounts as number[]).reduce((sum, amount) => sum + amount, 0)
     : null;
@@ -180,11 +186,11 @@ export function verifyReceipt(
   results.push(
     result(
       'ocr_review',
-      issues.length > 0 ? 'warning' : 'passed',
-      issues.length > 0
-        ? 'OCR 추출값에 수정이 필요한 항목이 있습니다.'
+      issues.length > 0 || lowConfidenceItems.length > 0 ? 'warning' : 'passed',
+      issues.length > 0 || lowConfidenceItems.length > 0
+        ? 'OCR 추출값에 수정이 필요하거나 신뢰도가 낮은 항목이 있습니다.'
         : '필수 OCR 추출값의 형식 검사를 통과했습니다.',
-      `${issues.length}개 항목`,
+      `검증 이슈 ${issues.length}개 / 신뢰도 ${RECEIPT_OCR_CONFIDENCE_THRESHOLD} 미만 품목 ${lowConfidenceItems.length}개`,
     ),
   );
   return results;

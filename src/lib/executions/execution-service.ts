@@ -121,6 +121,7 @@ function mapPersistenceError(error: unknown) {
 
 async function analyzeStoredSource(
   executionId: string,
+  leaseToken: string,
   eligibility: ExecutionEligibility,
   file: File,
   sourcePath: string,
@@ -150,6 +151,7 @@ async function analyzeStoredSource(
   );
   const status = await dependencies.repository.saveAnalysis(
     executionId,
+    leaseToken,
     sourcePath,
     parsed,
     verificationResults,
@@ -261,6 +263,16 @@ export async function analyzeExecution(
       duplicate: true,
     };
   }
+  if (!creation.leaseToken) {
+    await cleanup(dependencies.repository, input.sourcePath);
+    throw new ExecutionServiceError(
+      'persistence_failed',
+      '집행 내역 분석 소유권을 확인할 수 없습니다.',
+      500,
+      true,
+      creation.id,
+    );
+  }
 
   let sourcePath: string | undefined;
   try {
@@ -271,8 +283,14 @@ export async function analyzeExecution(
       file,
       creation.sourcePath,
     );
+    await dependencies.repository.markSourceUploaded(
+      creation.id,
+      sourcePath,
+      creation.leaseToken,
+    );
     const analyzed = await analyzeStoredSource(
       creation.id,
+      creation.leaseToken,
       eligibility,
       file,
       sourcePath,
@@ -293,7 +311,12 @@ export async function analyzeExecution(
           ? 'duplicate_receipt'
           : 'persistence_failed';
     try {
-      await dependencies.repository.saveFailure(creation.id, code, sourcePath);
+      await dependencies.repository.saveFailure(
+        creation.id,
+        creation.leaseToken,
+        code,
+        sourcePath,
+      );
     } catch {
       // Preserve the primary safe failure.
     }
@@ -365,6 +388,7 @@ export async function retryExecutionAnalysis(
     const file = await dependencies.repository.downloadSource(source);
     const analyzed = await analyzeStoredSource(
       executionId,
+      source.leaseToken,
       eligibility,
       file,
       source.sourcePath,
@@ -380,6 +404,7 @@ export async function retryExecutionAnalysis(
   } catch (error) {
     await dependencies.repository.saveFailure(
       executionId,
+      source.leaseToken,
       error instanceof DocumentOcrError ? error.code : 'persistence_failed',
       source.sourcePath,
     );

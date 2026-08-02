@@ -31,11 +31,20 @@ describe('execution migration security and atomicity', () => {
     );
   });
 
+  it('uses an expiring ownership token for analysis and retry writes', () => {
+    expect(migration).toContain('analysis_lease_expires_at');
+    expect(migration).toContain('analysis_lease_token');
+    expect(migration).toContain('analysis_lease_token = p_lease_token');
+    expect(migration).toContain('claim_execution_analysis_retry');
+  });
+
   it('revokes public execution on every mutation function', () => {
     for (const name of [
       'create_expenditure_execution_analysis',
+      'mark_execution_source_uploaded',
       'save_expenditure_execution_analysis',
       'mark_expenditure_execution_failed',
+      'claim_execution_analysis_retry',
       'register_expenditure_execution',
     ]) {
       expect(migration).toMatch(

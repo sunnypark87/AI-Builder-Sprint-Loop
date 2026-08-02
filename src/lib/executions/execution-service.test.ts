@@ -52,6 +52,7 @@ function repository(overrides: Partial<ExecutionRepository> = {}) {
       issues: [],
       verificationResults: [],
       sourcePath: null,
+      leaseToken: ids.uploadId,
       shouldProcess: true,
     }),
     downloadPendingSource: vi.fn().mockResolvedValue(pngFile()),
@@ -59,6 +60,7 @@ function repository(overrides: Partial<ExecutionRepository> = {}) {
       .fn()
       .mockResolvedValue(`${ids.organizationId}/${ids.executionId}/source.png`),
     removeSource: vi.fn().mockResolvedValue(undefined),
+    markSourceUploaded: vi.fn().mockResolvedValue(undefined),
     saveAnalysis: vi.fn().mockResolvedValue('review_required'),
     saveFailure: vi.fn().mockResolvedValue(undefined),
     verificationContext: vi.fn().mockResolvedValue({
@@ -119,6 +121,7 @@ describe('analyzeExecution', () => {
     expect(result.parsed?.draft.totalAmount).toBe(2000);
     expect(target.saveAnalysis).toHaveBeenCalledWith(
       ids.executionId,
+      ids.uploadId,
       expect.stringContaining(ids.executionId),
       expect.objectContaining({
         draft: expect.objectContaining({ merchantName: '모두마트' }),

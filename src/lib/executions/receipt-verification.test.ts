@@ -91,6 +91,22 @@ describe('receipt verification', () => {
     ).toBe('warning');
   });
 
+  it('requires manual review when an OCR item confidence is low', () => {
+    const results = verifyReceipt(
+      {
+        ...draft,
+        items: [{ ...draft.items[0], confidence: 0.79 }],
+      },
+      [],
+      context,
+    );
+    expect(hasVerificationWarning(results)).toBe(true);
+    expect(results.find((item) => item.code === 'ocr_review')).toMatchObject({
+      outcome: 'warning',
+      evidence: expect.stringContaining('1개'),
+    });
+  });
+
   it('validates Korean business number checksums deterministically', () => {
     expect(isValidBusinessNumber('1208155297')).toBe(true);
     expect(isValidBusinessNumber('1208155298')).toBe(false);

@@ -75,4 +75,32 @@ describe('parseOcrReceipt', () => {
     );
     expect(receiptSemanticKey(parsed.draft)).toBe('');
   });
+
+  it('records a review issue when page confidence is below the threshold', () => {
+    const parsed = parseOcrReceipt(
+      {
+        apiVersion: '1',
+        modelVersion: 'test',
+        pages: [
+          {
+            page: 1,
+            confidence: 0.79,
+            text: [
+              '상호명: 모두마트',
+              '사업자등록번호: 120-81-55297',
+              '거래일시: 2026.08.02 14:30',
+              '품목: 생수 | 수량 1 | 금액 2,000원',
+              '공급가액: 1,819원',
+              '부가세: 181원',
+              '합계: 2,000원',
+            ].join('\n'),
+          },
+        ],
+      },
+      '2026-08-02T00:00:00Z',
+    );
+    expect(parsed.issues).toContainEqual(
+      expect.objectContaining({ code: 'ocr_confidence_low', path: 'pages' }),
+    );
+  });
 });

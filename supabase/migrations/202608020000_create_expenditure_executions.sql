@@ -68,6 +68,8 @@ create table public.expenditure_executions (
     char_length(idempotency_key) between 16 and 128
   ),
   analysis_error_code text,
+  analysis_lease_expires_at timestamptz,
+  analysis_lease_token uuid,
   reviewed_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -224,6 +226,7 @@ returns table (
   execution_validation_issues jsonb,
   execution_verification_results jsonb,
   execution_source_path text,
+  lease_token uuid,
   should_process boolean
 )
 language plpgsql
@@ -234,6 +237,7 @@ declare
   existing_execution public.expenditure_executions%rowtype;
   existing_receipt public.execution_receipts%rowtype;
   new_execution_id uuid;
+  process_lease_token uuid;
 begin
   if not private.is_organization_member_for(p_organization_id, p_actor_id) then
     raise exception 'Execution access denied';
@@ -260,7 +264,8 @@ begin
   select * into existing_execution
   from public.expenditure_executions execution
   where execution.created_by = p_actor_id
-    and execution.idempotency_key = p_idempotency_key;
+    and execution.idempotency_key = p_idempotency_key
+  for update;
 
   if found then
     select * into existing_receipt
@@ -271,6 +276,19 @@ begin
       or existing_execution.plan_item_id <> p_plan_item_id then
       raise exception 'Execution idempotency key does not match';
     end if;
+    if existing_execution.status = 'analyzing'
+      and (
+        existing_execution.analysis_lease_expires_at is null
+        or existing_execution.analysis_lease_expires_at <= now()
+      ) then
+      update public.expenditure_executions execution
+      set analysis_lease_expires_at = now() + interval '2 minutes',
+          analysis_lease_token = gen_random_uuid(),
+          updated_at = now()
+      where execution.id = existing_execution.id
+      returning execution.analysis_lease_token into process_lease_token;
+    end if;
+
     return query select
       existing_execution.id,
       existing_execution.status,
@@ -278,7 +296,8 @@ begin
       existing_execution.validation_issues,
       existing_execution.verification_results,
       existing_receipt.source_path,
-      false;
+      process_lease_token,
+      process_lease_token is not null;
     return;
   end if;
 
@@ -288,15 +307,20 @@ begin
     plan_id,
     plan_item_id,
     created_by,
-    idempotency_key
+    idempotency_key,
+    analysis_lease_expires_at,
+    analysis_lease_token
   ) values (
     p_organization_id,
     p_donation_id,
     p_plan_id,
     p_plan_item_id,
     p_actor_id,
-    p_idempotency_key
-  ) returning id into new_execution_id;
+    p_idempotency_key,
+    now() + interval '2 minutes',
+    gen_random_uuid()
+  ) returning id, analysis_lease_token
+    into new_execution_id, process_lease_token;
 
   insert into public.execution_receipts (
     execution_id,
@@ -323,13 +347,44 @@ begin
     '[]'::jsonb,
     '[]'::jsonb,
     null::text,
+    process_lease_token,
     true;
+end;
+$$;
+
+create or replace function public.mark_execution_source_uploaded(
+  p_actor_id uuid,
+  p_execution_id uuid,
+  p_source_path text,
+  p_lease_token uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update public.execution_receipts receipt
+  set source_path = p_source_path
+  from public.expenditure_executions execution
+  where receipt.execution_id = p_execution_id
+    and execution.id = receipt.execution_id
+    and execution.status = 'analyzing'
+    and execution.analysis_lease_token = p_lease_token
+    and private.is_organization_member_for(execution.organization_id, p_actor_id)
+    and p_source_path like
+      execution.organization_id::text || '/' || execution.id::text || '/source.%';
+
+  if not found then
+    raise exception 'Execution is not available for source recording';
+  end if;
 end;
 $$;
 
 create or replace function public.save_expenditure_execution_analysis(
   p_actor_id uuid,
   p_execution_id uuid,
+  p_lease_token uuid,
   p_source_path text,
   p_draft jsonb,
   p_validation_issues jsonb,
@@ -363,9 +418,12 @@ begin
       verification_results = p_verification_results,
       semantic_key = nullif(p_semantic_key, ''),
       analysis_error_code = null,
+      analysis_lease_expires_at = null,
+      analysis_lease_token = null,
       updated_at = now()
   where execution.id = p_execution_id
     and execution.status = 'analyzing'
+    and execution.analysis_lease_token = p_lease_token
     and private.is_organization_member_for(execution.organization_id, p_actor_id);
 
   if not found then
@@ -418,6 +476,7 @@ $$;
 create or replace function public.mark_expenditure_execution_failed(
   p_actor_id uuid,
   p_execution_id uuid,
+  p_lease_token uuid,
   p_error_code text,
   p_source_path text default null
 )
@@ -430,16 +489,80 @@ begin
   update public.expenditure_executions execution
   set status = 'analysis_failed',
       analysis_error_code = left(p_error_code, 100),
+      analysis_lease_expires_at = null,
+      analysis_lease_token = null,
       updated_at = now()
   where execution.id = p_execution_id
     and execution.status = 'analyzing'
+    and execution.analysis_lease_token = p_lease_token
     and private.is_organization_member_for(execution.organization_id, p_actor_id);
+
+  if not found then
+    raise exception 'Execution analysis failure is not writable';
+  end if;
 
   if p_source_path is not null then
     update public.execution_receipts
     set source_path = p_source_path
     where execution_id = p_execution_id;
   end if;
+end;
+$$;
+
+create or replace function public.claim_execution_analysis_retry(
+  p_actor_id uuid,
+  p_execution_id uuid
+)
+returns table (
+  execution_id uuid,
+  organization_id uuid,
+  donation_id uuid,
+  plan_id uuid,
+  plan_item_id uuid,
+  source_path text,
+  source_file_name text,
+  source_mime_type text,
+  source_fingerprint text,
+  lease_token uuid
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  return query
+  update public.expenditure_executions execution
+  set status = 'analyzing',
+      analysis_error_code = null,
+      analysis_lease_expires_at = now() + interval '2 minutes',
+      analysis_lease_token = gen_random_uuid(),
+      updated_at = now()
+  from public.execution_receipts receipt
+  where execution.id = p_execution_id
+    and receipt.execution_id = execution.id
+    and (
+      execution.status = 'analysis_failed'
+      or (
+        execution.status = 'analyzing'
+        and (
+          execution.analysis_lease_expires_at is null
+          or execution.analysis_lease_expires_at <= now()
+        )
+      )
+    )
+    and receipt.source_path is not null
+    and private.is_organization_member_for(execution.organization_id, p_actor_id)
+  returning
+    execution.id,
+    execution.organization_id,
+    execution.donation_id,
+    execution.plan_id,
+    execution.plan_item_id,
+    receipt.source_path,
+    receipt.source_file_name,
+    receipt.source_mime_type,
+    receipt.source_fingerprint,
+    execution.analysis_lease_token;
 end;
 $$;
 
@@ -586,11 +709,17 @@ grant execute on function private.can_access_receipt_document(text) to authentic
 revoke all on function public.create_expenditure_execution_analysis(
   uuid, uuid, uuid, uuid, uuid, text, text, text, bigint, integer, text
 ) from public;
+revoke all on function public.mark_execution_source_uploaded(
+  uuid, uuid, text, uuid
+) from public;
 revoke all on function public.save_expenditure_execution_analysis(
-  uuid, uuid, text, jsonb, jsonb, jsonb, jsonb, text
+  uuid, uuid, uuid, text, jsonb, jsonb, jsonb, jsonb, text
 ) from public;
 revoke all on function public.mark_expenditure_execution_failed(
-  uuid, uuid, text, text
+  uuid, uuid, uuid, text, text
+) from public;
+revoke all on function public.claim_execution_analysis_retry(
+  uuid, uuid
 ) from public;
 revoke all on function public.register_expenditure_execution(
   uuid, uuid, jsonb, jsonb, text
@@ -599,11 +728,17 @@ revoke all on function public.register_expenditure_execution(
 grant execute on function public.create_expenditure_execution_analysis(
   uuid, uuid, uuid, uuid, uuid, text, text, text, bigint, integer, text
 ) to service_role;
+grant execute on function public.mark_execution_source_uploaded(
+  uuid, uuid, text, uuid
+) to service_role;
 grant execute on function public.save_expenditure_execution_analysis(
-  uuid, uuid, text, jsonb, jsonb, jsonb, jsonb, text
+  uuid, uuid, uuid, text, jsonb, jsonb, jsonb, jsonb, text
 ) to service_role;
 grant execute on function public.mark_expenditure_execution_failed(
-  uuid, uuid, text, text
+  uuid, uuid, uuid, text, text
+) to service_role;
+grant execute on function public.claim_execution_analysis_retry(
+  uuid, uuid
 ) to service_role;
 grant execute on function public.register_expenditure_execution(
   uuid, uuid, jsonb, jsonb, text

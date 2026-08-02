@@ -120,7 +120,11 @@ test('uploads, verifies and atomically registers one receipt', async ({
         })
         .single();
       expect(createError).toBeNull();
-      const executionId = (created as { execution_id: string }).execution_id;
+      const creation = created as {
+        execution_id: string;
+        lease_token: string;
+      };
+      const executionId = creation.execution_id;
       const draft = {
         merchantName: `동시마트 ${suffix}`,
         businessNumber: '1208155297',
@@ -157,6 +161,7 @@ test('uploads, verifies and atomically registers one receipt', async ({
         {
           p_actor_id: actor!.id,
           p_execution_id: executionId,
+          p_lease_token: creation.lease_token,
           p_source_path: `${executionIntegrationIds.organization}/${executionId}/source.png`,
           p_draft: draft,
           p_validation_issues: [],

@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(22);
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values
@@ -83,11 +83,54 @@ select lives_ok(
   'an organization member creates an execution analysis'
 );
 
+select ok(
+  (select analysis_lease_token is not null from public.expenditure_executions where idempotency_key = 'execution-submit-key-0001'),
+  'a new analysis owns a lease token'
+);
+select is(
+  (
+    select should_process
+    from public.create_expenditure_execution_analysis(
+      '81111111-1111-4111-8111-111111111111',
+      '8aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      '8aaaaaaa-0000-4000-8000-000000000001',
+      '8aaaaaaa-1000-4000-8000-000000000001',
+      '8aaaaaaa-2000-4000-8000-000000000001',
+      'execution-submit-key-0001',
+      'receipt.png', 'image/png', 100, 1, repeat('a', 64)
+    )
+  ),
+  false,
+  'an active analysis lease is not claimed twice'
+);
+
+update public.expenditure_executions
+set analysis_lease_expires_at = now() - interval '1 second'
+where idempotency_key = 'execution-submit-key-0001';
+
+select is(
+  (
+    select should_process
+    from public.create_expenditure_execution_analysis(
+      '81111111-1111-4111-8111-111111111111',
+      '8aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      '8aaaaaaa-0000-4000-8000-000000000001',
+      '8aaaaaaa-1000-4000-8000-000000000001',
+      '8aaaaaaa-2000-4000-8000-000000000001',
+      'execution-submit-key-0001',
+      'receipt.png', 'image/png', 100, 1, repeat('a', 64)
+    )
+  ),
+  true,
+  'an expired analysis lease can be reclaimed'
+);
+
 select lives_ok(
   $$
     select public.save_expenditure_execution_analysis(
       '81111111-1111-4111-8111-111111111111',
       (select id from public.expenditure_executions where idempotency_key = 'execution-submit-key-0001'),
+      (select analysis_lease_token from public.expenditure_executions where idempotency_key = 'execution-submit-key-0001'),
       '8aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/execution/source.png',
       '{"merchantName":"모두마트","businessNumber":"1208155297","transactionAt":"2026-08-02T10:00","supplyAmount":54545,"taxAmount":5455,"totalAmount":60000,"paymentMethod":"카드","approvalNumber":"12345678","items":[{"id":"item-1","name":"식재료","quantity":1,"amount":60000,"confidence":0.99,"sourceText":"식재료 60000","sourceName":"식재료","sourceAmount":60000}]}'::jsonb,
       '[]'::jsonb,
@@ -121,6 +164,63 @@ select is(
   (select total_amount from public.expenditure_executions where idempotency_key = 'execution-submit-key-0001'),
   60000::bigint,
   'reviewed amount is stored'
+);
+
+select lives_ok(
+  $$
+    select * from public.create_expenditure_execution_analysis(
+      '81111111-1111-4111-8111-111111111111',
+      '8aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      '8aaaaaaa-0000-4000-8000-000000000001',
+      '8aaaaaaa-1000-4000-8000-000000000001',
+      '8aaaaaaa-2000-4000-8000-000000000001',
+      'execution-submit-key-0002',
+      'stalled.png', 'image/png', 100, 1, repeat('b', 64)
+    )
+  $$,
+  'a second analysis is created for stale retry coverage'
+);
+select lives_ok(
+  $$
+    select public.mark_execution_source_uploaded(
+      '81111111-1111-4111-8111-111111111111',
+      (select id from public.expenditure_executions where idempotency_key = 'execution-submit-key-0002'),
+      (
+        select organization_id::text || '/' || id::text || '/source.png'
+        from public.expenditure_executions
+        where idempotency_key = 'execution-submit-key-0002'
+      ),
+      (select analysis_lease_token from public.expenditure_executions where idempotency_key = 'execution-submit-key-0002')
+    )
+  $$,
+  'the source path is recorded under the active lease'
+);
+
+update public.expenditure_executions
+set analysis_lease_expires_at = now() - interval '1 second'
+where idempotency_key = 'execution-submit-key-0002';
+
+select is(
+  (
+    select count(*)
+    from public.claim_execution_analysis_retry(
+      '81111111-1111-4111-8111-111111111111',
+      (select id from public.expenditure_executions where idempotency_key = 'execution-submit-key-0002')
+    )
+  ),
+  1::bigint,
+  'an expired analyzing row with a source is claimed for retry'
+);
+select is(
+  (
+    select count(*)
+    from public.claim_execution_analysis_retry(
+      '81111111-1111-4111-8111-111111111111',
+      (select id from public.expenditure_executions where idempotency_key = 'execution-submit-key-0002')
+    )
+  ),
+  0::bigint,
+  'an active replacement lease cannot be claimed twice'
 );
 
 insert into storage.objects (bucket_id, name, owner_id)

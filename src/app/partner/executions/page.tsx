@@ -84,10 +84,9 @@ export default async function Page({
         ].includes(execution.status)
           ? `/partner/executions/${execution.id}/review`
           : undefined,
-        action:
-          execution.status === 'analysis_failed' ? (
-            <ExecutionRetryButton executionId={execution.id} />
-          ) : undefined,
+        action: execution.retryAvailable ? (
+          <ExecutionRetryButton executionId={execution.id} />
+        ) : undefined,
         cells: {
           amount: money(execution.totalAmount),
           planItem: execution.planItemName,

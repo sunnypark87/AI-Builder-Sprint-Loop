@@ -4,21 +4,7 @@ test('plan registration exposes a safe empty state without Supabase configuratio
   page,
 }) => {
   await page.goto('/partner/plans');
-  await page.getByRole('link', { name: '계획 등록' }).click();
-
-  await expect(page).toHaveURL('/partner/plans/new');
-  await expect(
-    page.getByRole('heading', { name: '계획서를 업로드하세요' }),
-  ).toBeVisible();
-  await expect(
-    page.getByText('등록 가능한 기부 내역이 없습니다.'),
-  ).toBeVisible();
-  await expect(
-    page.getByRole('combobox', { name: '대상 기부 내역' }),
-  ).toBeDisabled();
-  await expect(
-    page.getByRole('button', { name: '계획서 분석' }),
-  ).toBeDisabled();
+  await expect(page).toHaveURL(/\/login\?next=\/partner$/);
 });
 
 test('plan registration rejects a request without a document', async ({

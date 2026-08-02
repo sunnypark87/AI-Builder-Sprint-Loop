@@ -59,6 +59,7 @@ export default async function Page({
       tone: 'neutral' as const,
     };
     return {
+      id: pledge.id,
       title: `${pledge.donor_name} 님 · ${pledge.purpose}`,
       description: `${Number(pledge.amount).toLocaleString('ko-KR')}원 · ${pledge.donation_type} · ${getPaymentStatusPresentation(payment?.status).label}`,
       status:

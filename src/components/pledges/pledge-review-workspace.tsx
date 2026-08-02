@@ -35,6 +35,7 @@ export function PledgeReviewWorkspace({
       body: JSON.stringify({
         ...patch,
         organizationSlug: organization?.slug ?? 'haebom',
+        version: pledge.version ?? 1,
       }),
       headers: { 'Content-Type': 'application/json' },
       method: 'PATCH',

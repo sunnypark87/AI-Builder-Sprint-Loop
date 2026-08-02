@@ -155,7 +155,7 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
         ...(identityNumber.trim() ? { identityNumber } : {}),
         amount: Number(form.amount),
         organizationSlug,
-        version: (pledge.version ?? 1) + 1,
+        version: pledge.version ?? 1,
       }),
       headers: { 'Content-Type': 'application/json' },
       method: 'PATCH',

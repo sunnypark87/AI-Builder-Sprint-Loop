@@ -24,6 +24,7 @@ describe('atomic Modusign pledge claim migration', () => {
   it('prevents an already-read PATCH from overwriting a frozen pledge', () => {
     expect(pledgeRoute).toContain(".eq('status', 'draft')");
     expect(pledgeRoute).toContain(".eq('version', existing.version)");
+    expect(pledgeRoute).toContain('version: existing.version + 1');
     expect(pledgeRoute).toContain("{ code: 'pledge_changed' }");
   });
 

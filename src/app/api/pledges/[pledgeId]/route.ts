@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/supabase/auth';
 import { createClient } from '@/lib/supabase/server';
 import { validateDraftPledgeInput } from '@/lib/pledges/input';
+import { isExpectedPledgeVersion } from '@/lib/pledges/version';
 import {
   encryptIdentityNumber,
   identityNumberLast4,
@@ -111,9 +112,12 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const raw = body as Record<string, unknown>;
   const value = validation.value;
+  if (!isExpectedPledgeVersion(raw.version, existing.version)) {
+    return NextResponse.json({ code: 'pledge_changed' }, { status: 409 });
+  }
   const updates: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
-    version: typeof raw.version === 'number' ? raw.version : 2,
+    version: existing.version + 1,
   };
   const fieldMap: Record<string, string> = {
     allocationEndDate: 'allocation_end_date',

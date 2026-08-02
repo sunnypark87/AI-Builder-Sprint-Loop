@@ -74,6 +74,7 @@ const completePledge = {
   receipt_requested: false,
   status: 'draft',
   third_party_info_consent: true,
+  version: 1,
 };
 
 function query(result: unknown) {
@@ -100,6 +101,22 @@ function signingAdmin({
 } = {}) {
   let documentSelectCount = 0;
   const update = vi.fn(() => query({ data: null, error: null }));
+  const rpc = vi.fn<
+    (functionName: string) => Promise<{ data: unknown; error: unknown }>
+  >((functionName) =>
+    Promise.resolve(
+      functionName === 'claim_modusign_signature_request'
+        ? {
+            data: {
+              id: 'signature-document-1',
+              provider_document_id: null,
+              sync_status: 'syncing',
+            },
+            error: null,
+          }
+        : { data: null, error: null },
+    ),
+  );
   return {
     auth: {
       admin: {
@@ -147,7 +164,7 @@ function signingAdmin({
       }
       return { update };
     }),
-    rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
+    rpc,
     update,
     providerError,
   };
@@ -258,10 +275,66 @@ describe('POST /api/pledges/[pledgeId]/signature-request', () => {
     });
     expect(createDocumentWithTemplate).toHaveBeenCalledOnce();
     expect(admin.rpc).toHaveBeenCalledWith(
+      'claim_modusign_signature_request',
+      expect.objectContaining({
+        p_donor_user_id: 'donor-1',
+        p_expected_version: 1,
+        p_pledge_id: 'pledge-1',
+      }),
+    );
+    expect(admin.rpc).toHaveBeenCalledWith(
       'finalize_modusign_signature_request',
       expect.objectContaining({
         p_donor_participant_id: 'donor-participant-1',
         p_organization_participant_id: 'organization-participant-1',
+      }),
+    );
+  });
+
+  it('rejects a stale pledge version before creating an external document', async () => {
+    createClient.mockResolvedValue(pledgeClient(completePledge));
+    const admin = signingAdmin();
+    admin.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'pledge_version_changed' },
+    });
+    createAdminClient.mockReturnValue(admin);
+    const createDocumentWithTemplate = vi.fn();
+    createModusignClient.mockReturnValue({ createDocumentWithTemplate });
+
+    const response = await POST(
+      new Request('http://localhost/api/pledges/pledge-1/signature-request'),
+      context,
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ code: 'pledge_changed' });
+    expect(createDocumentWithTemplate).not.toHaveBeenCalled();
+  });
+
+  it('reconciles a created document whose participants are temporarily missing', async () => {
+    createClient.mockResolvedValue(pledgeClient(completePledge));
+    const admin = signingAdmin();
+    createAdminClient.mockReturnValue(admin);
+    createModusignClient.mockReturnValue({
+      createDocumentWithTemplate: vi.fn().mockResolvedValue({
+        id: 'provider-document-1',
+        participants: [],
+        signings: [],
+        status: 'ON_GOING',
+        title: '기부 약정서',
+      }),
+    });
+
+    const response = await POST(
+      new Request('http://localhost/api/pledges/pledge-1/signature-request'),
+      context,
+    );
+
+    expect(response.status).toBe(502);
+    expect(admin.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        sync_status: 'reconciliation_required',
       }),
     );
   });

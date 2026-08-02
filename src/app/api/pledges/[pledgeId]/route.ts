@@ -55,7 +55,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   const { data: existing, error: lookupError } = await supabase
     .from('pledges')
     .select(
-      'id, status, organization_id, donor_name, donor_address, receipt_requested',
+      'id, status, organization_id, donor_name, donor_address, receipt_requested, version',
     )
     .eq('id', pledgeId)
     .eq('donor_user_id', user.id)
@@ -202,11 +202,16 @@ export async function PATCH(request: Request, context: RouteContext) {
     .update(updates)
     .eq('id', pledgeId)
     .eq('donor_user_id', user.id)
+    .eq('status', 'draft')
+    .eq('version', existing.version)
     .select('*, organizations(id, slug, name)')
-    .single();
+    .maybeSingle();
 
-  if (error || !data) {
+  if (error) {
     return NextResponse.json({ code: 'pledge_update_failed' }, { status: 503 });
+  }
+  if (!data) {
+    return NextResponse.json({ code: 'pledge_changed' }, { status: 409 });
   }
 
   return NextResponse.json({ pledge: data });

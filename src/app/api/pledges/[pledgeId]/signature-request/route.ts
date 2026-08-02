@@ -432,20 +432,23 @@ export async function POST(_request: Request, context: RouteContext) {
   const idempotencyKey = `pledge:${pledgeId}:signature-request`;
   const { data: claimedDocument, error: claimError } = reclaimedDocument
     ? { data: reclaimedDocument, error: null }
-    : await adminClient
-        .from('signature_documents')
-        .insert({
-          idempotency_key: idempotencyKey,
-          pledge_id: pledgeId,
-          template_id:
-            modusignConfig.templateId || MODUSIGN_DONATION_TEMPLATE_ID,
-          sync_started_at: new Date().toISOString(),
-          sync_status: 'syncing',
-        })
-        .select('id, provider_document_id, sync_status')
-        .maybeSingle();
+    : await adminClient.rpc('claim_modusign_signature_request', {
+        p_donor_user_id: user.id,
+        p_expected_version: pledge.version,
+        p_idempotency_key: idempotencyKey,
+        p_pledge_id: pledgeId,
+        p_sync_started_at: new Date().toISOString(),
+        p_template_id:
+          modusignConfig.templateId || MODUSIGN_DONATION_TEMPLATE_ID,
+      });
 
   if (claimError) {
+    if (
+      claimError.message === 'pledge_version_changed' ||
+      claimError.message === 'pledge_state_changed'
+    ) {
+      return NextResponse.json({ code: 'pledge_changed' }, { status: 409 });
+    }
     const { data: existingClaim } = await adminClient
       .from('signature_documents')
       .select('id, provider_document_id, sync_status, last_error_code')
@@ -523,9 +526,11 @@ export async function POST(_request: Request, context: RouteContext) {
     modusignConfig.templateId,
   );
 
+  let providerDocumentCreated = false;
   try {
     const document =
       await createModusignClient().createDocumentWithTemplate(requestBody);
+    providerDocumentCreated = true;
     const donorParticipant = document.participants.find(
       (participant) => participant.signingOrder === 1,
     );
@@ -578,7 +583,7 @@ export async function POST(_request: Request, context: RouteContext) {
       .from('signature_documents')
       .update({
         sync_status:
-          failure.code === 'modusign_timeout'
+          providerDocumentCreated || failure.code === 'modusign_timeout'
             ? 'reconciliation_required'
             : 'failed',
         last_error_code: failure.code,

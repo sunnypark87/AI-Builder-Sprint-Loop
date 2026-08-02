@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ModusignApiError } from '@/lib/modusign/client';
+
 import { POST } from './route';
 
 const {
@@ -312,5 +314,85 @@ describe('POST /api/pledges/[pledgeId]/signature-request', () => {
     expect(body).toEqual({ code: 'signature_request_failed' });
     expect(JSON.stringify(body)).not.toContain('provider response secret');
     expect(admin.update).toHaveBeenCalled();
+  });
+
+  it('keeps timed-out requests in reconciliation instead of retrying immediately', async () => {
+    createClient.mockResolvedValue(pledgeClient(completePledge));
+    const admin = signingAdmin();
+    createAdminClient.mockReturnValue(admin);
+    createModusignClient.mockReturnValue({
+      createDocumentWithTemplate: vi
+        .fn()
+        .mockRejectedValue(new ModusignApiError('timeout')),
+    });
+
+    const response = await POST(
+      new Request('http://localhost/api/pledges/pledge-1/signature-request'),
+      context,
+    );
+
+    expect(response.status).toBe(504);
+    expect(admin.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        last_error_code: 'modusign_timeout',
+        sync_status: 'reconciliation_required',
+      }),
+    );
+  });
+
+  it('recovers a timed-out request from provider metadata without creating a duplicate', async () => {
+    createClient.mockResolvedValue(pledgeClient(completePledge));
+    const admin = signingAdmin({
+      existing: {
+        id: 'signature-document-1',
+        last_error_code: 'modusign_timeout',
+        provider_document_id: '',
+        sync_started_at: new Date().toISOString(),
+        sync_status: 'reconciliation_required',
+      },
+    });
+    createAdminClient.mockReturnValue(admin);
+    const createDocumentWithTemplate = vi.fn();
+    const findDocumentsByMetadata = vi.fn().mockResolvedValue([
+      {
+        id: 'provider-document-recovered',
+        participants: [
+          { id: 'donor-participant-1', signingOrder: 1, type: 'SIGNER' },
+          {
+            id: 'organization-participant-1',
+            signingOrder: 2,
+            type: 'SIGNER',
+          },
+        ],
+        signings: [],
+        status: 'ON_GOING',
+        title: '기부 약정서',
+      },
+    ]);
+    createModusignClient.mockReturnValue({
+      createDocumentWithTemplate,
+      findDocumentsByMetadata,
+    });
+
+    const response = await POST(
+      new Request('http://localhost/api/pledges/pledge-1/signature-request'),
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      documentId: 'provider-document-recovered',
+      status: 'existing',
+    });
+    expect(findDocumentsByMetadata).toHaveBeenCalledWith({
+      pledge_id: 'pledge-1',
+    });
+    expect(createDocumentWithTemplate).not.toHaveBeenCalled();
+    expect(admin.rpc).toHaveBeenCalledWith(
+      'finalize_modusign_signature_request',
+      expect.objectContaining({
+        p_provider_document_id: 'provider-document-recovered',
+      }),
+    );
   });
 });

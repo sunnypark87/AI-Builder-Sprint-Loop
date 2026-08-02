@@ -71,4 +71,34 @@ describe('Modusign server client', () => {
       code: 'invalid_response',
     });
   });
+
+  it('finds document details with encoded metadata filters', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ documents: [{ id: 'document-1' }] }), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 'document-1',
+            participants: [],
+            signings: [],
+            status: 'ON_GOING',
+            title: 'pledge',
+          }),
+          { status: 200 },
+        ),
+      );
+
+    const documents = await createModusignClient().findDocumentsByMetadata({
+      pledge_id: 'pledge-1',
+    });
+
+    expect(documents.map((document) => document.id)).toEqual(['document-1']);
+    expect(String(vi.mocked(fetch).mock.calls[0][0])).toContain(
+      'metadatas=%7B%22pledge_id%22%3A%22pledge-1%22%7D',
+    );
+  });
 });

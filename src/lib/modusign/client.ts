@@ -94,6 +94,27 @@ function parseDocument(value: unknown): ModusignDocument {
   };
 }
 
+function parseDocumentIds(value: unknown): string[] {
+  const candidates = Array.isArray(value)
+    ? value
+    : isRecord(value) && Array.isArray(value.documents)
+      ? value.documents
+      : isRecord(value) && Array.isArray(value.items)
+        ? value.items
+        : isRecord(value) && Array.isArray(value.data)
+          ? value.data
+          : null;
+
+  if (!candidates) {
+    throw new ModusignApiError('invalid_response');
+  }
+
+  return candidates
+    .filter(isRecord)
+    .map((document) => document.id)
+    .filter((id): id is string => typeof id === 'string' && Boolean(id));
+}
+
 async function requestModusign<T>(
   path: string,
   init: RequestInit,
@@ -135,7 +156,7 @@ async function requestModusign<T>(
 }
 
 export function createModusignClient() {
-  return {
+  const client = {
     createDocumentWithTemplate(input: ModusignTemplateRequest) {
       const config = getModusignConfig();
 
@@ -159,6 +180,20 @@ export function createModusignClient() {
         { method: 'GET' },
         parseDocument,
       );
+    },
+
+    async findDocumentsByMetadata(metadata: Record<string, string>) {
+      const params = new URLSearchParams({
+        limit: '10',
+        metadatas: JSON.stringify(metadata),
+      });
+      const documentIds = await requestModusign(
+        `/documents?${params.toString()}`,
+        { method: 'GET' },
+        parseDocumentIds,
+      );
+
+      return Promise.all(documentIds.map((id) => client.getDocument(id)));
     },
 
     async getEmbeddedParticipantView(
@@ -188,4 +223,6 @@ export function createModusignClient() {
       return result;
     },
   };
+
+  return client;
 }

@@ -202,6 +202,123 @@ export async function POST(_request: Request, context: RouteContext) {
   } | null = null;
 
   if (
+    existingDocument &&
+    (existingDocument.sync_status === 'reconciliation_required' ||
+      existingDocument.last_error_code === 'modusign_timeout')
+  ) {
+    let matchingDocuments;
+    try {
+      matchingDocuments = await createModusignClient().findDocumentsByMetadata({
+        pledge_id: pledgeId,
+      });
+    } catch (error) {
+      const failure = getModusignErrorResponse(
+        error,
+        'signature_reconciliation_failed',
+      );
+      return NextResponse.json(
+        { code: failure.code },
+        { status: failure.status },
+      );
+    }
+
+    if (matchingDocuments.length > 1) {
+      return NextResponse.json(
+        { code: 'signature_reconciliation_required' },
+        { status: 409 },
+      );
+    }
+
+    const recoveredDocument = matchingDocuments[0];
+    if (recoveredDocument) {
+      const donorParticipant = recoveredDocument.participants.find(
+        (participant) => participant.signingOrder === 1,
+      );
+      const organizationParticipant = recoveredDocument.participants.find(
+        (participant) => participant.signingOrder === 2,
+      );
+      if (
+        !donorParticipant?.id ||
+        donorParticipant.type !== 'SIGNER' ||
+        !organizationParticipant?.id ||
+        organizationParticipant.type !== 'SIGNER'
+      ) {
+        return NextResponse.json(
+          { code: 'signature_reconciliation_required' },
+          { status: 409 },
+        );
+      }
+
+      const { error: attachError } = await adminClient
+        .from('signature_documents')
+        .update({ provider_document_id: recoveredDocument.id })
+        .eq('id', existingDocument.id)
+        .is('provider_document_id', null);
+      if (attachError) {
+        return NextResponse.json(
+          { code: 'signature_reconciliation_failed' },
+          { status: 503 },
+        );
+      }
+
+      const { error: finalizeError } = await adminClient.rpc(
+        'finalize_modusign_signature_request',
+        {
+          p_donor_participant_id: donorParticipant.id,
+          p_organization_participant_id: organizationParticipant.id,
+          p_provider_document_id: recoveredDocument.id,
+          p_provider_status: recoveredDocument.status,
+          p_signature_document_id: existingDocument.id,
+        },
+      );
+      if (finalizeError) {
+        return NextResponse.json(
+          { code: 'signature_reconciliation_failed' },
+          { status: 503 },
+        );
+      }
+
+      return NextResponse.json({
+        documentId: recoveredDocument.id,
+        status: 'existing',
+      });
+    }
+
+    const startedAt = existingDocument.sync_started_at
+      ? Date.parse(existingDocument.sync_started_at)
+      : Number.NaN;
+    const retryWindowElapsed =
+      !Number.isFinite(startedAt) ||
+      Date.now() - startedAt > SIGNATURE_REQUEST_LEASE_MS;
+    if (!retryWindowElapsed) {
+      return NextResponse.json(
+        { code: 'signature_reconciliation_in_progress' },
+        { status: 202 },
+      );
+    }
+
+    const { data, error } = await adminClient
+      .from('signature_documents')
+      .update({
+        last_error_code: null,
+        sync_started_at: new Date().toISOString(),
+        sync_status: 'syncing',
+      })
+      .eq('id', existingDocument.id)
+      .eq('sync_status', existingDocument.sync_status)
+      .select('id, provider_document_id, sync_status')
+      .maybeSingle();
+    if (error || !data) {
+      return NextResponse.json(
+        { code: 'signature_claim_failed' },
+        { status: 503 },
+      );
+    }
+    reclaimedDocument = data;
+  }
+
+  if (
+    !reclaimedDocument &&
     existingDocument?.sync_status === 'failed' &&
     isRetryableSignatureRequestError(existingDocument.last_error_code)
   ) {
@@ -398,7 +515,10 @@ export async function POST(_request: Request, context: RouteContext) {
     await adminClient
       .from('signature_documents')
       .update({
-        sync_status: 'failed',
+        sync_status:
+          failure.code === 'modusign_timeout'
+            ? 'reconciliation_required'
+            : 'failed',
         last_error_code: failure.code,
       })
       .eq('pledge_id', pledgeId);

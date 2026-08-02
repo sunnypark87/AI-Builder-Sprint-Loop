@@ -17,10 +17,9 @@ export default async function PartnerLayout({
   const user = await getCurrentUser();
   if (!user) redirect('/login?next=/partner');
   const supabase = await createClient();
-  const { data: membership } = await getActiveOrganizationMembership(
-    supabase,
-    user.id,
-  );
+  const { data: membership, error: membershipError } =
+    await getActiveOrganizationMembership(supabase, user.id);
+  if (membershipError) throw new Error('organization_membership_lookup_failed');
   if (!membership) redirect('/account');
 
   return (

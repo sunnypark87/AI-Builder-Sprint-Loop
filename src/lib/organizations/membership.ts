@@ -6,7 +6,7 @@ export async function getActiveOrganizationMembership(
 ) {
   return supabase
     .from('organization_members')
-    .select('organization_id')
+    .select('organization_id, role')
     .eq('user_id', userId)
     .order('created_at', { ascending: true })
     .order('organization_id', { ascending: true })

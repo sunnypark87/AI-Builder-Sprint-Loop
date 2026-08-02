@@ -4,6 +4,7 @@ import { OrganizationPledgeCompletionPanel } from '@/components/partner/organiza
 import { OrganizationSigningPanel } from '@/components/partner/organization-signing-panel';
 import { PageHeader } from '@/components/partner/page-header';
 import { Card } from '@/components/ui/card';
+import { getActiveOrganizationMembership } from '@/lib/organizations/membership';
 import { getCurrentUser } from '@/lib/supabase/auth';
 import { createClient } from '@/lib/supabase/server';
 
@@ -16,11 +17,9 @@ export default async function PartnerPledgePage({
   if (!user) redirect('/login');
   const { pledgeId } = await params;
   const supabase = await createClient();
-  const { data: membership } = await supabase
-    .from('organization_members')
-    .select('organization_id, role')
-    .eq('user_id', user.id)
-    .maybeSingle();
+  const { data: membership, error: membershipError } =
+    await getActiveOrganizationMembership(supabase, user.id);
+  if (membershipError) throw new Error('organization_membership_lookup_failed');
   if (!membership) notFound();
   const { data: pledge } = await supabase
     .from('pledges')

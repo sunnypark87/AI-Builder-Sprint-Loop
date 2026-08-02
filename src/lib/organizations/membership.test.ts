@@ -21,6 +21,7 @@ describe('getActiveOrganizationMembership', () => {
 
     expect(result.data).toEqual({ organization_id: 'org-1' });
     expect(from).toHaveBeenCalledWith('organization_members');
+    expect(select).toHaveBeenCalledWith('organization_id, role');
     expect(eq).toHaveBeenCalledWith('user_id', 'user-1');
     expect(firstOrder).toHaveBeenCalledWith('created_at', { ascending: true });
     expect(secondOrder).toHaveBeenCalledWith('organization_id', {

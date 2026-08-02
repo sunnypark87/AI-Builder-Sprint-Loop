@@ -13,10 +13,9 @@ export default async function Page({
   const user = await getCurrentUser();
   if (!user) return null;
   const supabase = await createClient();
-  const { data: membership } = await getActiveOrganizationMembership(
-    supabase,
-    user.id,
-  );
+  const { data: membership, error: membershipError } =
+    await getActiveOrganizationMembership(supabase, user.id);
+  if (membershipError) throw new Error('organization_membership_lookup_failed');
   const { data: pledges } = membership
     ? await supabase
         .from('pledges')

@@ -35,6 +35,31 @@ npm run test:e2e:executions
 
 영수증 집행 등록은 등록 완료된 집행 계획의 예산 항목에 영수증 1건을 연결합니다. Upstage OCR 추출 후 합계, 사업자등록번호 형식, 계획 기간, 예산 잔액과 중복 여부를 검사하고 담당자 확인 후 내부 등록합니다. 이 검사는 카드사·국세청 등 발행기관 조회나 법적 진위 보증이 아닙니다. 비식별 합성 영수증 8건의 실제 OCR 평가는 `npm run test:ai:receipt-ocr`로 별도 실행합니다.
 
+### 데모 서명 계정 설정
+
+기부자와 기부처 모두 앱에서 로그인한 뒤 모두싸인 `SECURE_LINK` iframe에서 서명합니다. 모두싸인 개인 계정은 `MODUSIGN_AUTH_KEY`를 통한 서버 API 인증에만 사용됩니다.
+
+Supabase 마이그레이션과 seed를 적용한 뒤 `.env.local`에 다음 변수를 설정합니다. 실제 계정 값은 커밋하지 않습니다.
+
+```text
+DEMO_DONOR_EMAIL=
+DEMO_DONOR_PASSWORD=
+DEMO_ORGANIZATION_EMAIL=
+DEMO_ORGANIZATION_PASSWORD=
+DEMO_ORGANIZATION_SIGNER_NAME=
+DEMO_ORGANIZATION_SLUG=haebom
+```
+
+다음 명령은 데모 Auth 계정을 생성하거나 갱신하고, 기부처 계정을 선택한 조직의 대표 `signer` membership으로 연결합니다.
+
+```bash
+npm run demo:accounts
+```
+
+명령은 기부처 Auth 이메일을 `organization_members.signer_email`에 저장하고 해당 멤버를 조직의 유일한 대표 서명자로 지정합니다. 이후 기부자 계정으로 약정을 생성·서명하고, 기부처 계정으로 로그인해 같은 약정의 2차 서명을 진행합니다.
+
+Vercel Production에서는 `NEXT_PUBLIC_SITE_URL`을 고정 HTTPS 배포 주소로 설정하고, 모두싸인 Webhook URL을 `https://<domain>/api/modusign/webhook`으로 등록합니다. `document_signed`, `document_all_signed`를 구독하고 `X-Modusign-Webhook-Secret` 헤더에 `MODUSIGN_WEBHOOK_SECRET`과 같은 값을 설정합니다. Webhook은 이벤트를 claim한 뒤 202를 응답하고, 문서 상태 동기화는 응답 후 실행합니다. iframe 화면은 내부 DB를 자동 조회하며 Webhook이 늦을 때만 제한적으로 모두싸인 상태를 재동기화합니다.
+
 ## 대회 소개
 
 **AI Builder Sprint 2026**은 부산대학교 **APPTIVE**가 주최하고, **Upstage**, 부산대학교 **Anchor 사업단** 및 부산대학교 **AI융합교육원**이 후원하는 해커톤입니다. 참가자들은 자유로운 기술 스택을 바탕으로 실제로 동작하는 서비스를 직접 코드로 구현합니다.

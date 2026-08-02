@@ -11,7 +11,7 @@ export default async function DonationPage({
     getOrganization(organizationId) ?? getOrganization('haebom')!;
   const timeline = [
     ['약정 체결', '양측 서명 완료', '완료'],
-    ['기부 결제', '2026년 8월 예시 결제', '완료'],
+    ['기부 결제', '2026년 8월 결제', '완료'],
     ['집행 계획', `${organization.donationPurpose} 집행 계획 공개`, '새 소식'],
     ['집행 내역', '아직 등록된 내역이 없습니다.', '대기'],
     ['완료 보고서', '집행 완료 후 개인화 보고서가 생성됩니다.', '대기'],

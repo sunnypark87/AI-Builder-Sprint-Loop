@@ -1,7 +1,5 @@
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
-import { buttonClassName } from '@/components/ui/button';
-import { FlowProgress } from '@/components/ui/flow-progress';
+import { ConsultationWorkspace } from '@/components/pledges/consultation-workspace';
 import { getOrganization } from '@/lib/mock-data/organizations';
 
 export default async function ConsultationPage({
@@ -14,39 +12,27 @@ export default async function ConsultationPage({
   if (!org) notFound();
   return (
     <main className="mx-auto max-w-[960px] px-4 py-10 md:px-6">
-      <FlowProgress current={1} />
-      <h1 className="mt-8 text-3xl font-bold">{org.name} 기부 상담</h1>
-      <p className="mt-2 text-sm text-copy-muted">
-        아래 내용은 예시 대화입니다. 약정서 생성 전 조건을 다시 확인합니다.
+      <h1 className="text-3xl font-bold">{org.name} 기부 상담</h1>
+      <p className="mt-2 max-w-[720px] text-sm leading-6 text-copy-muted">
+        기부하고 싶은 내용은 자유롭게 이야기해 주세요. 내용이 모두 정해지지
+        않아도 약정서를 먼저 확인하고 나중에 보완할 수 있습니다.
       </p>
-      <div className="mt-8 grid gap-6 border-y border-line py-6">
-        <div className="max-w-[80%]">
-          <p className="text-xs font-bold text-accent-strong">모두기브 AI</p>
-          <p className="mt-2 text-sm leading-6">
-            어떤 활동에 얼마를, 어떤 주기로 기부하고 싶은지 알려주세요.
-          </p>
-        </div>
-        <div className="ml-auto max-w-[80%] rounded-[var(--radius-md)] bg-accent-soft px-4 py-3">
-          <p className="text-sm leading-6">
-            {org.donationPurpose}에 매월 5만원씩 1년 동안 기부하고 싶어요.
-          </p>
-        </div>
-        <div className="max-w-[80%]">
-          <p className="text-xs font-bold text-accent-strong">모두기브 AI</p>
-          <p className="mt-2 text-sm leading-6">
-            월 5만원, 12개월 정기 기부로 이해했어요. 중도 해지와 집행 보고
-            조건을 포함해 상담 요약을 준비할게요.
-          </p>
-        </div>
-      </div>
-      <div className="mt-8 flex justify-end">
-        <Link
-          className={buttonClassName({ size: 'large' })}
-          href={`/donate/${org.id}/summary`}
-        >
-          상담 요약 확인
-        </Link>
-      </div>
+      <ConsultationWorkspace
+        initialMessages={[
+          {
+            content:
+              '어떤 활동에 얼마를, 어떤 주기로 기부하고 싶은지 알려주세요.',
+            role: 'assistant',
+          },
+          { content: `${org.donationPurpose}에 관심이 있어요.`, role: 'user' },
+          {
+            content:
+              '좋아요. 금액이나 기간을 정하지 않아도 괜찮아요. 약정서를 열어 내용을 직접 확인하고 수정할 수 있어요.',
+            role: 'assistant',
+          },
+        ]}
+        organizationId={org.id}
+      />
     </main>
   );
 }

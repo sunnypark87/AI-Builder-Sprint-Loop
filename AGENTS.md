@@ -41,12 +41,15 @@ When application code is added, document the responsibilities of major directori
 
 Use the documents in `docs/` according to the guide below. Update this list whenever a document is added or an existing document's responsibility changes.
 
-| Document                                               | When to reference it                                                                                                                |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| [`docs/design-system.md`](docs/design-system.md)       | When designing or implementing screens or deciding on shared components, color/type/spacing tokens, accessibility, or AI output UI. |
-| [`docs/git-conventions.md`](docs/git-conventions.md)   | When creating branches, writing commit messages, or performing push, PR, and merge workflows.                                       |
-| [`docs/testing-strategy.md`](docs/testing-strategy.md) | When defining test scope, writing unit/integration/E2E tests, or validating AI accuracy, safety, and acceptance criteria.           |
-| `docs/issue_plan/`                                     | When writing a new Issue implementation plan or reviewing an Issue's scope, acceptance criteria, and verification results.          |
+| Document                                                                       | When to reference it                                                                                                                |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| [`docs/design-system.md`](docs/design-system.md)                               | When designing or implementing screens or deciding on shared components, color/type/spacing tokens, accessibility, or AI output UI. |
+| [`docs/git-conventions.md`](docs/git-conventions.md)                           | When creating branches, writing commit messages, or performing push, PR, and merge workflows.                                       |
+| [`docs/testing-strategy.md`](docs/testing-strategy.md)                         | When defining test scope, writing unit/integration/E2E tests, or validating AI accuracy, safety, and acceptance criteria.           |
+| [`docs/rls-verification.md`](docs/rls-verification.md)                         | When running the Supabase Auth/RLS verification script and role matrix.                                                             |
+| [`docs/modusign-manual-verification.md`](docs/modusign-manual-verification.md) | When manually verifying donor-to-organization Modusign signing.                                                                     |
+| [`docs/vercel-webhook-verification.md`](docs/vercel-webhook-verification.md)   | When verifying the deployed Modusign Webhook and fallback sync.                                                                     |
+| `docs/issue_plan/`                                                             | When writing a new Issue implementation plan or reviewing an Issue's scope, acceptance criteria, and verification results.          |
 
 ## Routing Structure
 
@@ -60,14 +63,17 @@ The routes below reflect the App Router structure in `src/app`. `[organizationId
 | `/organizations`                        | Organization directory browsable by type and criteria                    |
 | `/organizations/[organizationId]`       | Organization details and analysis results                                |
 | `/donate/[organizationId]/consultation` | AI consultation for donation purpose, amount, and terms                  |
-| `/donate/[organizationId]/summary`      | Review of pledge terms generated from the consultation                   |
-| `/pledges/demo/review`                  | Review of the generated donation pledge                                  |
-| `/pledges/demo/sign`                    | Pledge consent and donor signature                                       |
-| `/pledges/demo/waiting`                 | Organization-signature waiting status                                    |
+| `/donate/[organizationId]/summary`      | Legacy redirect to consultation; no separate summary screen              |
+| `/pledges/[pledgeId]/review`            | Review and edit the saved pledge document before signing                 |
+| `/pledges/[pledgeId]/sign`              | Donor's embedded Modusign signing screen                                 |
+| `/pledges/[pledgeId]/waiting`           | Organization-signature waiting and signed-state guidance                 |
 | `/donations/demo/payment`               | Donation amount and payment method confirmation                          |
 | `/donations/demo/payment/result`        | Payment completion result and next-step guidance                         |
+| `/donations/[pledgeId]/payment`         | Stored demo payment selection for a signed pledge                        |
+| `/donations/[pledgeId]/payment/result`  | Persisted demo payment result and next-step guidance                     |
 | `/donations/demo`                       | Donation fulfillment details, including plans, expenditures, and reports |
 | `/my-donations`                         | Donor's donation list and progress                                       |
+| `/my-donations/[pledgeId]`              | Donor's saved pledge, signing, and demo payment detail                   |
 | `/notifications`                        | Notifications related to pledges, payments, and expenditures             |
 | `/account`                              | Demo account page for entering donor or organization experiences         |
 | `/login`                                | Email login and protected-route return flow                              |
@@ -87,7 +93,8 @@ The routes below reflect the App Router structure in `src/app`. `[organizationId
 | `/partner`                                 | Dashboard summarizing work from pledges through reporting                               |
 | `/partner/profile`                         | Manage the public organization profile and verification materials                       |
 | `/partner/pledges`                         | Manage pledge lists and signature tasks by status                                       |
-| `/partner/pledges/demo`                    | Review donor-signed pledge terms and add the organization signature                     |
+| `/partner/pledges/[pledgeId]`              | Review donor-signed pledge terms and add the organization signature                     |
+| `/partner/pledges/demo`                    | Demo pledge review and organization-signature flow                                      |
 | `/partner/donations`                       | Manage donation agreements and fulfillment statuses                                     |
 | `/partner/donations/demo`                  | Review an individual donation's pledge, payment, plan, expenditure, and report progress |
 | `/partner/plans`                           | Manage expenditure plans and AI review statuses                                         |

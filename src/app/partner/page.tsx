@@ -42,7 +42,7 @@ export default function PartnerDashboardPage() {
           description="오늘 17:00까지 · 월 50,000원 · 아동 교육 프로그램"
           status="기부처 서명 필요"
           tone="warning"
-          href="/partner/pledges/demo"
+          href="/partner/pledges"
         />
         <StatusRow
           title="2026년 8월 교육 프로그램 집행 계획"

@@ -6,7 +6,6 @@ import { useState } from 'react';
 
 import { buttonClassName } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { InlineNotice } from '@/components/ui/inline-notice';
 import { cn } from '@/lib/cn';
 import type { Organization } from '@/lib/mock-data/organizations';
 
@@ -22,9 +21,6 @@ export function PaymentForm({ organization }: { organization: Organization }) {
   return (
     <main className="mx-auto max-w-[980px] px-4 py-12 md:px-6">
       <h1 className="text-3xl font-bold">기부 결제</h1>
-      <InlineNotice className="mt-5" title="데모 결제" tone="warning">
-        실제 결제가 발생하지 않으며 금융정보를 입력하거나 저장하지 않습니다.
-      </InlineNotice>
       <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_340px]">
         <section>
           <h2 className="text-xl font-bold">결제수단 선택</h2>
@@ -68,8 +64,7 @@ export function PaymentForm({ organization }: { organization: Organization }) {
               {methods.find((item) => item.id === method)?.label} 결제 안내
             </p>
             <p className="mt-2 text-sm leading-6 text-copy-muted">
-              해커톤 데모에서는 카드번호, 계좌번호, 간편결제 계정 입력 없이 결제
-              완료 화면으로 이동합니다.
+              카드번호, 계좌번호, 간편결제 계정 입력 없이 결제를 진행합니다.
             </p>
           </div>
         </section>
@@ -107,11 +102,8 @@ export function PaymentForm({ organization }: { organization: Organization }) {
               })}
               href={`/donations/demo/payment/result?organizationId=${organization.id}`}
             >
-              예시 결제 완료
+              결제하기
             </Link>
-            <p className="mt-3 text-center text-xs text-copy-muted">
-              버튼을 눌러도 실제 결제는 발생하지 않습니다.
-            </p>
           </Card>
         </aside>
       </div>

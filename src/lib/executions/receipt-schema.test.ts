@@ -59,4 +59,21 @@ describe('receipt schema', () => {
       parseReceiptDraft({ ...validDraft, totalAmount: '2000' }),
     ).toBeNull();
   });
+
+  it('rejects ambiguous timestamps and DB-constrained text lengths', () => {
+    const issues = validateReceiptDraft({
+      ...validDraft,
+      transactionAt: '2026-08-02T14:30:00Z',
+      paymentMethod: '가'.repeat(101),
+      approvalNumber: '1'.repeat(41),
+    });
+
+    expect(issues.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining([
+        'transaction_at_invalid',
+        'payment_method_too_long',
+        'approval_number_too_long',
+      ]),
+    );
+  });
 });

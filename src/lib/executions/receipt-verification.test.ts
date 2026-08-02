@@ -91,6 +91,20 @@ describe('receipt verification', () => {
     ).toBe('warning');
   });
 
+  it('blocks a receipt earlier than payment on the same Korea-local date', () => {
+    const results = verifyReceipt(draft, [], {
+      ...context,
+      donationPaidAt: '2026-08-02T06:00:00Z',
+    });
+
+    expect(
+      results.find((item) => item.code === 'donation_paid_at'),
+    ).toMatchObject({
+      outcome: 'blocked',
+      evidence: expect.stringContaining('+09:00'),
+    });
+  });
+
   it('requires manual review when an OCR item confidence is low', () => {
     const results = verifyReceipt(
       {

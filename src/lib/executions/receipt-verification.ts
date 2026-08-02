@@ -31,6 +31,10 @@ function dateOnly(value: string) {
   return value.slice(0, 10);
 }
 
+function receiptTimeInKorea(value: string) {
+  return Date.parse(`${value}:00+09:00`);
+}
+
 export function verifyReceipt(
   draft: ReceiptDraft,
   issues: ReceiptValidationIssue[],
@@ -131,23 +135,33 @@ export function verifyReceipt(
     ),
   );
 
-  const paidDate = context.donationPaidAt
-    ? dateOnly(context.donationPaidAt)
+  const paidAt = context.donationPaidAt
+    ? Date.parse(context.donationPaidAt)
     : null;
+  const transactionAt = draft.transactionAt
+    ? receiptTimeInKorea(draft.transactionAt)
+    : Number.NaN;
+  const isAfterPayment =
+    paidAt !== null &&
+    !Number.isNaN(paidAt) &&
+    !Number.isNaN(transactionAt) &&
+    transactionAt >= paidAt;
   results.push(
     result(
       'donation_paid_at',
-      !paidDate
+      paidAt === null || Number.isNaN(paidAt)
         ? 'warning'
-        : transactionDate && transactionDate >= paidDate
+        : isAfterPayment
           ? 'passed'
           : 'blocked',
-      !paidDate
+      paidAt === null || Number.isNaN(paidAt)
         ? '권위 있는 결제 확정 시각이 없어 담당자 확인이 필요합니다.'
-        : transactionDate >= paidDate
-          ? '거래일이 기부 결제 확정일 이후입니다.'
-          : '거래일이 기부 결제 확정일보다 빠릅니다.',
-      paidDate ?? '결제 확정 시각 없음',
+        : isAfterPayment
+          ? '거래 시각이 기부 결제 확정 시각 이후입니다.'
+          : '거래 시각이 기부 결제 확정 시각보다 빠릅니다.',
+      paidAt === null || Number.isNaN(paidAt)
+        ? '결제 확정 시각 없음'
+        : `영수증 ${draft.transactionAt}+09:00 / 결제 ${context.donationPaidAt}`,
     ),
   );
 

@@ -205,6 +205,7 @@ export function ExecutionReviewForm({
         />
         <Input
           disabled={readOnly}
+          error={issueFor(issues, 'paymentMethod')}
           label="결제수단"
           maxLength={100}
           onChange={(event) =>
@@ -217,6 +218,7 @@ export function ExecutionReviewForm({
         />
         <Input
           disabled={readOnly}
+          error={issueFor(issues, 'approvalNumber')}
           label="승인번호"
           maxLength={40}
           onChange={(event) =>

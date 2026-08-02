@@ -38,6 +38,8 @@ export type ReceiptIssueCode =
   | 'transaction_at_required'
   | 'transaction_at_invalid'
   | 'business_number_invalid'
+  | 'payment_method_too_long'
+  | 'approval_number_too_long'
   | 'amount_invalid'
   | 'total_required'
   | 'items_too_many'

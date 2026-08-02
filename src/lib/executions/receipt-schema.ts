@@ -5,6 +5,9 @@ import type {
 } from '@/lib/executions/types';
 
 const MAX_AMOUNT = 1_000_000_000_000;
+const MAX_PAYMENT_METHOD_LENGTH = 100;
+const MAX_APPROVAL_NUMBER_LENGTH = 40;
+const LOCAL_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -128,7 +131,10 @@ export function validateReceiptDraft(draft: ReceiptDraft) {
       message: '거래일시를 입력해 주세요.',
       path: 'transactionAt',
     });
-  } else if (Number.isNaN(Date.parse(draft.transactionAt))) {
+  } else if (
+    !LOCAL_DATE_TIME.test(draft.transactionAt) ||
+    Number.isNaN(Date.parse(`${draft.transactionAt}:00+09:00`))
+  ) {
     issues.push({
       code: 'transaction_at_invalid',
       message: '거래일시 형식을 확인해 주세요.',
@@ -141,6 +147,21 @@ export function validateReceiptDraft(draft: ReceiptDraft) {
       code: 'business_number_invalid',
       message: '사업자등록번호는 숫자 10자리여야 합니다.',
       path: 'businessNumber',
+    });
+  }
+
+  if (draft.paymentMethod.length > MAX_PAYMENT_METHOD_LENGTH) {
+    issues.push({
+      code: 'payment_method_too_long',
+      message: '결제수단은 100자 이하로 입력해 주세요.',
+      path: 'paymentMethod',
+    });
+  }
+  if (draft.approvalNumber.length > MAX_APPROVAL_NUMBER_LENGTH) {
+    issues.push({
+      code: 'approval_number_too_long',
+      message: '승인번호는 40자 이하로 입력해 주세요.',
+      path: 'approvalNumber',
     });
   }
 

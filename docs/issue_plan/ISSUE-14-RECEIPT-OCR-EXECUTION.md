@@ -40,7 +40,7 @@
 - 상태는 `analyzing`, `review_required`, `verification_warning`, `registered`, `analysis_failed`로 제한한다. 규칙 결과는 상태와 별도로 `passed`, `warning`, `blocked`를 가지며, `blocked`가 하나라도 있으면 등록하지 않는다.
 - 동일 SHA-256 원본은 조직 범위에서 차단한다. 원본이 달라도 승인번호가 있으면 사업자등록번호·거래일시·합계·승인번호, 승인번호가 없으면 사업자등록번호·거래일시·합계의 정규화 키로 후보를 탐지한다. 의미 중복은 오탐 가능성을 명시하고 기존 내역 확인 경로를 제공하되 이번 이슈에서는 중복 강제 등록을 허용하지 않는다.
 - 잔여 예산은 등록된 집행 내역의 합계를 기준으로 계산한다. 등록 RPC가 선택한 `expenditure_plan_items` 행을 잠근 뒤 잔액을 다시 계산하고 집행 내역·검증 이력 저장을 한 트랜잭션으로 수행한다. 클라이언트에 표시된 잔액은 권한 판단이나 최종 검증에 사용하지 않는다.
-- 거래일이 기부금 수령 이후인지 검사하려면 권위 있는 결제 확정 시각이 필요하다. `donations.paid_at`을 추가하고 기존 데모 데이터는 `created_at`으로 백필하되, 실제 결제 연동 데이터의 출처가 확정되지 않으면 해당 규칙은 경고로 표시하고 `검증 통과` 근거에 포함하지 않는다.
+- 거래일이 기부금 수령 이후인지 검사하려면 권위 있는 결제 확정 시각이 필요하다. `donations.paid_at`을 추가하고 기존 데모 데이터는 `created_at`으로 백필하되, 실제 결제 연동 데이터의 출처가 확정되지 않으면 해당 규칙은 경고로 표시하고 `검증 통과` 근거에 포함하지 않는다. 영수증의 시간대 없는 거래일시는 국내 영수증 서비스 범위에 맞춰 `Asia/Seoul(+09:00)`로 해석하고 전체 시각을 비교한다.
 - 사업자등록번호 체크섬은 형식 유효성만 뜻한다. 실제 사업자 상태와 영수증 발행 사실 확인은 외부 원장 연동 없이는 불가능하며 별도 이슈로 남긴다.
 - OCR 문서 텍스트는 신뢰할 수 없는 데이터로 취급한다. HTML로 렌더링하거나 명령으로 실행하지 않고 React 텍스트 출력과 길이 제한을 적용하며, API 키·원문·전체 OCR 응답·카드 및 전화번호를 로그에 남기지 않는다.
 - 모든 OCR 값은 담당자 검토 대상이다. 경고가 있으면 확인 사유를 필수로 받고, 수정 후에는 서버에서 전체 규칙을 다시 실행한 결과만 등록에 사용한다.
@@ -292,7 +292,7 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 | 중복·동시 요청의 이중 집행 방지    | 고유 제약, 계획 항목 잠금 RPC                        | 동일 원본 E2E, 동시 2건 등록 E2E                                        | PASS                 |
 | 조직 격리와 5분 서명 URL           | 테이블/Storage RLS, `getReview`                      | pgTAP 조직 A/B 행·객체 조회, 정적 정책 테스트                           | PASS                 |
 | Upstage 오류의 안전한 실패·재시도  | 공통 OCR 어댑터, 집행 서비스·재시도 API              | 기존 OCR 429·5xx·타임아웃·비정상 응답 테스트, 집행 서비스/API 테스트    | PASS                 |
-| 외부 호출 모킹 자동화·RLS 통합     | 테스트 구성 전체                                     | Vitest 149건, pgTAP 76건, 기본 E2E 33건, 집행 E2E 1건                   | PASS                 |
+| 외부 호출 모킹 자동화·RLS 통합     | 테스트 구성 전체                                     | Vitest 154건, pgTAP 78건, 기본 E2E 33건, 집행 E2E 1건                   | PASS                 |
 | 대표 영수증 OCR 정확도             | 실 Upstage 8건 평가 스크립트                         | `receipt-ocr-accuracy.evaluation.spec.ts`                               | PASS — 32/32, 100.0% |
 | 저장소 품질 게이트                 | 전체 변경                                            | `npm run check`                                                         | PASS                 |
 | `verify-change` 차단 항목 없음     | 본 추적표와 실제 명령                                | 아래 결과                                                               | PASS                 |
@@ -301,7 +301,7 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 
 ```text
 명령: npm run check
-결과: PASS — format, lint, typecheck, Vitest 39 files/149 tests, Next.js production build
+결과: PASS — format, lint, typecheck, Vitest 40 files/154 tests, Next.js production build
 
 명령: npm run test:e2e
 결과: PASS — Playwright 33/33
@@ -310,7 +310,7 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 결과: PASS — 기존 2개와 신규 집행 마이그레이션을 빈 로컬 DB에 순서대로 적용
 
 명령: npx supabase test db
-결과: PASS — 2 files, 76 tests (집행 스키마·권한·RLS·Storage·lease 복구·RPC 포함)
+결과: PASS — 2 files, 78 tests (집행 스키마·권한·RLS·Storage·lease 복구·최종 의미 키·RPC 포함)
 
 명령: npm run test:e2e:executions
 결과: PASS — 업로드·OCR mock·검토·등록·동일 원본 차단 및 동시 예산 등록 중 1건만 성공
@@ -327,7 +327,7 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 - AI 동작 변경 여부: 해당. Upstage OCR 결과를 영수증 초안으로 구조화한다.
 - 정확성 검증 결과: 필드 파서·스키마·규칙의 결정적 테스트와 실 Upstage 8건 평가가 PASS했다. 필수 필드는 32/32(100.0%), 거래일·합계는 16/16으로 사전 기준을 충족했다.
 - 안전성 검증 결과: 악성 HTML/지시문을 값으로만 취급, 런타임 스키마 검증, 429·5xx·타임아웃·비정상 JSON의 안전한 오류, API 키·상류 응답 상세 비노출, 조직 RLS/Storage 격리와 담당자 확인 없는 자동 등록 금지를 테스트했다. 페이지 또는 품목 OCR 신뢰도가 0.8 미만이면 `ocr_review` 경고와 담당자 확인 사유를 요구한다.
-- AI가 발견하거나 예방한 품질 문제: 초기 검토 화면에서 blocker가 있으면 값을 수정해도 재검증 버튼을 누를 수 없던 문제를 수정했고, Storage 정책 함수의 `authenticated` 실행 권한 누락을 전체 pgTAP 회귀에서 발견해 최소 권한으로 보완했다. 동시 등록 테스트를 추가해 계획 항목 잠금이 예산 이중 사용을 막는 것도 확인했다. 또한 범용 `UPSTAGE_MODEL=solar-pro3`가 OCR 요청에 전달되어 HTTP 400을 만들던 문제를 발견해 `UPSTAGE_OCR_MODEL` 경계를 추가하고 공식 OCR 기본 모델을 사용하도록 수정했다. 리뷰에서 프로세스 중단 시 영구 `analyzing` 상태와 낮은 OCR 신뢰도 누락을 발견해 2분 lease 재획득·token 기반 늦은 쓰기 거부·만료 작업 재시도와 저신뢰 경고를 추가했다.
+- AI가 발견하거나 예방한 품질 문제: 초기 검토 화면에서 blocker가 있으면 값을 수정해도 재검증 버튼을 누를 수 없던 문제를 수정했고, Storage 정책 함수의 `authenticated` 실행 권한 누락을 전체 pgTAP 회귀에서 발견해 최소 권한으로 보완했다. 동시 등록 테스트를 추가해 계획 항목 잠금이 예산 이중 사용을 막는 것도 확인했다. 또한 범용 `UPSTAGE_MODEL=solar-pro3`가 OCR 요청에 전달되어 HTTP 400을 만들던 문제를 발견해 `UPSTAGE_OCR_MODEL` 경계를 추가하고 공식 OCR 기본 모델을 사용하도록 수정했다. 리뷰에서 프로세스 중단 시 영구 `analyzing` 상태와 낮은 OCR 신뢰도 누락을 발견해 2분 lease 재획득·token 기반 늦은 쓰기 거부·만료 작업 재시도와 저신뢰 경고를 추가했다. 후속 리뷰에서 최종 수정값의 의미 키 미갱신, 날짜 단위 결제 선후 비교, DB보다 느슨한 텍스트 길이 검증을 발견해 등록 RPC 재계산·서울 시간대 전체 시각 비교·API 422 사전 검증으로 보완했다.
 - 최종 판정: PASS — 모든 완료 조건과 필수 정확성·안전성·저장소 검증이 통과했고 차단 항목이 없다.
 
 ### 차단 항목과 미검증 범위
@@ -340,4 +340,4 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 
 ### 남은 작업과 알려진 제한
 
-- 기능 구현과 필수 검증은 완료했다. 커밋·push·PR은 이 작업 범위에서 요청되지 않아 수행하지 않았다.
+- 기능 구현과 필수 검증은 완료했다. 이번 후속 리뷰 변경분은 아직 커밋하거나 원격에 게시하지 않았다.

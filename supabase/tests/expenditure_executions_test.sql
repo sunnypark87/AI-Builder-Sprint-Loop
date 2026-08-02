@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(22);
+select plan(24);
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values
@@ -147,7 +147,7 @@ select lives_ok(
     select public.register_expenditure_execution(
       '81111111-1111-4111-8111-111111111111',
       (select id from public.expenditure_executions where idempotency_key = 'execution-submit-key-0001'),
-      '{"merchantName":"모두마트","businessNumber":"1208155297","transactionAt":"2026-08-02T10:00","supplyAmount":54545,"taxAmount":5455,"totalAmount":60000,"paymentMethod":"카드","approvalNumber":"12345678","items":[{"id":"item-1","name":"식재료","quantity":1,"amount":60000,"confidence":0.99,"sourceText":"식재료 60000","sourceName":"식재료","sourceAmount":60000}]}'::jsonb,
+      '{"merchantName":"모두마트","businessNumber":"1208155297","transactionAt":"2026-08-02T10:30","supplyAmount":54545,"taxAmount":5455,"totalAmount":60000,"paymentMethod":"카드","approvalNumber":"87654321","items":[{"id":"item-1","name":"식재료","quantity":1,"amount":60000,"confidence":0.99,"sourceText":"식재료 60000","sourceName":"식재료","sourceAmount":60000}]}'::jsonb,
       '[{"code":"remaining_budget","version":1,"outcome":"passed","message":"예산 확인","evidence":"60000 / 100000"}]'::jsonb,
       ''
     )
@@ -164,6 +164,46 @@ select is(
   (select total_amount from public.expenditure_executions where idempotency_key = 'execution-submit-key-0001'),
   60000::bigint,
   'reviewed amount is stored'
+);
+select is(
+  (select semantic_key from public.expenditure_executions where idempotency_key = 'execution-submit-key-0001'),
+  '1208155297:2026-08-02T10:30:60000:87654321',
+  'semantic key is recomputed from the final reviewed draft'
+);
+
+update public.expenditure_plan_items
+set amount = 120000
+where id = '8aaaaaaa-2000-4000-8000-000000000001';
+
+insert into public.expenditure_executions (
+  id, organization_id, donation_id, plan_id, plan_item_id, created_by,
+  status, semantic_key, idempotency_key
+)
+values (
+  '8aaaaaaa-3000-4000-8000-000000000003',
+  '8aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  '8aaaaaaa-0000-4000-8000-000000000001',
+  '8aaaaaaa-1000-4000-8000-000000000001',
+  '8aaaaaaa-2000-4000-8000-000000000001',
+  '81111111-1111-4111-8111-111111111111',
+  'review_required',
+  '1208155297:2026-08-02T09:00:60000:ocr-wrong',
+  'execution-submit-key-0003'
+);
+
+select throws_ok(
+  $$
+    select public.register_expenditure_execution(
+      '81111111-1111-4111-8111-111111111111',
+      '8aaaaaaa-3000-4000-8000-000000000003',
+      '{"merchantName":"모두마트","businessNumber":"1208155297","transactionAt":"2026-08-02T10:30","supplyAmount":54545,"taxAmount":5455,"totalAmount":60000,"paymentMethod":"카드","approvalNumber":"87654321","items":[{"id":"item-1","name":"식재료","quantity":1,"amount":60000,"confidence":0.99,"sourceText":"식재료 60000","sourceName":"식재료","sourceAmount":60000}]}'::jsonb,
+      '[{"code":"remaining_budget","version":1,"outcome":"passed","message":"예산 확인","evidence":"60000 / 120000"}]'::jsonb,
+      ''
+    )
+  $$,
+  '23505',
+  'duplicate key value violates unique constraint "expenditure_executions_semantic_key_idx"',
+  'final reviewed semantic key prevents a duplicate transaction'
 );
 
 select lives_ok(

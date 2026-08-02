@@ -586,6 +586,7 @@ declare
   requested_amount bigint;
   item_total bigint;
   transaction_time timestamp;
+  final_semantic_key text;
 begin
   select * into current_execution
   from public.expenditure_executions execution
@@ -619,9 +620,22 @@ begin
     or coalesce(p_draft->>'transactionAt', '') = '' then
     raise exception 'Required receipt fields are missing';
   end if;
+  if char_length(coalesce(p_draft->>'paymentMethod', '')) > 100
+    or char_length(coalesce(p_draft->>'approvalNumber', '')) > 40 then
+    raise exception 'Receipt text fields are too long';
+  end if;
 
   requested_amount := (p_draft->>'totalAmount')::bigint;
   transaction_time := (p_draft->>'transactionAt')::timestamp;
+  final_semantic_key := case
+    when coalesce(trim(p_draft->>'businessNumber'), '') = '' then null
+    else concat(
+      trim(p_draft->>'businessNumber'), ':',
+      to_char(transaction_time, 'YYYY-MM-DD"T"HH24:MI'), ':',
+      requested_amount::text, ':',
+      coalesce(nullif(trim(p_draft->>'approvalNumber'), ''), 'no-approval')
+    )
+  end;
   if requested_amount not between 1 and 1000000000000 then
     raise exception 'Receipt amount is invalid';
   end if;
@@ -678,6 +692,7 @@ begin
       total_amount = requested_amount,
       payment_method = coalesce(p_draft->>'paymentMethod', ''),
       approval_number = coalesce(p_draft->>'approvalNumber', ''),
+      semantic_key = final_semantic_key,
       draft_data = p_draft,
       validation_issues = '[]'::jsonb,
       verification_results = p_verification_results,

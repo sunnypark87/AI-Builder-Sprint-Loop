@@ -106,20 +106,6 @@ export async function POST(_request: Request, context: RouteContext) {
     );
   }
 
-  let identityNumber: string;
-  try {
-    identityNumber = decryptIdentityNumber({
-      authTag: pledge.donor_identity_number_auth_tag,
-      ciphertext: pledge.donor_identity_number_ciphertext,
-      iv: pledge.donor_identity_number_iv,
-    });
-  } catch {
-    return NextResponse.json(
-      { code: 'identity_number_unavailable' },
-      { status: 503 },
-    );
-  }
-
   let adminClient;
   let modusignConfig;
 
@@ -433,6 +419,20 @@ export async function POST(_request: Request, context: RouteContext) {
     return NextResponse.json(
       { code: 'organization_signer_account_mismatch' },
       { status: 409 },
+    );
+  }
+
+  let identityNumber: string;
+  try {
+    identityNumber = decryptIdentityNumber({
+      authTag: pledge.donor_identity_number_auth_tag,
+      ciphertext: pledge.donor_identity_number_ciphertext,
+      iv: pledge.donor_identity_number_iv,
+    });
+  } catch {
+    return NextResponse.json(
+      { code: 'identity_number_unavailable' },
+      { status: 503 },
     );
   }
 

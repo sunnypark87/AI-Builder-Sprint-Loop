@@ -392,6 +392,7 @@ describe('POST /api/pledges/[pledgeId]/signature-request', () => {
       status: 'existing',
     });
     expect(createModusignClient).not.toHaveBeenCalled();
+    expect(decryptIdentityNumber).not.toHaveBeenCalled();
   });
 
   it('refetches and finalizes a linked non-idle provider document', async () => {

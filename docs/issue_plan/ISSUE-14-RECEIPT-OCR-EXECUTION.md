@@ -290,7 +290,7 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 | 합계·식별자·기간·예산·중복 규칙    | `receipt-verification.ts`                            | `receipt-verification.test.ts`, 집행 E2E                                | PASS                 |
 | 차단 오류와 경고 확인 사유         | 재검증 PATCH, 등록 RPC, 검토 UI                      | 검증기·컴포넌트·pgTAP                                                   | PASS                 |
 | 수정값 서버 재검증·확정값 저장     | `[executionId]/route.ts`, 등록 RPC                   | 검토 폼 테스트, pgTAP, 집행 E2E                                         | PASS                 |
-| 검토 중 계획 예산 항목 재선택       | 검토 UI, `[executionId]/route.ts`, 등록 RPC          | 컴포넌트·Route 테스트, pgTAP 재연결 검증, 집행 E2E                       | PASS                 |
+| 검토 중 계획 예산 항목 재선택      | 검토 UI, `[executionId]/route.ts`, 등록 RPC          | 컴포넌트·Route 테스트, pgTAP 재연결 검증, 집행 E2E                      | PASS                 |
 | 증빙·계획 항목·검증 이력 원자 등록 | 등록 RPC                                             | pgTAP, 집행 E2E                                                         | PASS                 |
 | 중복·동시 요청의 이중 집행 방지    | 고유 제약, 계획 항목 잠금 RPC                        | 동일 원본 E2E, 동시 2건 등록 E2E                                        | PASS                 |
 | 조직 격리와 5분 서명 URL           | 테이블/Storage RLS, `getReview`                      | pgTAP 조직 A/B 행·객체 조회, 정적 정책 테스트                           | PASS                 |

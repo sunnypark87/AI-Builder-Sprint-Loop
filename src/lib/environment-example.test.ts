@@ -16,6 +16,8 @@ describe('.env.example', () => {
     expect(variableNames).toEqual([
       'UPSTAGE_API_KEY',
       'UPSTAGE_OCR_MODEL',
+      'UPSTAGE_CHAT_MODEL',
+      'UPSTAGE_CHAT_TIMEOUT_MS',
       'UPSTAGE_OCR_URL',
       'MODUSIGN_AUTH_KEY',
       'MODUSIGN_TEMPLATE_ID',

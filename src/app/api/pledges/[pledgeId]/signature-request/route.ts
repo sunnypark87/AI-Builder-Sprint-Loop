@@ -152,10 +152,68 @@ export async function POST(_request: Request, context: RouteContext) {
   }
 
   if (existingDocument?.provider_document_id) {
-    return NextResponse.json(
-      { code: 'signature_reconciliation_required' },
-      { status: 409 },
+    let linkedDocument;
+    try {
+      linkedDocument = await createModusignClient().getDocument(
+        existingDocument.provider_document_id,
+      );
+    } catch (error) {
+      const failure = getModusignErrorResponse(
+        error,
+        'signature_reconciliation_failed',
+      );
+      return NextResponse.json(
+        { code: failure.code },
+        { status: failure.status },
+      );
+    }
+
+    const donorParticipant = linkedDocument.participants.find(
+      (participant) => participant.signingOrder === 1,
     );
+    const organizationParticipant = linkedDocument.participants.find(
+      (participant) => participant.signingOrder === 2,
+    );
+    if (
+      !donorParticipant?.id ||
+      donorParticipant.type !== 'SIGNER' ||
+      !organizationParticipant?.id ||
+      organizationParticipant.type !== 'SIGNER'
+    ) {
+      return NextResponse.json(
+        { code: 'signature_reconciliation_required' },
+        { status: 409 },
+      );
+    }
+
+    const { error: finalizeError } = await adminClient.rpc(
+      'finalize_modusign_signature_request',
+      {
+        p_donor_participant_id: donorParticipant.id,
+        p_organization_participant_id: organizationParticipant.id,
+        p_provider_document_id: linkedDocument.id,
+        p_provider_status: linkedDocument.status,
+        p_signature_document_id: existingDocument.id,
+      },
+    );
+    if (finalizeError) {
+      await adminClient
+        .from('signature_documents')
+        .update({
+          last_error_code: 'internal_signature_finalize_failed',
+          sync_status: 'reconciliation_required',
+        })
+        .eq('id', existingDocument.id);
+      return NextResponse.json(
+        { code: 'signature_reconciliation_failed' },
+        { status: 503 },
+      );
+    }
+
+    return NextResponse.json({
+      documentId: linkedDocument.id,
+      status: 'existing',
+    });
   }
 
   if (pledge.status === 'awaiting_donor_signature' && !existingDocument) {

@@ -294,6 +294,102 @@ describe('POST /api/pledges/[pledgeId]/signature-request', () => {
     expect(createModusignClient).not.toHaveBeenCalled();
   });
 
+  it('refetches and finalizes a linked non-idle provider document', async () => {
+    createClient.mockResolvedValue(pledgeClient(completePledge));
+    const admin = signingAdmin({
+      existing: {
+        id: 'signature-document-1',
+        provider_document_id: 'provider-document-linked',
+        sync_status: 'failed',
+      },
+    });
+    createAdminClient.mockReturnValue(admin);
+    const createDocumentWithTemplate = vi.fn();
+    const getDocument = vi.fn().mockResolvedValue({
+      id: 'provider-document-linked',
+      participants: [
+        { id: 'donor-participant-1', signingOrder: 1, type: 'SIGNER' },
+        {
+          id: 'organization-participant-1',
+          signingOrder: 2,
+          type: 'SIGNER',
+        },
+      ],
+      signings: [],
+      status: 'ON_GOING',
+      title: '기부 약정서',
+    });
+    createModusignClient.mockReturnValue({
+      createDocumentWithTemplate,
+      getDocument,
+    });
+
+    const response = await POST(
+      new Request('http://localhost/api/pledges/pledge-1/signature-request'),
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      documentId: 'provider-document-linked',
+      status: 'existing',
+    });
+    expect(getDocument).toHaveBeenCalledWith('provider-document-linked');
+    expect(createDocumentWithTemplate).not.toHaveBeenCalled();
+    expect(admin.rpc).toHaveBeenCalledWith(
+      'finalize_modusign_signature_request',
+      expect.objectContaining({
+        p_provider_document_id: 'provider-document-linked',
+      }),
+    );
+  });
+
+  it('keeps a linked document reconcilable when finalization fails again', async () => {
+    createClient.mockResolvedValue(pledgeClient(completePledge));
+    const admin = signingAdmin({
+      existing: {
+        id: 'signature-document-1',
+        provider_document_id: 'provider-document-linked',
+        sync_status: 'failed',
+      },
+    });
+    admin.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: 'temporary' },
+    });
+    createAdminClient.mockReturnValue(admin);
+    createModusignClient.mockReturnValue({
+      getDocument: vi.fn().mockResolvedValue({
+        id: 'provider-document-linked',
+        participants: [
+          { id: 'donor-participant-1', signingOrder: 1, type: 'SIGNER' },
+          {
+            id: 'organization-participant-1',
+            signingOrder: 2,
+            type: 'SIGNER',
+          },
+        ],
+        signings: [],
+        status: 'ON_GOING',
+        title: '기부 약정서',
+      }),
+    });
+
+    const response = await POST(
+      new Request('http://localhost/api/pledges/pledge-1/signature-request'),
+      context,
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      code: 'signature_reconciliation_failed',
+    });
+    expect(admin.update).toHaveBeenCalledWith({
+      last_error_code: 'internal_signature_finalize_failed',
+      sync_status: 'reconciliation_required',
+    });
+  });
+
   it('maps provider failures and marks the request failed', async () => {
     createClient.mockResolvedValue(pledgeClient(completePledge));
     const admin = signingAdmin();

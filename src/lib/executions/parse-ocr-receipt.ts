@@ -17,7 +17,9 @@ function digits(value: string) {
 function money(value: string | undefined) {
   if (!value) return null;
   const parsed = Number(digits(value));
-  return Number.isSafeInteger(parsed) ? parsed : null;
+  if (!Number.isSafeInteger(parsed)) return null;
+  const isNegative = /(?:^|[^\d])[-−﹣－]\s*\d/.test(value.trim());
+  return isNegative ? -parsed : parsed;
 }
 
 function capture(text: string, pattern: RegExp) {
@@ -38,7 +40,7 @@ function parseItems(text: string, confidence: number | null) {
   const items: ReceiptItemDraft[] = [];
   for (const line of text.split(/\r?\n/)) {
     const match = line.match(
-      /^\s*(?:품목|상품)\s*[:：]\s*(.+?)\s*(?:\||,)\s*(?:수량\s*[:：]?\s*)?(\d+)\s*(?:\||,)\s*(?:금액\s*[:：]?\s*)?([\d,]+)\s*원?\s*$/,
+      /^\s*(?:품목|상품)\s*[:：]\s*(.+?)\s*(?:\||,)\s*(?:수량\s*[:：]?\s*)?(\d+)\s*(?:\||,)\s*(?:금액\s*[:：]?\s*)?([-−﹣－]?[\d,]+)\s*원?\s*$/,
     );
     if (!match) continue;
     const name = clean(match[1]);

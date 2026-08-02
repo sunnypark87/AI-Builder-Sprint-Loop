@@ -52,4 +52,24 @@ describe('PATCH /api/partner/executions/[executionId]', () => {
       });
     },
   );
+
+  it('returns 422 before persistence for a nonexistent transaction date', async () => {
+    const response = await PATCH(
+      new Request(`http://localhost/api/partner/executions/${executionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          draft: { ...validDraft, transactionAt: '2026-02-30T10:00' },
+          warningReason: '',
+        }),
+      }),
+      { params: Promise.resolve({ executionId }) },
+    );
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'validation_failed', retryable: false },
+      issues: [{ code: 'transaction_at_invalid', path: 'transactionAt' }],
+    });
+  });
 });

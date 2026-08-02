@@ -103,4 +103,43 @@ describe('parseOcrReceipt', () => {
       expect.objectContaining({ code: 'ocr_confidence_low', path: 'pages' }),
     );
   });
+
+  it('preserves negative refund amounts so validation blocks registration', () => {
+    const parsed = parseOcrReceipt(
+      {
+        apiVersion: '1',
+        modelVersion: 'test',
+        pages: [
+          {
+            page: 1,
+            confidence: 0.99,
+            text: [
+              '상호명: 모두마트',
+              '사업자등록번호: 120-81-55297',
+              '거래일시: 2026.08.02 14:30',
+              '품목: 환불 상품 | 수량 1 | 금액 -10,000원',
+              '공급가액: -9,091원',
+              '부가세: −909원',
+              '합계: -10,000원',
+            ].join('\n'),
+          },
+        ],
+      },
+      '2026-08-02T00:00:00Z',
+    );
+
+    expect(parsed.draft).toMatchObject({
+      supplyAmount: -9091,
+      taxAmount: -909,
+      totalAmount: -10000,
+      items: [expect.objectContaining({ amount: -10000 })],
+    });
+    expect(parsed.issues.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining([
+        'amount_invalid',
+        'total_required',
+        'item_amount_invalid',
+      ]),
+    );
+  });
 });

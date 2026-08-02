@@ -9,6 +9,20 @@ const MAX_PAYMENT_METHOD_LENGTH = 100;
 const MAX_APPROVAL_NUMBER_LENGTH = 40;
 const LOCAL_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 
+function isValidLocalDateTime(value: string) {
+  const match = LOCAL_DATE_TIME.exec(value);
+  if (!match) return false;
+  const [year, month, day, hour, minute] = value.split(/[-T:]/).map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day, hour, minute));
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day &&
+    parsed.getUTCHours() === hour &&
+    parsed.getUTCMinutes() === minute
+  );
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -131,10 +145,7 @@ export function validateReceiptDraft(draft: ReceiptDraft) {
       message: '거래일시를 입력해 주세요.',
       path: 'transactionAt',
     });
-  } else if (
-    !LOCAL_DATE_TIME.test(draft.transactionAt) ||
-    Number.isNaN(Date.parse(`${draft.transactionAt}:00+09:00`))
-  ) {
+  } else if (!isValidLocalDateTime(draft.transactionAt)) {
     issues.push({
       code: 'transaction_at_invalid',
       message: '거래일시 형식을 확인해 주세요.',

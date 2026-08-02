@@ -76,4 +76,18 @@ describe('receipt schema', () => {
       ]),
     );
   });
+
+  it('rejects a calendar date that does not exist', () => {
+    const issues = validateReceiptDraft({
+      ...validDraft,
+      transactionAt: '2026-02-30T10:00',
+    });
+
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        code: 'transaction_at_invalid',
+        path: 'transactionAt',
+      }),
+    );
+  });
 });

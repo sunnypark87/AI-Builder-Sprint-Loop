@@ -127,6 +127,7 @@ describe('PATCH /api/partner/executions/[executionId]', () => {
       planItemId,
       status: 'verification_warning',
       draft: serverDraft,
+      issues: [],
       sourceFingerprint: 'a'.repeat(64),
     });
     repository.getEligibility.mockResolvedValue({
@@ -205,6 +206,87 @@ describe('PATCH /api/partner/executions/[executionId]', () => {
     );
   });
 
+  it('preserves a page-level low-confidence warning after manual item replacement', async () => {
+    repository.getReview.mockResolvedValue({
+      id: executionId,
+      organizationId: '22222222-2222-4222-8222-222222222222',
+      donationId: '33333333-3333-4333-8333-333333333333',
+      planId: '44444444-4444-4444-8444-444444444444',
+      planItemId,
+      status: 'verification_warning',
+      draft: validDraft,
+      issues: [
+        {
+          code: 'ocr_confidence_low',
+          message: 'OCR 신뢰도가 낮아 원본 대조가 필요합니다.',
+          path: 'pages',
+        },
+      ],
+      sourceFingerprint: 'a'.repeat(64),
+    });
+    repository.getEligibility.mockResolvedValue({
+      organizationId: '22222222-2222-4222-8222-222222222222',
+      donationId: '33333333-3333-4333-8333-333333333333',
+      planId: '44444444-4444-4444-8444-444444444444',
+      planItemId,
+      planPeriodStart: '2026-08-01',
+      planPeriodEnd: '2026-08-31',
+      donationPaidAt: '2026-08-01T00:00:00Z',
+      remainingBudget: 10000,
+    });
+    repository.verificationContext.mockResolvedValue({
+      planPeriodStart: '2026-08-01',
+      planPeriodEnd: '2026-08-31',
+      donationPaidAt: '2026-08-01T00:00:00Z',
+      remainingBudget: 10000,
+      duplicateSource: false,
+      duplicateTransaction: false,
+      sourceFingerprint: 'a'.repeat(64),
+    });
+
+    const response = await PATCH(
+      new Request(`http://localhost/api/partner/executions/${executionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          draft: {
+            ...validDraft,
+            items: [
+              {
+                ...validDraft.items[0],
+                id: 'manual-item',
+                confidence: null,
+                sourceText: '',
+                sourceName: '',
+                sourceAmount: null,
+              },
+            ],
+          },
+          planItemId,
+          warningReason: '',
+        }),
+      }),
+      { params: Promise.resolve({ executionId }) },
+    );
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'warning_reason_required', retryable: false },
+      verificationResults: [
+        expect.objectContaining({ code: 'receipt_arithmetic' }),
+        expect.objectContaining({ code: 'item_total' }),
+        expect.objectContaining({ code: 'business_number_checksum' }),
+        expect.objectContaining({ code: 'plan_period' }),
+        expect.objectContaining({ code: 'donation_paid_at' }),
+        expect.objectContaining({ code: 'remaining_budget' }),
+        expect.objectContaining({ code: 'duplicate_source' }),
+        expect.objectContaining({ code: 'duplicate_transaction' }),
+        expect.objectContaining({ code: 'ocr_review', outcome: 'warning' }),
+      ],
+    });
+    expect(repository.register).not.toHaveBeenCalled();
+  });
+
   it.each([
     [
       'a concurrent reviewer registered different values first',
@@ -225,6 +307,7 @@ describe('PATCH /api/partner/executions/[executionId]', () => {
       planItemId,
       status: 'review_required',
       draft: validDraft,
+      issues: [],
       sourceFingerprint: 'a'.repeat(64),
     });
     repository.getEligibility.mockResolvedValue({

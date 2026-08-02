@@ -164,8 +164,8 @@ export async function PATCH(
         '영수증 입력값을 확인해 주세요.',
       );
     }
-    const issues = validateReceiptDraft(editableDraft);
-    if (issues.length > 0) {
+    const validationIssues = validateReceiptDraft(editableDraft);
+    if (validationIssues.length > 0) {
       return NextResponse.json(
         {
           error: {
@@ -173,7 +173,7 @@ export async function PATCH(
             message: '수정이 필요한 영수증 항목이 있습니다.',
             retryable: false,
           },
-          issues,
+          issues: validationIssues,
         },
         { status: 422 },
       );
@@ -212,6 +212,13 @@ export async function PATCH(
         '현재 상태에서는 집행 내역을 등록할 수 없습니다.',
       );
     }
+    const issues = [
+      ...validationIssues,
+      ...review.issues.filter(
+        (issue) =>
+          issue.code === 'ocr_confidence_low' && issue.path === 'pages',
+      ),
+    ];
     const eligibility = await target.getEligibility(
       review.organizationId,
       review.donationId,

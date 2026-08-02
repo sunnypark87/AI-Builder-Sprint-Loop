@@ -55,7 +55,7 @@ export function extractImpactFacts(sections, reportingPeriod) {
   });
 }
 
-function parseKoreanMetric(value) {
+export function parseKoreanMetric(value) {
   const normalized = value.replace(/\s+/g, ' ').trim();
   const unitMatch = normalized.match(
     /(억|만|명|개소|대|회|%|가구|명)(?:\s*원)?$/,
@@ -63,7 +63,7 @@ function parseKoreanMetric(value) {
   const unit = /원$/.test(normalized)
     ? '원'
     : (unitMatch?.[1] ?? (/[억만]$/.test(normalized) ? '원' : null));
-  const numberText = normalized.replace(/[^0-9억만.,]/g, '');
+  const numberText = normalized.replace(/[^0-9억만천백십.,]/g, '');
   if (!/[0-9]/.test(numberText))
     return { numericValue: null, textValue: normalized, unit };
   const numericValue = koreanNumber(numberText, unit);
@@ -73,15 +73,39 @@ function parseKoreanMetric(value) {
 function koreanNumber(value, unit) {
   const clean = value.replace(/,/g, '');
   if (unit === '억' || clean.includes('억')) {
-    const [eok, remainder] = clean.split('억');
+    const [eok, remainder] = clean.split('억', 2);
     return (
-      Number(eok) * 100_000_000 +
-      (remainder ? Number(remainder.replace('만', '')) * 10_000 : 0)
+      parseSmallKoreanNumber(eok) * 100_000_000 +
+      (remainder ? koreanNumber(remainder, unit) : 0)
     );
   }
-  if (unit === '만' || clean.includes('만'))
-    return Number(clean.replace('만', '')) * 10_000;
-  return Number(clean);
+  if (unit === '만' || clean.includes('만')) {
+    const [man, remainder] = clean.split('만', 2);
+    return (
+      parseSmallKoreanNumber(man) * 10_000 +
+      (remainder ? parseSmallKoreanNumber(remainder) : 0)
+    );
+  }
+  return parseSmallKoreanNumber(clean);
+}
+
+function parseSmallKoreanNumber(value) {
+  const clean = value.replace(/,/g, '');
+  if (!clean) return 0;
+  let total = 0;
+  let remainder = clean;
+  for (const [unit, multiplier] of [
+    ['천', 1_000],
+    ['백', 100],
+    ['십', 10],
+  ]) {
+    const index = remainder.indexOf(unit);
+    if (index === -1) continue;
+    const coefficient = remainder.slice(0, index);
+    total += (coefficient ? Number(coefficient) : 1) * multiplier;
+    remainder = remainder.slice(index + unit.length);
+  }
+  return total + (remainder ? Number(remainder) : 0);
 }
 
 function stripMarkdown(value) {

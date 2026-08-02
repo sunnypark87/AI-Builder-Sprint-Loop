@@ -602,6 +602,7 @@ set search_path = ''
 as $$
 declare
   current_execution public.expenditure_executions%rowtype;
+  current_donation public.donations%rowtype;
   current_item public.expenditure_plan_items%rowtype;
   current_plan public.expenditure_plans%rowtype;
   spent_amount bigint;
@@ -617,9 +618,25 @@ begin
   for update;
 
   if not found then raise exception 'Execution not found'; end if;
-  if current_execution.status = 'registered' then return; end if;
+  if current_execution.status = 'registered' then
+    if current_execution.plan_item_id = p_plan_item_id
+      and current_execution.draft_data = p_draft then
+      return;
+    end if;
+    raise exception 'Execution already registered with different review';
+  end if;
   if current_execution.status not in ('review_required', 'verification_warning') then
     raise exception 'Execution is not available for registration';
+  end if;
+
+  select * into current_donation
+  from public.donations donation
+  where donation.id = current_execution.donation_id
+    and donation.organization_id = current_execution.organization_id
+    and donation.status = 'paid'
+  for update;
+  if current_donation.id is null then
+    raise exception 'Execution donation is not eligible';
   end if;
 
   select * into current_item

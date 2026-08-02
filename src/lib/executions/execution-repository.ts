@@ -176,16 +176,20 @@ export function createExecutionRepository(
     donationId: string,
     planId: string,
     planItemId: string,
+    requirePaidDonation = true,
   ): Promise<ExecutionEligibility | null> {
     const { data: donation, error: donationError } = await supabase
       .from('donations')
-      .select('id,organization_id,amount,paid_at,paid_at_is_authoritative')
+      .select(
+        'id,organization_id,amount,status,paid_at,paid_at_is_authoritative',
+      )
       .eq('id', donationId)
       .eq('organization_id', organizationId)
-      .eq('status', 'paid')
       .maybeSingle();
     if (donationError) throw databaseError(donationError.message);
-    if (!donation) return null;
+    if (!donation || (requirePaidDonation && donation.status !== 'paid')) {
+      return null;
+    }
 
     const { data: plan, error: planError } = await supabase
       .from('expenditure_plans')
@@ -510,6 +514,7 @@ export function createExecutionRepository(
         execution.donation_id as string,
         execution.plan_id as string,
         execution.plan_item_id as string,
+        execution.status !== 'registered',
       );
       if (!eligibility) return null;
       const { data: signed, error: signedError } = await supabase.storage

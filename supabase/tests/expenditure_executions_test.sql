@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(28);
+select plan(31);
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values
@@ -190,6 +190,75 @@ select is(
   '1208155297:2026-08-02T10:30:60000:87654321',
   'semantic key is recomputed from the final reviewed draft'
 );
+
+select lives_ok(
+  $$
+    select public.register_expenditure_execution(
+      '81111111-1111-4111-8111-111111111111',
+      (select id from public.expenditure_executions where idempotency_key = 'execution-submit-key-0001'),
+      '8aaaaaaa-2000-4000-8000-000000000002',
+      '{"merchantName":"모두마트","businessNumber":"1208155297","transactionAt":"2026-08-02T10:30","supplyAmount":54545,"taxAmount":5455,"totalAmount":60000,"paymentMethod":"카드","approvalNumber":"87654321","items":[{"id":"item-1","name":"식재료","quantity":1,"amount":60000,"confidence":0.99,"sourceText":"식재료 60000","sourceName":"식재료","sourceAmount":60000}]}'::jsonb,
+      '[{"code":"remaining_budget","version":1,"outcome":"passed","message":"예산 확인","evidence":"60000 / 100000"}]'::jsonb,
+      ''
+    )
+  $$,
+  'an identical registration retry is idempotent'
+);
+
+select throws_ok(
+  $$
+    select public.register_expenditure_execution(
+      '81111111-1111-4111-8111-111111111111',
+      (select id from public.expenditure_executions where idempotency_key = 'execution-submit-key-0001'),
+      '8aaaaaaa-2000-4000-8000-000000000002',
+      '{"merchantName":"다른마트","businessNumber":"1208155297","transactionAt":"2026-08-02T10:30","supplyAmount":54545,"taxAmount":5455,"totalAmount":60000,"paymentMethod":"카드","approvalNumber":"87654321","items":[{"id":"item-1","name":"식재료","quantity":1,"amount":60000,"confidence":0.99,"sourceText":"식재료 60000","sourceName":"식재료","sourceAmount":60000}]}'::jsonb,
+      '[{"code":"remaining_budget","version":1,"outcome":"passed","message":"예산 확인","evidence":"60000 / 100000"}]'::jsonb,
+      ''
+    )
+  $$,
+  'P0001',
+  'Execution already registered with different review',
+  'a conflicting concurrent registration is rejected'
+);
+
+insert into public.expenditure_executions (
+  id, organization_id, donation_id, plan_id, plan_item_id, created_by,
+  status, idempotency_key
+)
+values (
+  '8aaaaaaa-3000-4000-8000-000000000004',
+  '8aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  '8aaaaaaa-0000-4000-8000-000000000001',
+  '8aaaaaaa-1000-4000-8000-000000000001',
+  '8aaaaaaa-2000-4000-8000-000000000001',
+  '81111111-1111-4111-8111-111111111111',
+  'review_required',
+  'execution-submit-key-0004'
+);
+
+update public.donations
+set status = 'refunded'
+where id = '8aaaaaaa-0000-4000-8000-000000000001';
+
+select throws_ok(
+  $$
+    select public.register_expenditure_execution(
+      '81111111-1111-4111-8111-111111111111',
+      '8aaaaaaa-3000-4000-8000-000000000004',
+      '8aaaaaaa-2000-4000-8000-000000000001',
+      '{"merchantName":"모두마트","businessNumber":"1208155297","transactionAt":"2026-08-02T11:00","supplyAmount":9091,"taxAmount":909,"totalAmount":10000,"paymentMethod":"카드","approvalNumber":"REFUNDED1","items":[{"id":"item-1","name":"식재료","quantity":1,"amount":10000,"confidence":0.99,"sourceText":"식재료 10000","sourceName":"식재료","sourceAmount":10000}]}'::jsonb,
+      '[{"code":"remaining_budget","version":1,"outcome":"passed","message":"예산 확인","evidence":"10000 / 100000"}]'::jsonb,
+      ''
+    )
+  $$,
+  'P0001',
+  'Execution donation is not eligible',
+  'registration rechecks the paid donation inside the transaction'
+);
+
+update public.donations
+set status = 'paid'
+where id = '8aaaaaaa-0000-4000-8000-000000000001';
 
 update public.expenditure_plan_items
 set amount = 120000

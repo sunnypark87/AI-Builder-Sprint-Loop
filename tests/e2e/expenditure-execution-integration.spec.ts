@@ -55,7 +55,7 @@ test('uploads, verifies and atomically registers one receipt', async ({
   const { data: execution, error } = await supabase
     .from('expenditure_executions')
     .select(
-      'status,total_amount,merchant_name,reviewed_by,verification_results',
+      'id,status,total_amount,merchant_name,reviewed_by,verification_results',
     )
     .eq('organization_id', executionIntegrationIds.organization)
     .single();
@@ -71,6 +71,20 @@ test('uploads, verifies and atomically registers one receipt', async ({
       expect.objectContaining({ code: 'remaining_budget', outcome: 'passed' }),
     ]),
   );
+
+  const { error: refundError } = await supabase
+    .from('donations')
+    .update({ status: 'refunded' })
+    .eq('id', executionIntegrationIds.donation);
+  expect(refundError).toBeNull();
+  await page.goto(`/partner/executions/${execution!.id}/review`);
+  await expect(page.getByText('내부 등록이 완료됐습니다.')).toBeVisible();
+  await expect(page.getByLabel('계획 예산 항목')).toBeDisabled();
+  const { error: restoreDonationError } = await supabase
+    .from('donations')
+    .update({ status: 'paid' })
+    .eq('id', executionIntegrationIds.donation);
+  expect(restoreDonationError).toBeNull();
 
   await page.goto('/partner/executions/new');
   await request.post('http://127.0.0.1:54319/control/receipt-next');

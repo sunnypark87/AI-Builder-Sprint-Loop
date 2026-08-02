@@ -204,4 +204,68 @@ describe('PATCH /api/partner/executions/[executionId]', () => {
       replacementPlanItemId,
     );
   });
+
+  it.each([
+    [
+      'a concurrent reviewer registered different values first',
+      'Execution already registered with different review',
+      'already_registered',
+    ],
+    [
+      'the donation became ineligible before the transaction',
+      'Execution donation is not eligible',
+      'invalid_reference',
+    ],
+  ])('returns 409 when %s', async (_scenario, databaseMessage, errorCode) => {
+    repository.getReview.mockResolvedValue({
+      id: executionId,
+      organizationId: '22222222-2222-4222-8222-222222222222',
+      donationId: '33333333-3333-4333-8333-333333333333',
+      planId: '44444444-4444-4444-8444-444444444444',
+      planItemId,
+      status: 'review_required',
+      draft: validDraft,
+      sourceFingerprint: 'a'.repeat(64),
+    });
+    repository.getEligibility.mockResolvedValue({
+      organizationId: '22222222-2222-4222-8222-222222222222',
+      donationId: '33333333-3333-4333-8333-333333333333',
+      planId: '44444444-4444-4444-8444-444444444444',
+      planItemId,
+      planPeriodStart: '2026-08-01',
+      planPeriodEnd: '2026-08-31',
+      donationPaidAt: '2026-08-01T00:00:00Z',
+      remainingBudget: 10000,
+    });
+    repository.verificationContext.mockResolvedValue({
+      planPeriodStart: '2026-08-01',
+      planPeriodEnd: '2026-08-31',
+      donationPaidAt: '2026-08-01T00:00:00Z',
+      remainingBudget: 10000,
+      duplicateSource: false,
+      duplicateTransaction: false,
+      sourceFingerprint: 'a'.repeat(64),
+    });
+    repository.register.mockRejectedValue(
+      new Error(`집행 내역 저장소 오류: ${databaseMessage}`),
+    );
+
+    const response = await PATCH(
+      new Request(`http://localhost/api/partner/executions/${executionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          draft: validDraft,
+          planItemId,
+          warningReason: '',
+        }),
+      }),
+      { params: Promise.resolve({ executionId }) },
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: errorCode, retryable: false },
+    });
+  });
 });

@@ -62,6 +62,20 @@ function safeError(error: unknown) {
       '최신 예산 잔액을 초과해 등록할 수 없습니다.',
     );
   }
+  if (message.includes('Execution already registered with different review')) {
+    return responseError(
+      409,
+      'already_registered',
+      '다른 검토 내용으로 이미 등록된 집행 내역입니다.',
+    );
+  }
+  if (message.includes('Execution donation is not eligible')) {
+    return responseError(
+      409,
+      'invalid_reference',
+      '연결된 기부의 결제 상태가 변경되어 등록할 수 없습니다.',
+    );
+  }
   return responseError(
     500,
     'internal_error',

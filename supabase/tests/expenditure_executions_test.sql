@@ -1,11 +1,12 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(26);
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values
   ('81111111-1111-4111-8111-111111111111', 'authenticated', 'authenticated', 'execution-a@example.test', now(), now()),
+  ('83333333-3333-4333-8333-333333333333', 'authenticated', 'authenticated', 'execution-a-peer@example.test', now(), now()),
   ('82222222-2222-4222-8222-222222222222', 'authenticated', 'authenticated', 'execution-b@example.test', now(), now());
 
 insert into public.organizations (id, name)
@@ -16,6 +17,7 @@ values
 insert into public.organization_members (organization_id, user_id, role)
 values
   ('8aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '81111111-1111-4111-8111-111111111111', 'manager'),
+  ('8aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '83333333-3333-4333-8333-333333333333', 'manager'),
   ('8bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '82222222-2222-4222-8222-222222222222', 'manager');
 
 insert into public.donations (id, organization_id, amount, status, paid_at, paid_at_is_authoritative)
@@ -264,11 +266,25 @@ select is(
 );
 
 insert into storage.objects (bucket_id, name, owner_id)
-values (
+values
+  (
+    'receipt-documents',
+    '8aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/pending/81111111-1111-4111-8111-111111111111/upload-a/source.png',
+    '81111111-1111-4111-8111-111111111111'
+  ),
+  (
+    'receipt-documents',
+    '8aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/pending/83333333-3333-4333-8333-333333333333/upload-peer/source.png',
+    '83333333-3333-4333-8333-333333333333'
+  );
+
+insert into storage.objects (bucket_id, name, owner_id)
+select
   'receipt-documents',
-  '8aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/execution/source.png',
-  '81111111-1111-4111-8111-111111111111'
-);
+  execution.organization_id::text || '/' || execution.id::text || '/source.png',
+  '81111111-1111-4111-8111-111111111111'::uuid
+from public.expenditure_executions execution
+where execution.idempotency_key = 'execution-submit-key-0001';
 
 reset role;
 set local role authenticated;
@@ -279,8 +295,26 @@ select set_config(
 );
 select is(
   (select count(*) from storage.objects where bucket_id = 'receipt-documents'),
+  2::bigint,
+  'the owning organization can read its receipt source and own pending upload'
+);
+select is(
+  (
+    select count(*)
+    from storage.objects
+    where name like '8aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/pending/81111111-1111-4111-8111-111111111111/%'
+  ),
   1::bigint,
-  'the owning organization can read its receipt source'
+  'an uploader can read their own pending receipt'
+);
+select is(
+  (
+    select count(*)
+    from storage.objects
+    where name like '8aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/pending/83333333-3333-4333-8333-333333333333/%'
+  ),
+  0::bigint,
+  'an organization peer cannot read another uploader pending receipt'
 );
 
 select set_config(

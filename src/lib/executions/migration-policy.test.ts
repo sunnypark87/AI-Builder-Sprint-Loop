@@ -43,6 +43,12 @@ describe('execution migration security and atomicity', () => {
     expect(migration).toContain('claim_execution_analysis_retry');
   });
 
+  it('limits pending receipt documents to their uploader', () => {
+    expect(migration).toContain("if path_segments[2] = 'pending' then");
+    expect(migration).toContain('path_segments[3]::uuid = auth.uid()');
+    expect(migration).toContain('array_length(path_segments, 1) = 4');
+  });
+
   it('revokes public execution on every mutation function', () => {
     for (const name of [
       'create_expenditure_execution_analysis',

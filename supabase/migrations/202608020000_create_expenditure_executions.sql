@@ -11,19 +11,38 @@ comment on column public.donations.paid_at_is_authoritative is
 
 create or replace function private.can_access_receipt_document(object_name text)
 returns boolean
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select case
-    when split_part(object_name, '/', 1)
-      ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
-    then private.is_organization_member(
-      split_part(object_name, '/', 1)::uuid
-    )
-    else false
-  end;
+declare
+  path_segments text[];
+  target_organization_id uuid;
+begin
+  path_segments := storage.foldername(object_name);
+  target_organization_id := path_segments[1]::uuid;
+
+  if not private.is_organization_member(target_organization_id) then
+    return false;
+  end if;
+
+  if path_segments[2] = 'pending' then
+    return array_length(path_segments, 1) = 4
+      and path_segments[3]::uuid = auth.uid();
+  end if;
+
+  return array_length(path_segments, 1) = 2
+    and exists (
+      select 1
+      from public.expenditure_executions execution
+      where execution.id = path_segments[2]::uuid
+        and execution.organization_id = target_organization_id
+    );
+exception
+  when invalid_text_representation then
+    return false;
+end;
 $$;
 
 create table public.expenditure_executions (

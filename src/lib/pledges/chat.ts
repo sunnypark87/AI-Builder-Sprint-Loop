@@ -2,17 +2,27 @@ export type PledgeChatRole = 'user' | 'assistant';
 
 export type PledgeChatPatch = Partial<{
   amount: number;
-  donationType: string;
-  purpose: string;
+  donationDesignation: 'designated' | 'undesignated';
   donationCondition: string;
+  paymentSchedule: 'lump_sum' | 'other';
+  paymentScheduleOther: string;
+  paymentMethod: 'online' | 'direct' | 'other';
+  paymentMethodOther: string;
 }>;
 
 export type PledgeChatMessage = {
   id?: string;
+  missingFields?: string[];
+  nextQuestionField?: string | null;
   role: PledgeChatRole;
   content: string;
   proposedPatch?: PledgeChatPatch;
   createdAt?: string;
+  suggestedReplies?: Array<{
+    id: string;
+    label: string;
+    message: string;
+  }>;
 };
 
 export function createMockAssistantReply(message: string) {
@@ -24,31 +34,35 @@ export function createMockAssistantReply(message: string) {
 
   if (amountWon) {
     return {
-      content: `기부 금액을 월 ${amountWon.toLocaleString('ko-KR')}원으로 제안할게요. 약정서에 반영하기 전에 확인해 주세요.`,
+      content: `기부 금액을 월 ${amountWon.toLocaleString('ko-KR')}원으로 약정서에 작성했어요. 다음 검토 화면에서 수정할 수 있어요.`,
       proposedPatch: { amount: amountWon },
     } satisfies Omit<PledgeChatMessage, 'role'>;
   }
 
-  if (normalized.includes('교육') || normalized.includes('목적')) {
+  if (normalized.includes('비지정') || normalized.includes('필요한곳')) {
     return {
-      content:
-        '기부 목적을 말씀해 주셨군요. 약정서의 기부 목적에 반영할 수 있도록 정리했어요.',
-      proposedPatch: { purpose: message.trim() },
+      content: '비지정 기부로 정리했어요. 기부 조건은 작성하지 않습니다.',
+      proposedPatch: { donationDesignation: 'undesignated' },
     } satisfies Omit<PledgeChatMessage, 'role'>;
   }
 
-  if (normalized.includes('보고') || normalized.includes('공개')) {
+  if (normalized.includes('교육') || normalized.includes('조건')) {
     return {
       content:
-        '집행 내역과 완료 보고를 안내받는 조건으로 정리했어요. 약정서에 반영할 수 있어요.',
-      proposedPatch: {
-        donationCondition: '계획·집행 내역·완료 보고 시 알림',
-      },
+        '지정 기부 조건으로 약정서에 작성했어요. 다음 검토 화면에서 수정할 수 있어요.',
+      proposedPatch: { donationCondition: message.trim() },
+    } satisfies Omit<PledgeChatMessage, 'role'>;
+  }
+
+  if (normalized.includes('지정')) {
+    return {
+      content: '지정 기부로 정리했어요. 기부금을 사용할 활동을 알려주세요.',
+      proposedPatch: { donationDesignation: 'designated' },
     } satisfies Omit<PledgeChatMessage, 'role'>;
   }
 
   return {
     content:
-      '말씀해 주신 내용을 기록했어요. 금액, 목적, 기간이나 집행 공개 조건을 더 알려주시면 약정서에 반영할 수 있어요.',
+      '말씀해 주신 내용을 기록했어요. 금액, 기부 유형, 납부 시점이나 수단을 더 알려주시면 약정서에 작성할 수 있어요.',
   } satisfies Omit<PledgeChatMessage, 'role'>;
 }

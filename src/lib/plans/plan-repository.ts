@@ -95,6 +95,14 @@ export type CreateAnalyzingPlanInput = {
   document: ValidatedPlanDocument;
 };
 
+export type CreateManualPlanInput = {
+  organizationId: string;
+  donationId: string;
+  userId: string;
+  idempotencyKey: string;
+  draft: PlanDraft;
+};
+
 export type RetrySource = {
   planId: string;
   organizationId: string;
@@ -112,6 +120,9 @@ export interface PlanRepository {
   createAnalyzingPlan(
     input: CreateAnalyzingPlanInput,
   ): Promise<AnalysisCreation>;
+  createManualPlan(
+    input: CreateManualPlanInput,
+  ): Promise<{ id: string; created: boolean }>;
   downloadPendingSource(
     sourcePath: string,
     fileName: string,
@@ -181,7 +192,7 @@ function databaseError(message: string) {
 
 export class PlanIdempotencyConflictError extends Error {
   constructor() {
-    super('같은 중복 제출 방지 키에 다른 파일을 사용할 수 없습니다.');
+    super('같은 중복 제출 방지 키에 다른 계획 정보를 사용할 수 없습니다.');
     this.name = 'PlanIdempotencyConflictError';
   }
 }
@@ -257,6 +268,31 @@ export function createPlanRepository(
           typeof created.lease_token === 'string' ? created.lease_token : null,
         shouldProcess: created.should_process,
       };
+    },
+
+    async createManualPlan(input) {
+      const { client, actorUserId } = mutationClient();
+      const { data, error } = await client
+        .rpc('create_manual_expenditure_plan', {
+          p_actor_id: actorUserId,
+          p_organization_id: input.organizationId,
+          p_donation_id: input.donationId,
+          p_idempotency_key: input.idempotencyKey,
+          p_draft: input.draft,
+        })
+        .single();
+
+      if (error || !data) {
+        if (error?.message.includes('idempotency key does not match')) {
+          throw new PlanIdempotencyConflictError();
+        }
+        throw databaseError(
+          error?.message ?? '계획을 직접 등록할 수 없습니다.',
+        );
+      }
+
+      const created = data as { plan_id: string; created: boolean };
+      return { id: created.plan_id, created: created.created };
     },
 
     async downloadPendingSource(sourcePath, fileName, mimeType) {

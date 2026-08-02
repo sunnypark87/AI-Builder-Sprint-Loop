@@ -13,6 +13,8 @@ const TOTAL_LABEL = /(?:총\s*(?:계획\s*)?(?:예산|금액)|합계)/;
 const FULL_DATE =
   /(\d{4})\s*(?:[./-]|년)\s*(\d{1,2})\s*(?:[./-]|월)\s*(\d{1,2})\s*(?:일)?/g;
 const AMOUNT_AT_END = /([+-]?\s*[\dOoIl,\s]+)\s*(?:원|₩)\s*$/;
+const STRUCTURAL_LABEL =
+  /[ \t]+(?=(?:집행\s*)?(?:계획명|사업명|프로그램명|기간)\s*[:：]|(?:총\s*(?:계획\s*)?(?:예산|금액)|합계)\s*[:：]?)/g;
 
 function normalizeText(value: string) {
   return value
@@ -34,6 +36,39 @@ function normalizeDate(match: RegExpMatchArray) {
 
 function extractDates(value: string) {
   return Array.from(value.matchAll(FULL_DATE), normalizeDate).filter(Boolean);
+}
+
+function splitJoinedPeriodLine(line: string) {
+  if (!PERIOD_LABEL.test(line)) {
+    return [line];
+  }
+
+  const dates = Array.from(line.matchAll(FULL_DATE));
+  const secondDate = dates[1];
+  if (!secondDate || secondDate.index === undefined) {
+    return [line];
+  }
+
+  const periodEnd = secondDate.index + secondDate[0].length;
+  const period = line.slice(0, periodEnd).trim();
+  const remainder = line
+    .slice(periodEnd)
+    .replace(/^[\s.~～\-–—]+/, '')
+    .trim();
+  return remainder ? [period, remainder] : [period];
+}
+
+function logicalLines(value: string) {
+  const separated = value
+    .normalize('NFKC')
+    .replace(/\u00a0/g, ' ')
+    .replace(STRUCTURAL_LABEL, '\n');
+
+  return separated
+    .split(/\r?\n/)
+    .map(normalizeText)
+    .filter(Boolean)
+    .flatMap(splitJoinedPeriodLine);
 }
 
 function parseAmount(value: string) {
@@ -139,9 +174,7 @@ export function parseOcrPlan(
   ocr: DocumentOcrResult,
   processedAt = new Date().toISOString(),
 ): ParsedPlan {
-  const lines = ocr.pages.flatMap((page) =>
-    page.text.split(/\r?\n/).map(normalizeText).filter(Boolean),
-  );
+  const lines = ocr.pages.flatMap((page) => logicalLines(page.text));
   const [periodStart, periodEnd] = findPeriod(lines);
   const items = lines
     .map((line, index) => parseItemLine(line, index, ocr.pages))

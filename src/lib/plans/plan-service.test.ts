@@ -36,6 +36,10 @@ function repository(overrides: Partial<PlanRepository> = {}): PlanRepository {
       leaseToken: ids.lease,
       shouldProcess: true,
     }),
+    createManualPlan: vi.fn().mockResolvedValue({
+      id: ids.plan,
+      created: true,
+    }),
     downloadPendingSource: vi.fn().mockResolvedValue(png()),
     promoteSource: vi
       .fn()

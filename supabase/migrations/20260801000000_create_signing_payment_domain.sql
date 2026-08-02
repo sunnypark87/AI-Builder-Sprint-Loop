@@ -20,6 +20,36 @@ create table if not exists public.organization_members (
   primary key (organization_id, user_id)
 );
 
+-- Issue #7 creates these shared tables first. CREATE TABLE IF NOT EXISTS does
+-- not add the signing-domain columns to an existing table, so reconcile the
+-- shared schema before policies and signing queries reference those columns.
+alter table public.organizations
+  add column if not exists slug text,
+  add column if not exists description text,
+  add column if not exists is_public boolean not null default true,
+  add column if not exists updated_at timestamptz not null default now();
+
+update public.organizations
+set slug = id::text
+where slug is null;
+
+alter table public.organizations
+  alter column slug set default gen_random_uuid()::text,
+  alter column slug set not null;
+
+create unique index if not exists organizations_slug_key
+  on public.organizations(slug);
+
+alter table public.organization_members
+  add column if not exists signer_name text,
+  add column if not exists signer_email text;
+
+alter table public.organization_members
+  drop constraint if exists organization_members_role_check;
+alter table public.organization_members
+  add constraint organization_members_role_check
+  check (role in ('owner', 'manager', 'member', 'signer', 'viewer'));
+
 create table if not exists public.pledges (
   id uuid primary key default gen_random_uuid(),
   donor_user_id uuid not null references auth.users(id) on delete restrict,

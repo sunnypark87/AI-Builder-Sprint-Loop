@@ -61,4 +61,27 @@ describe('ManagementList', () => {
     expect(screen.getByRole('button', { name: 'plan-a 1' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'plan-b 0' })).toBeTruthy();
   });
+
+  it('shows a load error without presenting it as an empty result', () => {
+    render(
+      <ManagementList
+        activeStatus="all"
+        basePath="/partner/executions"
+        columns={[{ key: 'updatedAt', label: '최근 변경' }]}
+        description="집행 내역 목록"
+        error={{
+          title: '집행 내역을 불러오지 못했습니다.',
+          message: '잠시 후 다시 시도해 주세요.',
+        }}
+        rows={[]}
+        statusFilters={[{ key: 'all', label: '전체' }]}
+        title="집행 내역"
+      />,
+    );
+
+    expect(screen.getByRole('alert').textContent).toContain(
+      '집행 내역을 불러오지 못했습니다.',
+    );
+    expect(screen.queryByText('해당 상태의 업무가 없습니다.')).toBeNull();
+  });
 });

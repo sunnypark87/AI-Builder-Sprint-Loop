@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(54);
+select plan(61);
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values
@@ -160,6 +160,11 @@ select ok(
     and not has_function_privilege(
       'authenticated',
       'public.claim_plan_analysis_retry(uuid,uuid)',
+      'EXECUTE'
+    )
+    and not has_function_privilege(
+      'authenticated',
+      'public.create_manual_expenditure_plan(uuid,uuid,uuid,text,jsonb)',
       'EXECUTE'
     ),
   'authenticated users cannot invoke internal plan transition RPCs'
@@ -672,6 +677,78 @@ select is(
   (select status from public.expenditure_plans where id = 'aaaaaaaa-1000-4000-8000-000000000003'),
   'review_required',
   'the current lease owner completes the replacement analysis'
+);
+
+select is(
+  (
+    select created
+    from public.create_manual_expenditure_plan(
+      '11111111-1111-4111-8111-111111111111',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      'aaaaaaaa-0000-4000-8000-000000000001',
+      'manual-plan-integration-key',
+      '{"title":"8월 급식 계획","periodStart":"2026-08-01","periodEnd":"2026-08-31","totalAmount":200000,"items":[{"id":"manual-item-1","name":"식재료","description":"급식 재료 구입","amount":200000,"confidence":null,"sourceText":"","sourceName":"","sourceAmount":null}]}'::jsonb
+    )
+  ),
+  true,
+  'manual plan creation reports a newly registered plan'
+);
+select is(
+  (select status from public.expenditure_plans where idempotency_key = 'manual-plan-integration-key'),
+  'registered',
+  'manual plan creation registers the plan atomically'
+);
+select is(
+  (select input_method from public.expenditure_plans where idempotency_key = 'manual-plan-integration-key'),
+  'manual',
+  'manual plans are distinguished from OCR plans'
+);
+select ok(
+  (
+    select source_path is null and source_file_name is null and ocr_metadata is null
+    from public.expenditure_plans
+    where idempotency_key = 'manual-plan-integration-key'
+  ),
+  'manual plans do not fabricate source document metadata'
+);
+select is(
+  (
+    select count(*)
+    from public.expenditure_plan_items item
+    join public.expenditure_plans plan on plan.id = item.plan_id
+    where plan.idempotency_key = 'manual-plan-integration-key'
+  ),
+  1::bigint,
+  'manual plan creation stores its budget items'
+);
+select is(
+  (
+    select created
+    from public.create_manual_expenditure_plan(
+      '11111111-1111-4111-8111-111111111111',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      'aaaaaaaa-0000-4000-8000-000000000001',
+      'manual-plan-integration-key',
+      '{"title":"8월 급식 계획","periodStart":"2026-08-01","periodEnd":"2026-08-31","totalAmount":200000,"items":[{"id":"manual-item-1","name":"식재료","description":"급식 재료 구입","amount":200000,"confidence":null,"sourceText":"","sourceName":"","sourceAmount":null}]}'::jsonb
+    )
+  ),
+  false,
+  'manual plan creation is idempotent'
+);
+select throws_ok(
+  $$
+    select *
+    from public.create_manual_expenditure_plan(
+      '11111111-1111-4111-8111-111111111111',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      'aaaaaaaa-0000-4000-8000-000000000001',
+      'manual-plan-integration-key',
+      '{"title":"다른 계획","periodStart":"2026-08-01","periodEnd":"2026-08-31","totalAmount":200000,"items":[{"id":"manual-item-1","name":"식재료","description":"급식 재료 구입","amount":200000,"confidence":null,"sourceText":"","sourceName":"","sourceAmount":null}]}'::jsonb
+    )
+  $$,
+  'P0001',
+  'Plan idempotency key does not match manual draft',
+  'a manual idempotency key cannot be reused for another draft'
 );
 
 reset role;

@@ -1,13 +1,18 @@
-import type { OcrPageText } from '@/lib/plans/types';
-
 const DEFAULT_DOCUMENT_OCR_URL =
   'https://api.upstage.ai/v1/document-digitization';
 const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_DOCUMENT_OCR_MODEL = 'ocr';
+
+export type DocumentOcrPage = {
+  page: number;
+  text: string;
+  confidence: number | null;
+};
 
 export type DocumentOcrResult = {
   apiVersion: string;
   modelVersion: string;
-  pages: OcrPageText[];
+  pages: DocumentOcrPage[];
 };
 
 export type DocumentOcrErrorCode =
@@ -64,7 +69,7 @@ export function parseDocumentOcrResponse(value: unknown): DocumentOcrResult {
     );
   }
 
-  const pages = value.pages.map((page, index): OcrPageText => {
+  const pages = value.pages.map((page, index): DocumentOcrPage => {
     if (!isRecord(page) || typeof page.text !== 'string') {
       throw new DocumentOcrError(
         'invalid_response',
@@ -174,9 +179,11 @@ export async function recognizePlanDocument(
   );
   const body = new FormData();
   body.append('document', file);
+  const configuredModel =
+    process.env.UPSTAGE_OCR_MODEL?.trim() || process.env.UPSTAGE_MODEL?.trim();
   body.append(
     'model',
-    options.model ?? (process.env.UPSTAGE_MODEL?.trim() || 'ocr'),
+    options.model?.trim() || configuredModel || DEFAULT_DOCUMENT_OCR_MODEL,
   );
 
   try {
@@ -229,3 +236,5 @@ export async function recognizePlanDocument(
     clearTimeout(timeout);
   }
 }
+
+export const recognizeDocument = recognizePlanDocument;

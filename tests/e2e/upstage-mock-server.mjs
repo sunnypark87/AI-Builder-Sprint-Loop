@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 const host = '127.0.0.1';
 const port = Number(process.env.UPSTAGE_MOCK_PORT || 54319);
 let failNext = false;
+let receiptNext = false;
 
 const ocrResponse = {
   apiVersion: '1.1',
@@ -21,6 +22,28 @@ const ocrResponse = {
   ],
 };
 
+const receiptOcrResponse = {
+  apiVersion: '1.1',
+  modelVersion: 'ocr-integration-test',
+  pages: [
+    {
+      page: 1,
+      confidence: 0.99,
+      text: [
+        '상호명: 모두마트',
+        '사업자등록번호: 120-81-55297',
+        '거래일시: 2026.08.02 14:30',
+        '품목: 식재료 | 수량 1 | 금액 100,000원',
+        '공급가액: 90,909원',
+        '부가세: 9,091원',
+        '합계: 100,000원',
+        '결제수단: 카드',
+        '승인번호: 12345678',
+      ].join('\n'),
+    },
+  ],
+};
+
 createServer((request, response) => {
   if (request.url === '/health') {
     response.writeHead(200).end('ok');
@@ -29,6 +52,12 @@ createServer((request, response) => {
 
   if (request.url === '/control/fail-next' && request.method === 'POST') {
     failNext = true;
+    response.writeHead(204).end();
+    return;
+  }
+
+  if (request.url === '/control/receipt-next' && request.method === 'POST') {
+    receiptNext = true;
     response.writeHead(204).end();
     return;
   }
@@ -46,7 +75,10 @@ createServer((request, response) => {
     }
 
     response.writeHead(200, { 'Content-Type': 'application/json' });
-    response.end(JSON.stringify(ocrResponse));
+    response.end(
+      JSON.stringify(receiptNext ? receiptOcrResponse : ocrResponse),
+    );
+    receiptNext = false;
     return;
   }
 

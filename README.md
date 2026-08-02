@@ -17,7 +17,7 @@ npm run dev
 cp .env.example .env.local
 ```
 
-집행 계획 OCR 등록에는 서버 전용 `UPSTAGE_API_KEY`와 Supabase 프로젝트 설정이 필요합니다. 필요한 변수와 용도는 [`.env.example`](.env.example)에 정리되어 있으며 실제 비밀 값은 저장소에 커밋하지 않습니다.
+집행 계획은 계획명·기간·예산 항목을 직접 작성해 등록할 수 있습니다. 계획서 PDF 또는 이미지가 있는 경우에만 선택적으로 OCR 자동 입력을 사용하며, 이 기능에는 서버 전용 `UPSTAGE_API_KEY`와 Supabase 프로젝트 설정이 필요합니다. 필요한 변수와 용도는 [`.env.example`](.env.example)에 정리되어 있으며 실제 비밀 값은 저장소에 커밋하지 않습니다.
 
 검증 명령은 `npm run check`로 한 번에 실행할 수 있습니다. 세부 명령은 `AGENTS.md`에 정리되어 있습니다.
 
@@ -28,9 +28,12 @@ npx supabase start
 npx supabase db reset --local
 npx supabase test db
 npm run test:e2e:plans
+npm run test:e2e:executions
 ```
 
 실제 Upstage 정확도 평가는 비식별 합성 대표 문서에만 사용하며 `.env.local`의 `UPSTAGE_API_KEY`를 현재 프로세스에 설정한 환경에서 `npm run test:ai:ocr`로 실행합니다. 일반 `npm run check`와 E2E는 외부 API를 호출하지 않습니다.
+
+영수증 집행 등록은 등록 완료된 집행 계획의 예산 항목에 영수증 1건을 연결합니다. Upstage OCR 추출 후 합계, 사업자등록번호 형식, 계획 기간, 예산 잔액과 중복 여부를 검사하고 담당자 확인 후 내부 등록합니다. 이 검사는 카드사·국세청 등 발행기관 조회나 법적 진위 보증이 아닙니다. 비식별 합성 영수증 8건의 실제 OCR 평가는 `npm run test:ai:receipt-ocr`로 별도 실행합니다.
 
 ### 데모 서명 계정 설정
 

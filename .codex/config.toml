@@ -1,0 +1,11 @@
+[mcp_servers.modusign]
+  command = "sh"
+  args = [
+    "-c",
+    '''set -a
+  . .env
+  set +a
+  : "${MODUSIGN_AUTH_KEY:?MODUSIGN_AUTH_KEY is required}"
+  export MODUSIGN_AUTH_KEY
+  exec npx -y mcp-remote https://developers.modusign.co.kr/mcp --header "Authorization: Basic ${MODUSIGN_AUTH_KEY}"'''
+  ]

@@ -29,7 +29,6 @@ export default async function PledgeReviewPage({
     .select('id, role, content, proposed_patch, created_at')
     .eq('pledge_id', pledgeId)
     .order('created_at', { ascending: true });
-
   const organization = Array.isArray(pledge.organizations)
     ? pledge.organizations[0]
     : pledge.organizations;

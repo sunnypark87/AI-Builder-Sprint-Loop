@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { PledgeChatPanel } from '@/components/pledges/pledge-chat-panel';
@@ -10,7 +9,7 @@ import {
 } from '@/components/pledges/pledge-document-form';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/cn';
-import type { PledgeChatMessage, PledgeChatPatch } from '@/lib/pledges/chat';
+import type { PledgeChatMessage } from '@/lib/pledges/chat';
 
 const MIN_ZOOM = 80;
 const MAX_ZOOM = 120;
@@ -23,27 +22,8 @@ export function PledgeReviewWorkspace({
   pledge: EditablePledge;
   messages: PledgeChatMessage[];
 }) {
-  const router = useRouter();
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [zoom, setZoom] = useState(100);
-  const organization = Array.isArray(pledge.organizations)
-    ? pledge.organizations[0]
-    : pledge.organizations;
-
-  async function applyPatch(patch: PledgeChatPatch) {
-    const response = await fetch(`/api/pledges/${pledge.id}`, {
-      body: JSON.stringify({
-        ...patch,
-        organizationSlug: organization?.slug ?? 'haebom',
-        version: pledge.version ?? 1,
-      }),
-      headers: { 'Content-Type': 'application/json' },
-      method: 'PATCH',
-    });
-    if (!response.ok) throw new Error('patch_failed');
-    router.refresh();
-    window.location.reload();
-  }
 
   return (
     <div
@@ -121,7 +101,6 @@ export function PledgeReviewWorkspace({
         <div className="xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)]">
           <PledgeChatPanel
             initialMessages={messages}
-            onApplyPatch={applyPatch}
             onCollapse={() => setChatCollapsed(true)}
             pledgeId={pledge.id}
           />

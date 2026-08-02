@@ -63,7 +63,6 @@ export async function POST(_request: Request, context: RouteContext) {
     ['donor_identity_number_auth_tag', pledge.donor_identity_number_auth_tag],
     ['amount', pledge.amount],
     ['donation_type', pledge.donation_type],
-    ['purpose', pledge.purpose],
     ['pledge_date', pledge.pledge_date],
     ['donation_kind', pledge.donation_kind],
     ['donation_designation', pledge.donation_designation],
@@ -89,6 +88,12 @@ export async function POST(_request: Request, context: RouteContext) {
     !pledge.payment_method_other?.trim()
   ) {
     missingFields.push('payment_method_other');
+  }
+  if (
+    pledge.donation_designation === 'designated' &&
+    !pledge.donation_condition?.trim()
+  ) {
+    missingFields.push('donation_condition');
   }
   if (pledge.personal_info_consent !== true) {
     missingFields.push('personal_info_consent');

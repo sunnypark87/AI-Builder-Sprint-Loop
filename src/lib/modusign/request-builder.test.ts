@@ -21,10 +21,11 @@ const pledge = {
 } as const;
 
 describe('donation Modusign request builder', () => {
-  it('combines purpose and donation condition into the template condition field', () => {
-    expect(formatDonationCondition('교육 프로그램', '분기별 공개')).toBe(
-      '기부 목적: 교육 프로그램\n기부 조건: 분기별 공개',
+  it('writes only the designated donation condition to the agreement', () => {
+    expect(formatDonationCondition('분기별 공개')).toBe(
+      '기부 조건: 분기별 공개',
     );
+    expect(formatDonationCondition()).toBe('');
   });
   it('creates donor-first secure-link participants with stable metadata', () => {
     const body = buildDonationSignatureRequest(pledge, {

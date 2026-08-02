@@ -1,6 +1,13 @@
 'use client';
 
-import { useState, type InputHTMLAttributes, type ReactNode } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type InputHTMLAttributes,
+  type ReactNode,
+} from 'react';
 import { useRouter } from 'next/navigation';
 
 import { Button, buttonClassName } from '@/components/ui/button';
@@ -76,6 +83,50 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
     identityInfoConsent: pledge.identity_info_consent,
   });
   const [error, setError] = useState<string | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
+  const missingReviewFields = useMemo(
+    () => getMissingReviewFields(form, pledge),
+    [form, pledge],
+  );
+  const [activeField, setActiveField] = useState<ReviewFieldKey | null>(
+    () => getMissingReviewFields(form, pledge)[0]?.key ?? null,
+  );
+  const guidedField = missingReviewFields.length ? activeField : null;
+
+  useEffect(() => {
+    if (!activeField) return;
+    const target = formRef.current?.querySelector<HTMLElement>(
+      `[data-review-field~="${activeField}"]`,
+    );
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target
+      .querySelector<HTMLElement>('input, textarea, select, button')
+      ?.focus({ preventScroll: true });
+  }, [activeField]);
+
+  function moveField(direction: -1 | 1) {
+    if (!missingReviewFields.length) {
+      setActiveField(null);
+      return;
+    }
+    const currentOrder = activeField
+      ? REVIEW_FIELD_ORDER.indexOf(activeField)
+      : -1;
+    const ordered =
+      direction > 0 ? missingReviewFields : [...missingReviewFields].reverse();
+    const next = ordered.find((field) =>
+      direction > 0
+        ? REVIEW_FIELD_ORDER.indexOf(field.key) > currentOrder
+        : REVIEW_FIELD_ORDER.indexOf(field.key) < currentOrder,
+    );
+    setActiveField(
+      next?.key ??
+        (direction > 0
+          ? missingReviewFields[0].key
+          : (missingReviewFields.at(-1)?.key ?? null)),
+    );
+  }
 
   function update(field: keyof typeof form, value: string | boolean) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -83,69 +134,15 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
 
   async function saveAndContinue() {
     setError(null);
-    const missing = [
-      ['donorName', '기부자명'],
-      ['address', '주소'],
-      ['contact', '연락처'],
-      ['amount', '기부 금액'],
-      ['donationType', '기부 유형'],
-      ['purpose', '기부 목적'],
-      ['pledgeDate', '약정일'],
-    ]
-      .filter(
-        ([field]) => !String(form[field as keyof typeof form] ?? '').trim(),
-      )
-      .map(([, label]) => label);
-    if (missing.length) {
-      setError(`서명 전에 다음 내용을 입력해 주세요: ${missing.join(', ')}`);
-      return;
-    }
-    if (!form.identityNumber.trim() && !pledge.donor_identity_number_last4) {
-      setError('서명 전에 주민등록번호를 입력해 주세요.');
-      return;
-    }
-    if (
-      form.identityNumber.trim() &&
-      !isValidIdentityNumberInput(form.identityNumber)
-    ) {
-      setError('주민등록번호 13자리를 확인해 주세요.');
-      return;
-    }
-    if (!isValidMobilePhoneInput(form.contact)) {
-      setError('휴대폰 번호를 010-0000-0000 형식으로 입력해 주세요.');
+    if (missingReviewFields.length) {
+      setActiveField(missingReviewFields[0].key);
+      setError(
+        `서명 전에 다음 항목을 확인해 주세요: ${missingReviewFields.map((field) => field.label).join(', ')}`,
+      );
       return;
     }
     if (form.donorEmail.trim() && !isValidEmailInput(form.donorEmail)) {
       setError('이메일 형식을 확인해 주세요.');
-      return;
-    }
-    const selectionMissing = [
-      [!form.donationKind, '기부 종류'],
-      [
-        form.donationKind === 'other' && !form.donationKindOther,
-        '기타 기부 종류',
-      ],
-      [!form.donationDesignation, '지정 여부'],
-      [!form.paymentSchedule, '납부 주기'],
-      [!form.paymentMethod, '납부 방법'],
-      [
-        form.paymentMethod === 'other' && !form.paymentMethodOther,
-        '기타 납부 방법',
-      ],
-      [
-        form.paymentSchedule === 'other' && !form.paymentScheduleOther,
-        '기타 납부 주기',
-      ],
-      [form.personalInfoConsent !== true, '개인정보 수집·이용 동의'],
-      [form.thirdPartyInfoConsent !== true, '개인정보 제3자 제공 동의'],
-      [form.identityInfoConsent !== true, '고유식별정보 처리 확인'],
-    ]
-      .filter(([isMissing]) => isMissing)
-      .map(([, label]) => label);
-    if (selectionMissing.length) {
-      setError(
-        `서명 전에 다음 항목을 확인해 주세요: ${selectionMissing.join(', ')}`,
-      );
       return;
     }
     const { identityNumber, ...persistedForm } = form;
@@ -182,8 +179,42 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
   }
 
   return (
-    <div className="overflow-hidden border border-line bg-panel">
+    <div className="overflow-hidden border border-line bg-panel" ref={formRef}>
       <div className="grid gap-6 bg-panel-muted p-3 sm:p-5">
+        <section className="sticky top-0 z-20 mx-auto flex w-full max-w-[820px] flex-wrap items-center justify-between gap-3 border border-line bg-panel px-4 py-3 shadow-[var(--shadow-overlay)]">
+          <div>
+            <p className="text-sm font-bold">
+              {missingReviewFields.length
+                ? `필수 정보 ${missingReviewFields.length}개를 확인해 주세요`
+                : '필수 정보가 모두 작성됐어요'}
+            </p>
+            <p className="mt-1 text-xs text-copy-muted" aria-live="polite">
+              {guidedField
+                ? (REVIEW_FIELD_META[guidedField]?.help ?? '')
+                : '전체 내용을 검토한 뒤 서명을 진행해 주세요.'}
+            </p>
+          </div>
+          {missingReviewFields.length ? (
+            <div className="flex gap-2">
+              <Button
+                onClick={() => moveField(-1)}
+                size="small"
+                type="button"
+                variant="tertiary"
+              >
+                이전
+              </Button>
+              <Button
+                onClick={() => moveField(1)}
+                size="small"
+                type="button"
+                variant="secondary"
+              >
+                다음 항목
+              </Button>
+            </div>
+          ) : null}
+        </section>
         <section className="mx-auto w-full max-w-[820px] border border-copy bg-panel px-4 py-6 text-[11px] leading-4 sm:px-8 sm:py-9 sm:text-xs">
           <p className="text-right font-bold">* 필수 입력</p>
           <h2 className="mt-2 border-2 border-b-0 border-copy bg-panel-muted py-2 text-center text-xl font-bold sm:text-2xl">
@@ -198,7 +229,11 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
                   인적사항
                 </DocumentGroupHeader>
                 <DocumentLabel required>기부자(처)</DocumentLabel>
-                <DocumentCell colSpan={3}>
+                <DocumentCell
+                  activeField={guidedField}
+                  colSpan={3}
+                  fieldKeys={['donorName']}
+                >
                   <DocumentInput
                     ariaLabel="기부자명"
                     value={form.donorName}
@@ -208,7 +243,11 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
               </tr>
               <tr>
                 <DocumentLabel required>주소(소재지)</DocumentLabel>
-                <DocumentCell colSpan={3}>
+                <DocumentCell
+                  activeField={guidedField}
+                  colSpan={3}
+                  fieldKeys={['address']}
+                >
                   <DocumentInput
                     ariaLabel="주소"
                     value={form.address}
@@ -218,7 +257,11 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
               </tr>
               <tr>
                 <DocumentLabel required>주민등록번호</DocumentLabel>
-                <DocumentCell colSpan={3}>
+                <DocumentCell
+                  activeField={guidedField}
+                  colSpan={3}
+                  fieldKeys={['identityNumber']}
+                >
                   <div className="flex items-center gap-2">
                     <DocumentInput
                       ariaLabel="주민등록번호"
@@ -247,7 +290,11 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
               </tr>
               <tr>
                 <DocumentLabel required>연락처</DocumentLabel>
-                <DocumentCell colSpan={3}>
+                <DocumentCell
+                  activeField={guidedField}
+                  colSpan={3}
+                  fieldKeys={['contact']}
+                >
                   <DocumentInput
                     ariaLabel="연락처"
                     autoComplete="tel"
@@ -264,7 +311,7 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
               </tr>
               <tr>
                 <DocumentLabel>E-mail</DocumentLabel>
-                <DocumentCell colSpan={3}>
+                <DocumentCell activeField={guidedField} colSpan={3}>
                   <DocumentInput
                     ariaLabel="이메일"
                     autoComplete="email"
@@ -282,7 +329,11 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
                   세부정보
                 </DocumentGroupHeader>
                 <DocumentLabel required>기부 종류</DocumentLabel>
-                <DocumentCell colSpan={3}>
+                <DocumentCell
+                  activeField={guidedField}
+                  colSpan={3}
+                  fieldKeys={['donationKind', 'donationKindOther']}
+                >
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                     {[
                       ['cash', '현금'],
@@ -322,7 +373,11 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
               </tr>
               <tr>
                 <DocumentLabel required>기부 금액</DocumentLabel>
-                <DocumentCell colSpan={3}>
+                <DocumentCell
+                  activeField={guidedField}
+                  colSpan={3}
+                  fieldKeys={['amount']}
+                >
                   <div className="flex items-center gap-2">
                     <DocumentInput
                       ariaLabel="기부 금액"
@@ -337,7 +392,11 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
               </tr>
               <tr>
                 <DocumentLabel required>기부 예정일</DocumentLabel>
-                <DocumentCell colSpan={3}>
+                <DocumentCell
+                  activeField={guidedField}
+                  colSpan={3}
+                  fieldKeys={['pledgeDate']}
+                >
                   <DocumentInput
                     ariaLabel="약정일"
                     type="date"
@@ -348,7 +407,11 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
               </tr>
               <tr>
                 <DocumentLabel required>기부 유형</DocumentLabel>
-                <DocumentCell colSpan={3}>
+                <DocumentCell
+                  activeField={guidedField}
+                  colSpan={3}
+                  fieldKeys={['donationDesignation']}
+                >
                   <div className="flex flex-wrap gap-x-4 gap-y-1">
                     {[
                       ['designated', '지정 기부'],
@@ -363,7 +426,15 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
                           checked={form.donationDesignation === value}
                           className="size-3.5 accent-accent"
                           name="donationCategory"
-                          onChange={() => update('donationDesignation', value)}
+                          onChange={() =>
+                            setForm((current) => ({
+                              ...current,
+                              donationDesignation: value,
+                              ...(value === 'undesignated'
+                                ? { donationCondition: '' }
+                                : {}),
+                            }))
+                          }
                           type="checkbox"
                         />
                         {label}
@@ -373,18 +444,16 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
                 </DocumentCell>
               </tr>
               <tr>
-                <DocumentLabel required>기부 목적</DocumentLabel>
-                <DocumentCell colSpan={3}>
-                  <DocumentTextarea
-                    ariaLabel="기부 목적"
-                    value={form.purpose}
-                    onChange={(value) => update('purpose', value)}
-                  />
-                </DocumentCell>
-              </tr>
-              <tr>
-                <DocumentLabel>기부 조건</DocumentLabel>
-                <DocumentCell colSpan={3}>
+                <DocumentLabel
+                  required={form.donationDesignation === 'designated'}
+                >
+                  기부 조건
+                </DocumentLabel>
+                <DocumentCell
+                  activeField={guidedField}
+                  colSpan={3}
+                  fieldKeys={['donationCondition']}
+                >
                   <DocumentTextarea
                     ariaLabel="기부 조건"
                     value={form.donationCondition}
@@ -394,7 +463,16 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
               </tr>
               <tr>
                 <DocumentLabel required>납부 방법</DocumentLabel>
-                <DocumentCell colSpan={3}>
+                <DocumentCell
+                  activeField={guidedField}
+                  colSpan={3}
+                  fieldKeys={[
+                    'paymentSchedule',
+                    'paymentScheduleOther',
+                    'paymentMethod',
+                    'paymentMethodOther',
+                  ]}
+                >
                   <div className="grid gap-1">
                     <div className="flex flex-wrap gap-x-4 gap-y-1">
                       {[
@@ -522,7 +600,9 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
           </h3>
           <div className="mt-5 grid gap-5">
             <ConsentBlock
+              activeField={guidedField}
               checked={form.personalInfoConsent === true}
+              fieldKey="personalInfoConsent"
               onChange={(value) => update('personalInfoConsent', value)}
               title="개인정보 수집·이용 동의"
             >
@@ -530,7 +610,9 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
               수집·이용하며 관계 법령에 따른 기간 동안 보관합니다.
             </ConsentBlock>
             <ConsentBlock
+              activeField={guidedField}
               checked={form.thirdPartyInfoConsent === true}
+              fieldKey="thirdPartyInfoConsent"
               onChange={(value) => update('thirdPartyInfoConsent', value)}
               title="개인정보 제3자 제공 동의"
             >
@@ -539,7 +621,9 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
               이에 동의합니다.
             </ConsentBlock>
             <ConsentBlock
+              activeField={guidedField}
               checked={form.identityInfoConsent === true}
+              fieldKey="identityInfoConsent"
               onChange={(value) => update('identityInfoConsent', value)}
               title="고유식별정보 처리 안내"
             >
@@ -606,6 +690,157 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
   );
 }
 
+type ReviewFieldKey =
+  | 'donorName'
+  | 'address'
+  | 'identityNumber'
+  | 'contact'
+  | 'donationKind'
+  | 'donationKindOther'
+  | 'amount'
+  | 'pledgeDate'
+  | 'donationDesignation'
+  | 'donationCondition'
+  | 'paymentSchedule'
+  | 'paymentScheduleOther'
+  | 'paymentMethod'
+  | 'paymentMethodOther'
+  | 'personalInfoConsent'
+  | 'thirdPartyInfoConsent'
+  | 'identityInfoConsent';
+
+export type ReviewFormValues = {
+  [Key in ReviewFieldKey]: string | boolean | null;
+};
+
+const REVIEW_FIELD_ORDER: ReviewFieldKey[] = [
+  'donorName',
+  'address',
+  'identityNumber',
+  'contact',
+  'donationKind',
+  'donationKindOther',
+  'amount',
+  'pledgeDate',
+  'donationDesignation',
+  'donationCondition',
+  'paymentSchedule',
+  'paymentScheduleOther',
+  'paymentMethod',
+  'paymentMethodOther',
+  'personalInfoConsent',
+  'thirdPartyInfoConsent',
+  'identityInfoConsent',
+];
+
+const REVIEW_FIELD_META: Record<
+  ReviewFieldKey,
+  { label: string; help: string }
+> = {
+  donorName: {
+    label: '기부자명',
+    help: '약정서에 표시할 기부자명을 입력해 주세요.',
+  },
+  address: { label: '주소', help: '기부자의 주소를 입력해 주세요.' },
+  identityNumber: {
+    label: '주민등록번호',
+    help: '기부금 증빙에 필요한 주민등록번호를 입력해 주세요.',
+  },
+  contact: {
+    label: '연락처',
+    help: '010-0000-0000 형식의 연락처를 입력해 주세요.',
+  },
+  donationKind: {
+    label: '기부 종류',
+    help: '현금 또는 기타 기부 종류를 선택해 주세요.',
+  },
+  donationKindOther: {
+    label: '기타 기부 종류',
+    help: '기타 기부 종류를 구체적으로 입력해 주세요.',
+  },
+  amount: { label: '기부 금액', help: '기부 금액을 확인해 주세요.' },
+  pledgeDate: { label: '약정일', help: '기부 약정일을 선택해 주세요.' },
+  donationDesignation: {
+    label: '기부 유형',
+    help: '지정 기부 또는 비지정 기부를 선택해 주세요.',
+  },
+  donationCondition: {
+    label: '기부 조건',
+    help: '지정 기부금을 사용할 활동이나 조건을 입력해 주세요.',
+  },
+  paymentSchedule: {
+    label: '납부 시점',
+    help: '일시 납부 또는 기타 납부 일정을 선택해 주세요.',
+  },
+  paymentScheduleOther: {
+    label: '기타 납부 일정',
+    help: '분할 납부 주기와 일정을 입력해 주세요.',
+  },
+  paymentMethod: {
+    label: '납부 수단',
+    help: '온라인 납부, 직접 전달 또는 기타 수단을 선택해 주세요.',
+  },
+  paymentMethodOther: {
+    label: '기타 납부 수단',
+    help: '이용할 납부 수단을 구체적으로 입력해 주세요.',
+  },
+  personalInfoConsent: {
+    label: '개인정보 수집·이용 동의',
+    help: '개인정보 수집·이용 내용을 확인하고 동의해 주세요.',
+  },
+  thirdPartyInfoConsent: {
+    label: '개인정보 제3자 제공 동의',
+    help: '개인정보 제3자 제공 내용을 확인하고 동의해 주세요.',
+  },
+  identityInfoConsent: {
+    label: '고유식별정보 처리 확인',
+    help: '고유식별정보 처리 내용을 확인하고 동의해 주세요.',
+  },
+};
+
+export function getMissingReviewFields(
+  form: ReviewFormValues,
+  pledge: EditablePledge,
+) {
+  const missing = new Set<ReviewFieldKey>();
+  if (!String(form.donorName).trim()) missing.add('donorName');
+  if (!String(form.address).trim()) missing.add('address');
+  if (
+    !pledge.donor_identity_number_last4 &&
+    !isValidIdentityNumberInput(String(form.identityNumber))
+  )
+    missing.add('identityNumber');
+  if (!isValidMobilePhoneInput(String(form.contact))) missing.add('contact');
+  if (!form.donationKind) missing.add('donationKind');
+  if (form.donationKind === 'other' && !String(form.donationKindOther).trim())
+    missing.add('donationKindOther');
+  if (!Number.isFinite(Number(form.amount)) || Number(form.amount) <= 0)
+    missing.add('amount');
+  if (!String(form.pledgeDate).trim()) missing.add('pledgeDate');
+  if (!form.donationDesignation) missing.add('donationDesignation');
+  if (
+    form.donationDesignation === 'designated' &&
+    !String(form.donationCondition).trim()
+  )
+    missing.add('donationCondition');
+  if (!form.paymentSchedule) missing.add('paymentSchedule');
+  if (
+    form.paymentSchedule === 'other' &&
+    !String(form.paymentScheduleOther).trim()
+  )
+    missing.add('paymentScheduleOther');
+  if (!form.paymentMethod) missing.add('paymentMethod');
+  if (form.paymentMethod === 'other' && !String(form.paymentMethodOther).trim())
+    missing.add('paymentMethodOther');
+  if (form.personalInfoConsent !== true) missing.add('personalInfoConsent');
+  if (form.thirdPartyInfoConsent !== true) missing.add('thirdPartyInfoConsent');
+  if (form.identityInfoConsent !== true) missing.add('identityInfoConsent');
+  return REVIEW_FIELD_ORDER.filter((key) => missing.has(key)).map((key) => ({
+    key,
+    ...REVIEW_FIELD_META[key],
+  }));
+}
+
 function getPledgeSaveErrorMessage(code?: string) {
   switch (code) {
     case 'identity_number_collection_disabled':
@@ -656,15 +891,33 @@ function DocumentLabel({
 }
 
 function DocumentCell({
+  activeField,
   children,
   colSpan,
+  fieldKeys = [],
 }: {
+  activeField?: ReviewFieldKey | null;
   children: ReactNode;
   colSpan?: number;
+  fieldKeys?: ReviewFieldKey[];
 }) {
+  const active = Boolean(activeField && fieldKeys.includes(activeField));
   return (
-    <td className="border border-copy px-1.5 py-1" colSpan={colSpan}>
+    <td
+      aria-current={active ? 'step' : undefined}
+      className={cn(
+        'border border-copy px-1.5 py-1 transition-colors',
+        active && 'relative z-10 bg-accent-soft ring-2 ring-inset ring-accent',
+      )}
+      colSpan={colSpan}
+      data-review-field={fieldKeys.join(' ') || undefined}
+    >
       {children}
+      {activeField && active ? (
+        <p className="mt-1 text-[10px] font-bold leading-4 text-accent-strong">
+          현재 작성할 항목 · {REVIEW_FIELD_META[activeField].label}
+        </p>
+      ) : null}
     </td>
   );
 }
@@ -716,18 +969,30 @@ function DocumentTextarea({
 }
 
 function ConsentBlock({
+  activeField,
   checked,
   children,
+  fieldKey,
   onChange,
   title,
 }: {
+  activeField: ReviewFieldKey | null;
   checked: boolean;
   children: ReactNode;
+  fieldKey: ReviewFieldKey;
   onChange: (value: boolean) => void;
   title: string;
 }) {
+  const active = activeField === fieldKey;
   return (
-    <section>
+    <section
+      aria-current={active ? 'step' : undefined}
+      className={cn(
+        'p-3 transition-colors',
+        active && 'bg-accent-soft ring-2 ring-accent',
+      )}
+      data-review-field={fieldKey}
+    >
       <h4 className="font-bold">■ {title}</h4>
       <p className="mt-2 border border-copy p-3 text-copy-secondary">
         {children}
@@ -754,6 +1019,11 @@ function ConsentBlock({
           동의하지 않음
         </label>
       </div>
+      {active ? (
+        <p className="mt-2 text-[10px] font-bold text-accent-strong">
+          현재 작성할 항목 · {REVIEW_FIELD_META[fieldKey].label}
+        </p>
+      ) : null}
     </section>
   );
 }

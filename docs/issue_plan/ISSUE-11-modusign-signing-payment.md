@@ -738,3 +738,68 @@ src/components/donations/
 
 - 외부 서비스의 요청 ID, Function Logs, DB 스냅샷은 이 저장소에 기록하지 않았다.
 - 따라서 이후 장애 재현이나 배포 회귀 검증이 필요하면 동일한 수동 시나리오를 다시 실행해야 한다.
+
+### 2026-08-02 최신 `main` rebase 후 PR 전 최종 검증
+
+#### 검증 판정
+
+- 최종 판정: **PASS**
+- `origin/main` 위로 원자 커밋을 rebase한 뒤 충돌 결과와 전체 변경 범위를 다시 검증했다.
+- 사용자가 확인한 외부 Supabase RLS·양측 모두싸인 서명·Vercel Webhook 결과와 최신 로컬 자동 검증을 함께 근거로 한다.
+
+#### 완료 조건 추적
+
+| 완료 조건                     | 구현·검증 증거                                                       | 결과 |
+| ----------------------------- | -------------------------------------------------------------------- | ---- |
+| 약정 작성·미리보기            | 저장형 약정 Route, ID 기반 review 화면, 입력 검증 테스트             | PASS |
+| 템플릿 기반 서명 요청         | 모두싸인 client·request builder·signature-request Route 테스트       | PASS |
+| 기부자 → 기부처 순차 서명     | 상태 매퍼·snapshot sync·iframe 링크 Route 테스트 및 사용자 외부 검증 | PASS |
+| 서명 상태 저장·최종 계약 완료 | Webhook `after()` 후속 경로·sync·snapshot 테스트 및 사용자 외부 검증 | PASS |
+| 기부처 서명 대기 관리         | DB 기반 목록·상세 화면, membership 검사, rebase 후 row 식별자 보완   | PASS |
+| 서명 완료 후 결제 접근        | `signed` 서버 검사, 동적 결제 화면·결과 Route 테스트                 | PASS |
+| 결제 상태 저장과 중복 방지    | `demo_payments` 스키마·Route·idempotency 테스트                      | PASS |
+| Auth·RLS·비밀정보 보호        | RLS·서버 전용 변수·암호화·오류 축소 테스트 및 사용자 외부 검증       | PASS |
+| 전체 사용자 흐름              | 사용자 외부 시나리오 검증과 production build                         | PASS |
+
+#### 소프트웨어 품질 검증
+
+- 집중 테스트: 10개 파일·35개 테스트 PASS.
+- 저장소 품질 게이트: `npm run check` PASS(format, lint, typecheck, Vitest 55개 파일·207개 테스트, Next.js production build).
+- `git diff --check`와 충돌 마커 탐색 PASS.
+- 실제 비밀값 노출은 발견되지 않았다. 검색된 비밀값 문자열은 테스트 fixture뿐이다.
+- Upstage 키가 없을 때 건너뛰는 live OCR 평가는 최신 `main`의 조건부 외부 평가이며 Issue #11의 변경 범위와 무관하다.
+
+#### AI 정확성 및 안전성 검증
+
+- 외부 AI 모델 호출·프롬프트·모델 출력 처리 변경은 없다.
+- 약정 상담 응답은 `createMockAssistantReply`의 결정적 규칙이며 Upstage API를 호출하지 않는다.
+- 서버 인증, Webhook 검증, 주민등록번호 암호화와 민감정보 축소 응답 테스트를 확인했다.
+
+#### AI가 발견하거나 예방한 품질 문제
+
+- rebase 후 `ManagementList` row의 필수 `id` 누락을 타입 검사로 발견해 보완했다.
+- `.env.example`의 모두싸인·데모·RLS 변수와 최신 `main`의 canonical 변수 테스트 불일치를 회귀 테스트에 반영했다.
+- 알 수 없는 상태가 정상 진행으로 표시되지 않도록 한국어 fallback `상태 확인 필요`를 유지했다.
+
+#### 차단 항목과 미검증 범위
+
+- 차단 항목 없음.
+- 외부 검증의 요청 ID, Vercel Function Logs, DB 스냅샷은 저장소에 첨부하지 않았으며 사용자 수동 검증 보고를 근거로 한다.
+- 실제 PG 결제는 Issue 제외 범위이며 구현하지 않았다.
+- 데모 영수증 API는 실제 세무 효력이 없는 부가 기능이며 실제 기부금 영수증·정산은 구현하지 않았다.
+
+#### 실행한 명령과 결과
+
+```text
+명령: git rebase origin/main
+결과: PASS, .env.example·partner pledges 목록·README 충돌을 사용자 확인 후 양쪽 기능을 보존해 해결
+
+명령: npx vitest run <Issue #11 집중 테스트 10개 파일>
+결과: PASS, 10개 파일·35개 테스트
+
+명령: npm run check
+결과: PASS, format:check·lint·typecheck·Vitest 55개 파일 207개 테스트·Next.js production build
+
+명령: git diff --check origin/main...HEAD 및 충돌 마커·skip/todo·비밀값 패턴 탐색
+결과: PASS, 변경 오류·충돌 마커·실제 비밀값 없음. Issue와 무관한 live OCR 평가 1건만 환경 변수 부재 시 조건부 skip
+```

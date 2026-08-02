@@ -14,6 +14,7 @@ export function PledgeChatPanel({
   pledgeId,
   onEnsurePledge,
   onMessagesChange,
+  onAppliedPatch,
   onCollapse,
   renderContextualHelp,
 }: {
@@ -21,6 +22,10 @@ export function PledgeChatPanel({
   pledgeId?: string;
   onEnsurePledge?: () => Promise<string | null>;
   onMessagesChange?: (messages: PledgeChatMessage[]) => void;
+  onAppliedPatch?: (
+    patch: PledgeChatPatch,
+    pledgeVersion: number | null,
+  ) => void;
   onCollapse?: () => void;
   renderContextualHelp?: (select: (value: string) => void) => ReactNode;
 }) {
@@ -89,6 +94,7 @@ export function PledgeChatPanel({
           appliedPatch?: Record<string, unknown>;
           missingFields?: string[];
           nextQuestionField?: string | null;
+          pledgeVersion?: number | null;
         };
         const assistant = result.assistantMessage
           ? {
@@ -104,6 +110,11 @@ export function PledgeChatPanel({
           result.userMessage,
           ...(assistant ? [assistant] : []),
         ]);
+        if (assistant?.proposedPatch)
+          onAppliedPatch?.(
+            assistant.proposedPatch,
+            result.pledgeVersion ?? null,
+          );
         setRetry(null);
       } else {
         throw new Error('pledge_create_failed');

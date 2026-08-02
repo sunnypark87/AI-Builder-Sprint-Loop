@@ -72,6 +72,7 @@ describe('POST /api/pledges/[pledgeId]/chat', () => {
           conflict_fields: [],
           missing_fields: ['paymentMethod'],
           next_question_field: 'paymentMethod',
+          pledge_version: 4,
         },
       },
     });
@@ -89,6 +90,7 @@ describe('POST /api/pledges/[pledgeId]/chat', () => {
       assistantMessage: { content: '납부 수단을 알려주세요.' },
       appliedPatch: { donationDesignation: 'designated' },
       nextQuestionField: 'paymentMethod',
+      pledgeVersion: 4,
     });
     expect(runStoredPledgeConsultation).toHaveBeenCalledWith(
       expect.objectContaining({

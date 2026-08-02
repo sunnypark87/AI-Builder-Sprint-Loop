@@ -122,6 +122,10 @@ function toTurn(turn: {
       typeof turn.proposal?.next_question_field === 'string'
         ? turn.proposal.next_question_field
         : null,
+    pledgeVersion:
+      typeof turn.proposal?.pledge_version === 'number'
+        ? turn.proposal.pledge_version
+        : null,
   };
 }
 

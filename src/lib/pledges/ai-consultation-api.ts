@@ -22,6 +22,7 @@ export type ConsultationTurnResponse = {
   appliedPatch: Record<string, unknown>;
   missingFields: string[];
   nextQuestionField: string | null;
+  pledgeVersion: number | null;
 };
 
 export type ConsultationHistoryResponse = {

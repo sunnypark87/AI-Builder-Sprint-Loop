@@ -273,7 +273,7 @@ export async function getConsultationTurn(
   const { data: proposal, error: proposalError } = await supabase
     .from('pledge_ai_proposals')
     .select(
-      'id, proposed_patch, status, confirmation_fields, conflict_fields, missing_fields, next_question_field',
+      'id, proposed_patch, status, confirmation_fields, conflict_fields, missing_fields, next_question_field, pledge_version',
     )
     .eq('assistant_message_id', assistant.id)
     .maybeSingle();

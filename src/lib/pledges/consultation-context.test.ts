@@ -24,6 +24,28 @@ describe('AI context allowlists', () => {
     ).toEqual({ organizationId: 'org-1' });
   });
 
+  it('normalizes stored database pledge columns before building context', () => {
+    expect(
+      toPledgeAiContext({
+        amount: 250000,
+        donation_designation: 'designated',
+        donation_condition: '아동 교육 지원',
+        payment_schedule: 'other',
+        payment_schedule_other: '매월',
+        payment_method: 'online',
+        payment_method_other: '계좌이체',
+      }),
+    ).toEqual({
+      amount: 250000,
+      donationDesignation: 'designated',
+      donationCondition: '아동 교육 지원',
+      paymentSchedule: 'other',
+      paymentScheduleOther: '매월',
+      paymentMethod: 'online',
+      paymentMethodOther: '계좌이체',
+    });
+  });
+
   it('normalizes only public organization fields', () => {
     expect(
       toOrganizationAiContext({

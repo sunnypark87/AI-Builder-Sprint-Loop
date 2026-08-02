@@ -16,21 +16,29 @@ export function toPledgeAiContext(
 ): PledgeAiContext {
   const context: PledgeAiContext = {};
   const organizationId = input.organizationId ?? input.organization_id;
+  const amount = input.amount;
+  const donationDesignation =
+    input.donationDesignation ?? input.donation_designation;
+  const donationCondition = input.donationCondition ?? input.donation_condition;
+  const paymentSchedule = input.paymentSchedule ?? input.payment_schedule;
+  const paymentScheduleOther =
+    input.paymentScheduleOther ?? input.payment_schedule_other;
+  const paymentMethod = input.paymentMethod ?? input.payment_method;
+  const paymentMethodOther =
+    input.paymentMethodOther ?? input.payment_method_other;
   if (typeof organizationId === 'string')
     context.organizationId = organizationId;
-  if (typeof input.amount === 'number') context.amount = input.amount;
-  if (isDesignation(input.donationDesignation))
-    context.donationDesignation = input.donationDesignation;
-  if (typeof input.donationCondition === 'string')
-    context.donationCondition = input.donationCondition;
-  if (isSchedule(input.paymentSchedule))
-    context.paymentSchedule = input.paymentSchedule;
-  if (typeof input.paymentScheduleOther === 'string')
-    context.paymentScheduleOther = input.paymentScheduleOther;
-  if (isMethod(input.paymentMethod))
-    context.paymentMethod = input.paymentMethod;
-  if (typeof input.paymentMethodOther === 'string')
-    context.paymentMethodOther = input.paymentMethodOther;
+  if (typeof amount === 'number') context.amount = amount;
+  if (isDesignation(donationDesignation))
+    context.donationDesignation = donationDesignation;
+  if (typeof donationCondition === 'string')
+    context.donationCondition = donationCondition;
+  if (isSchedule(paymentSchedule)) context.paymentSchedule = paymentSchedule;
+  if (typeof paymentScheduleOther === 'string')
+    context.paymentScheduleOther = paymentScheduleOther;
+  if (isMethod(paymentMethod)) context.paymentMethod = paymentMethod;
+  if (typeof paymentMethodOther === 'string')
+    context.paymentMethodOther = paymentMethodOther;
   return context;
 }
 

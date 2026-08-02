@@ -283,6 +283,7 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 - 동시 동일 멱등 키 분석 요청은 고유 제약 오류 대신 승자 집행을 다시 읽도록 원자화했고, 목록의 계획 항목 조회 오류를 정상 누락으로 숨기지 않도록 보강했다. OCR 평가는 값·라벨·날짜 표기·품목·배치가 서로 다른 비식별 영수증 8건으로 다양화했다.
 - 집행 목록 조회 실패를 빈 목록과 구분해 오류 안내를 표시하고, 검토자가 OCR 품목을 추가·삭제할 수 있게 하되 서버가 원본 품목의 OCR 근거를 복원하고 수동 품목에는 OCR 근거를 부여하지 않도록 보강했다.
 - 수동 품목 교체 후에도 서버에 저장된 페이지 단위 저신뢰도 경고를 재검증에 포함하고, 신규 등록 화면의 선택지 조회 실패를 정상적인 빈 선택지와 구분해 오류 안내를 표시하도록 보강했다.
+- PDF OCR이 계획명·기간·예산 항목·총액의 줄바꿈을 한 줄로 합쳐 반환해도 구조 라벨과 기간 종료일을 경계로 논리 행을 복원해 각 필드를 분리하도록 기존 계획 OCR 파서를 보강했다.
 - 선행 계획 도메인이 공유 조직 테이블을 먼저 생성한 경우에도 서명·결제 마이그레이션이 누락 열과 역할 제약을 안전하게 보강하도록 빈 DB 적용 호환성을 추가했다.
 - 단위·Route·컴포넌트·pgTAP·Playwright 회귀 및 로컬 Supabase 통합 테스트와 8건 실 OCR 평가 스크립트를 추가했다.
 
@@ -297,6 +298,7 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 | 수정값 서버 재검증·확정값 저장     | `[executionId]/route.ts`, 등록 RPC                   | 검토 폼 테스트, pgTAP, 집행 E2E                                         | PASS                |
 | 목록 오류·품목 구조 검토           | 집행 목록, 공통 목록 UI, 검토 UI·스키마              | 목록·검토 폼·스키마 컴포넌트/단위 테스트                                | PASS                |
 | OCR 경고 보존·등록 선택지 오류     | 등록 PATCH, 신규 등록 화면                           | Route 저신뢰도·신규 등록 페이지 오류 회귀 테스트                        | PASS                |
+| 기존 계획 OCR 한 줄 병합 복구      | `parse-ocr-plan.ts`                                  | 사용자 제공 계획 문자열 파서 회귀 테스트                                | PASS                |
 | 검토 중 계획 예산 항목 재선택      | 검토 UI, `[executionId]/route.ts`, 등록 RPC          | 컴포넌트·Route 테스트, pgTAP 재연결 검증, 집행 E2E                      | PASS                |
 | 등록 시 기부 상태·동시 제출 재검증 | 등록 RPC, `[executionId]/route.ts`                   | Route 409 테스트, pgTAP 환불·멱등·충돌 검증                             | PASS                |
 | 환불 후 등록 증빙 감사 접근        | `execution-repository.ts`, 읽기 전용 검토 화면       | 집행 E2E 환불 후 원본·검토 화면 접근                                    | PASS                |
@@ -305,7 +307,7 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 | 중복·동시 요청의 이중 집행 방지    | 고유 제약, 생성·등록 RPC                             | 동일 멱등 키 병렬 생성·동시 2건 등록 E2E                                | PASS                |
 | 조직 격리와 5분 서명 URL           | 테이블/Storage RLS, `getReview`                      | pgTAP 조직 A/B 행·객체 조회, 정적 정책 테스트                           | PASS                |
 | Upstage 오류의 안전한 실패·재시도  | 공통 OCR 어댑터, 집행 서비스·재시도 API              | 기존 OCR 429·5xx·타임아웃·비정상 응답 테스트, 집행 서비스/API 테스트    | PASS                |
-| 외부 호출 모킹 자동화·RLS 통합     | 테스트 구성 전체                                     | Vitest 291건, pgTAP 85건, 기본 E2E 33건, 집행 E2E 1건                   | PASS                |
+| 외부 호출 모킹 자동화·RLS 통합     | 테스트 구성 전체                                     | Vitest 292건, pgTAP 85건, 기본 E2E 33건, 집행 E2E 1건                   | PASS                |
 | 대표 영수증 OCR 정확도             | 실 Upstage 8건 평가 스크립트                         | `receipt-ocr-accuracy.evaluation.spec.ts`                               | PASS — 30/32, 93.8% |
 | 저장소 품질 게이트                 | 전체 변경                                            | `npm run check`                                                         | PASS                |
 | `verify-change` 차단 항목 없음     | 본 추적표와 실제 명령                                | 아래 결과                                                               | PASS                |
@@ -314,7 +316,10 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 
 ```text
 명령: npm run check
-결과: PASS — format, lint, typecheck, Vitest 73 files/291 tests, Next.js production build
+결과: PASS — format, lint, typecheck, Vitest 73 files/292 tests, Next.js production build
+
+명령: npm test -- --run src/lib/plans/parse-ocr-plan.test.ts src/lib/plans/plan-schema.test.ts
+결과: PASS — 2 files, 10 tests (PDF OCR 한 줄 병합 시 계획명·기간·품목·총액 분리 포함)
 
 명령: npm test -- --run src/app/api/partner/executions/[executionId]/route.test.ts src/app/partner/executions/new/page.test.tsx
 결과: PASS — 2 files, 9 tests (수동 품목 교체 후 페이지 저신뢰도 경고 유지, 선택지 조회 오류·정상 빈 결과 구분 포함)
@@ -353,6 +358,7 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 - 이번 후속 리뷰에서는 동일 멱등 키의 동시 생성 경쟁이 409로 끝나는 문제와 계획 항목 조회 오류 은폐를 발견해 승자 행 재사용과 오류 전파를 추가했다. 또한 동일 내용의 CSS 변형 8건이 대표 정확도를 과장하던 평가 결함을 발견해 서로 다른 8개 샘플 및 샘플별 기대값으로 교체했다.
 - 최종 리뷰에서는 집행 목록 조회 실패가 빈 상태로 오인되는 문제와 OCR 품목 행을 수정만 할 수 있는 제약을 확인해, 명시적 오류 상태와 품목 추가·삭제를 제공하고 서버 소유 OCR 근거는 계속 불변으로 유지했다.
 - 후속 리뷰에서는 수동 품목으로 전부 교체하면 페이지 단위 저신뢰도 경고가 사라지는 안전 우회와 신규 등록 선택지 조회 실패가 빈 상태로 은폐되는 문제를 확인해, 저장된 페이지 경고 승계와 명시적 로드 오류 상태로 보완했다.
+- 실제 PDF 확인에서 OCR이 줄바꿈을 제거하면 계획명이 이후 전체 문자열을 흡수하는 정확성 문제를 발견해, 구조 라벨 분리와 두 번째 기간 날짜 이후 품목 분리를 결정적 후처리로 추가했다.
 - 최종 판정: PASS — 모든 완료 조건과 필수 정확성·안전성·저장소 검증이 통과했고 차단 항목이 없다.
 
 ### 차단 항목과 미검증 범위

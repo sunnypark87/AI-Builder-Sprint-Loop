@@ -53,6 +53,44 @@ describe('parseOcrPlan', () => {
     });
   });
 
+  it('restores fields when PDF OCR joins the plan into one line', () => {
+    const result = parseOcrPlan({
+      ...validOcr,
+      pages: [
+        {
+          page: 1,
+          confidence: 0.98,
+          text: [
+            '계획명: 8월 급식 계획',
+            '집행 기간: 2026-08-01 ~ 2026-08-31',
+            '식재료 | 급식 재료 구입 200,000원',
+            '총 계획 예산: 200,000원',
+          ].join(' '),
+        },
+      ],
+    });
+
+    expect(result.draft).toEqual({
+      title: '8월 급식 계획',
+      periodStart: '2026-08-01',
+      periodEnd: '2026-08-31',
+      totalAmount: 200_000,
+      items: [
+        {
+          id: 'ocr-item-4',
+          name: '식재료',
+          description: '급식 재료 구입',
+          amount: 200_000,
+          confidence: 0.98,
+          sourceText: '식재료 | 급식 재료 구입 200,000원',
+          sourceName: '식재료',
+          sourceAmount: 200_000,
+        },
+      ],
+    });
+    expect(result.issues).toEqual([]);
+  });
+
   it('does not invent missing values and reports review issues', () => {
     const result = parseOcrPlan({
       ...validOcr,

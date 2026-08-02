@@ -121,3 +121,60 @@ describe('promoteSource', () => {
     expect(remove).toHaveBeenCalledWith([pending]);
   });
 });
+
+describe('createManualPlan', () => {
+  it('uses the atomic manual registration RPC with the authenticated actor', async () => {
+    const single = vi.fn().mockResolvedValue({
+      data: {
+        plan_id: '44444444-4444-4444-8444-444444444444',
+        created: true,
+      },
+      error: null,
+    });
+    const rpc = vi.fn().mockReturnValue({ single });
+    const readClient = {} as SupabaseClient;
+    const mutationClient = { rpc } as unknown as SupabaseClient;
+    const repository = createPlanRepository(readClient, {
+      actorUserId: '11111111-1111-4111-8111-111111111111',
+      client: mutationClient,
+    });
+    const draft = {
+      title: '8월 급식 계획',
+      periodStart: '2026-08-01',
+      periodEnd: '2026-08-31',
+      totalAmount: 200_000,
+      items: [
+        {
+          id: 'item-1',
+          name: '식재료',
+          description: '급식 재료 구입',
+          amount: 200_000,
+          confidence: null,
+          sourceText: '',
+          sourceName: '',
+          sourceAmount: null,
+        },
+      ],
+    };
+
+    await expect(
+      repository.createManualPlan({
+        organizationId: '22222222-2222-4222-8222-222222222222',
+        donationId: '33333333-3333-4333-8333-333333333333',
+        userId: '11111111-1111-4111-8111-111111111111',
+        idempotencyKey: 'manual-plan:55555555-5555-4555-8555-555555555555',
+        draft,
+      }),
+    ).resolves.toEqual({
+      id: '44444444-4444-4444-8444-444444444444',
+      created: true,
+    });
+    expect(rpc).toHaveBeenCalledWith('create_manual_expenditure_plan', {
+      p_actor_id: '11111111-1111-4111-8111-111111111111',
+      p_organization_id: '22222222-2222-4222-8222-222222222222',
+      p_donation_id: '33333333-3333-4333-8333-333333333333',
+      p_idempotency_key: 'manual-plan:55555555-5555-4555-8555-555555555555',
+      p_draft: draft,
+    });
+  });
+});

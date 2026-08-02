@@ -43,6 +43,7 @@ async function uploadPlan(
   page: import('@playwright/test').Page,
   imagePath: string,
 ) {
+  await page.getByRole('radio', { name: /파일로 자동 입력/ }).check();
   await page.selectOption('select[name="donationId"]', integrationIds.donation);
   await page.getByLabel(/집행 계획서/).setInputFiles(imagePath);
   await page.getByRole('button', { name: '계획서 분석' }).click();
@@ -98,6 +99,62 @@ test.describe.serial('local Supabase expenditure plan flow', () => {
     expect(itemsError).toBeNull();
     expect(items).toEqual([
       { name: '교재비', amount: 100_000, edited_by_reviewer: false },
+    ]);
+  });
+
+  test('registers a manually entered plan without a source document', async ({
+    page,
+  }) => {
+    await login(page);
+    await page
+      .getByLabel('대상 기부 내역')
+      .selectOption(integrationIds.donation);
+    await page
+      .getByRole('textbox', { name: '계획명', exact: true })
+      .fill('8월 급식 계획');
+    await page.getByLabel('집행 시작일').fill('2026-08-01');
+    await page.getByLabel('집행 종료일').fill('2026-08-31');
+    await page
+      .getByRole('textbox', { name: '항목 1', exact: true })
+      .fill('식재료');
+    await page.getByLabel('설명').fill('급식 재료 구입');
+    await page.getByLabel('금액').fill('100000');
+    await page.getByLabel('총 계획 예산').fill('100000');
+    await page.getByRole('button', { name: '계획 등록' }).click();
+
+    await expect(page).toHaveURL('/partner/plans?status=registered');
+
+    const supabase = adminClient();
+    const { data: plan, error } = await supabase
+      .from('expenditure_plans')
+      .select(
+        'id,status,input_method,source_path,source_file_name,ocr_metadata',
+      )
+      .eq('organization_id', integrationIds.organization)
+      .eq('title', '8월 급식 계획')
+      .single();
+    expect(error).toBeNull();
+    expect(plan).toMatchObject({
+      status: 'registered',
+      input_method: 'manual',
+      source_path: null,
+      source_file_name: null,
+      ocr_metadata: null,
+    });
+
+    const { data: items, error: itemsError } = await supabase
+      .from('expenditure_plan_items')
+      .select('name,description,amount,source_confidence,source_text')
+      .eq('plan_id', plan!.id);
+    expect(itemsError).toBeNull();
+    expect(items).toEqual([
+      {
+        name: '식재료',
+        description: '급식 재료 구입',
+        amount: 100_000,
+        source_confidence: null,
+        source_text: '',
+      },
     ]);
   });
 

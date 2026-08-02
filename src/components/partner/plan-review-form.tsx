@@ -7,8 +7,9 @@ import {
   Trash2Icon,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
+import type { EligibleDonation } from '@/components/partner/plan-upload-form';
 import { buttonClassName } from '@/components/ui/button';
 import { InlineNotice } from '@/components/ui/inline-notice';
 import { Input } from '@/components/ui/input';
@@ -32,13 +33,20 @@ export function PlanReviewForm({
   initialDraft,
   initialIssues,
   readOnly = false,
+  donations = [],
 }: {
-  planId: string;
+  planId?: string;
   initialDraft: PlanDraft;
   initialIssues: PlanValidationIssue[];
   readOnly?: boolean;
+  donations?: EligibleDonation[];
 }) {
   const router = useRouter();
+  const manualCreation = !planId;
+  const manualSubmission = useRef<{ key: string; payload: string } | null>(
+    null,
+  );
+  const [donationId, setDonationId] = useState('');
   const [draft, setDraft] = useState(initialDraft);
   const [issues, setIssues] = useState(initialIssues);
   const [pending, setPending] = useState(false);
@@ -60,13 +68,43 @@ export function PlanReviewForm({
           return;
         }
 
+        const donation = manualCreation
+          ? donations.find((candidate) => candidate.id === donationId)
+          : null;
+        if (manualCreation && !donation) {
+          setRequestError('대상 기부 내역을 선택해 주세요.');
+          return;
+        }
+
         setPending(true);
         try {
-          const response = await fetch(`/api/partner/plans/${planId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ draft }),
-          });
+          const payload = JSON.stringify(draft);
+          if (manualCreation && manualSubmission.current?.payload !== payload) {
+            manualSubmission.current = {
+              key: `manual-plan:${crypto.randomUUID()}`,
+              payload,
+            };
+          }
+          const response = await fetch(
+            manualCreation
+              ? '/api/partner/plans'
+              : `/api/partner/plans/${planId}`,
+            {
+              method: manualCreation ? 'POST' : 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(
+                manualCreation
+                  ? {
+                      mode: 'manual',
+                      organizationId: donation?.organizationId,
+                      donationId,
+                      idempotencyKey: manualSubmission.current?.key,
+                      draft,
+                    }
+                  : { draft },
+              ),
+            },
+          );
           const result = (await response.json()) as {
             error?: { message?: string };
             issues?: PlanValidationIssue[];
@@ -89,6 +127,35 @@ export function PlanReviewForm({
         }
       }}
     >
+      {manualCreation ? (
+        <label className="grid gap-1.5 text-sm font-medium">
+          대상 기부 내역
+          <select
+            className="h-10 w-full rounded-[var(--radius-sm)] border border-line bg-panel px-3 text-sm text-copy hover:border-copy-disabled"
+            disabled={pending || donations.length === 0}
+            onChange={(event) => {
+              setDonationId(event.target.value);
+              manualSubmission.current = null;
+            }}
+            required
+            value={donationId}
+          >
+            <option value="">기부 내역 선택</option>
+            {donations.map((donation) => (
+              <option key={donation.id} value={donation.id}>
+                {donation.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
+      {manualCreation && donations.length === 0 ? (
+        <InlineNotice title="등록 가능한 기부 내역이 없습니다.">
+          기부 약정과 결제가 완료된 내역을 먼저 확인해 주세요.
+        </InlineNotice>
+      ) : null}
+
       {readOnly ? (
         <InlineNotice title="내부 등록이 완료됐습니다.">
           등록된 값과 원본 계획서를 확인할 수 있습니다.
@@ -96,6 +163,10 @@ export function PlanReviewForm({
       ) : issues.length > 0 ? (
         <InlineNotice title="확인이 필요한 항목이 있습니다." tone="warning">
           원본과 비교해 표시된 값을 수정해 주세요.
+        </InlineNotice>
+      ) : manualCreation ? (
+        <InlineNotice title="계획 내용을 직접 입력해 주세요.">
+          계획서 파일 없이도 기간과 예산 항목을 입력해 등록할 수 있습니다.
         </InlineNotice>
       ) : (
         <InlineNotice title="OCR 추출이 완료됐습니다.">
@@ -319,7 +390,7 @@ export function PlanReviewForm({
         <div className="flex justify-end border-t border-line pt-5">
           <button
             className={buttonClassName({ size: 'large' })}
-            disabled={pending}
+            disabled={pending || (manualCreation && donations.length === 0)}
             type="submit"
           >
             {pending ? (
@@ -330,7 +401,11 @@ export function PlanReviewForm({
             ) : (
               <CheckIcon aria-hidden="true" className="size-4" />
             )}
-            {pending ? '등록 중' : '검토 완료·등록'}
+            {pending
+              ? '등록 중'
+              : manualCreation
+                ? '계획 등록'
+                : '검토 완료·등록'}
           </button>
         </div>
       ) : null}

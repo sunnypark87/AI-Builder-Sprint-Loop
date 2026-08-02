@@ -89,6 +89,51 @@ describe('PlanReviewForm', () => {
     expect(refresh).toHaveBeenCalledOnce();
   });
 
+  it('submits a manually entered plan to the creation API', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        Response.json({ status: 'registered' }, { status: 201 }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('crypto', {
+      randomUUID: () => '55555555-5555-4555-8555-555555555555',
+    });
+    const user = userEvent.setup();
+    render(
+      <PlanReviewForm
+        donations={[
+          {
+            id: '33333333-3333-4333-8333-333333333333',
+            organizationId: '22222222-2222-4222-8222-222222222222',
+            label: '기부 내역 33333333',
+          },
+        ]}
+        initialDraft={draft}
+        initialIssues={[]}
+      />,
+    );
+
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: '대상 기부 내역' }),
+      '33333333-3333-4333-8333-333333333333',
+    );
+    await user.click(screen.getByRole('button', { name: '계획 등록' }));
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/partner/plans');
+    expect(options.method).toBe('POST');
+    expect(JSON.parse(String(options.body))).toMatchObject({
+      mode: 'manual',
+      organizationId: '22222222-2222-4222-8222-222222222222',
+      donationId: '33333333-3333-4333-8333-333333333333',
+      idempotencyKey: 'manual-plan:55555555-5555-4555-8555-555555555555',
+      draft,
+    });
+    expect(push).toHaveBeenCalledWith('/partner/plans?status=registered');
+  });
+
   it('renders an already registered plan as read-only', () => {
     render(
       <PlanReviewForm

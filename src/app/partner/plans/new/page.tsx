@@ -1,8 +1,6 @@
 import { PageHeader } from '@/components/partner/page-header';
-import {
-  PlanUploadForm,
-  type EligibleDonation,
-} from '@/components/partner/plan-upload-form';
+import { PlanCreationForm } from '@/components/partner/plan-creation-form';
+import { type EligibleDonation } from '@/components/partner/plan-upload-form';
 import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -40,10 +38,10 @@ export default async function Page() {
     <div>
       <PageHeader
         context="집행 계획 등록"
-        description="기부 내역을 선택하고 기부처에서 작성한 집행 계획서를 등록합니다."
-        title="계획서를 업로드하세요"
+        description="계획 내용을 직접 작성하거나, 기존 계획서를 업로드해 자동 입력할 수 있습니다."
+        title="집행 계획을 등록하세요"
       />
-      <PlanUploadForm donations={donations} />
+      <PlanCreationForm donations={donations} />
     </div>
   );
 }

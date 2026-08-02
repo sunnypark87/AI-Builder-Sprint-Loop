@@ -5,6 +5,7 @@ export default defineConfig({
   testIgnore: [
     '**/*.evaluation.spec.ts',
     '**/expenditure-plan-integration.spec.ts',
+    '**/expenditure-execution-integration.spec.ts',
   ],
   fullyParallel: true,
   reporter: 'list',

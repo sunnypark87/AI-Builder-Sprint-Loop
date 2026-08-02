@@ -123,3 +123,45 @@ describe('createExecutionRepository getReview', () => {
     );
   });
 });
+
+describe('createExecutionRepository list', () => {
+  it('propagates plan-item lookup failures instead of returning a placeholder', async () => {
+    const executionId = '77777777-7777-4777-8777-777777777777';
+    const planItemId = '55555555-5555-4555-8555-555555555555';
+    const queries: Record<string, ReturnType<typeof query>[]> = {
+      expenditure_executions: [
+        query({
+          data: [
+            {
+              id: executionId,
+              merchant_name: '모두마트',
+              status: 'registered',
+              total_amount: 2000,
+              transaction_at: '2026-08-02T14:30:00',
+              plan_item_id: planItemId,
+              updated_at: '2026-08-02T15:00:00Z',
+              analysis_lease_expires_at: null,
+            },
+          ],
+          error: null,
+        }),
+      ],
+      expenditure_plan_items: [
+        query({
+          data: null,
+          error: { message: 'Plan item lookup unavailable' },
+        }),
+      ],
+    };
+    const supabase = {
+      from: vi.fn((table: string) => queries[table].shift()),
+    };
+    const repository = createExecutionRepository(
+      supabase as unknown as Parameters<typeof createExecutionRepository>[0],
+    );
+
+    await expect(repository.list()).rejects.toThrow(
+      '집행 내역 저장소 오류: Plan item lookup unavailable',
+    );
+  });
+});

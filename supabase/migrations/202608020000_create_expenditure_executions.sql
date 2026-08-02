@@ -280,21 +280,57 @@ begin
     raise exception 'Execution references are invalid';
   end if;
 
-  select * into existing_execution
-  from public.expenditure_executions execution
-  where execution.created_by = p_actor_id
-    and execution.idempotency_key = p_idempotency_key
-  for update;
+  insert into public.expenditure_executions (
+    organization_id,
+    donation_id,
+    plan_id,
+    plan_item_id,
+    created_by,
+    idempotency_key,
+    analysis_lease_expires_at,
+    analysis_lease_token
+  ) values (
+    p_organization_id,
+    p_donation_id,
+    p_plan_id,
+    p_plan_item_id,
+    p_actor_id,
+    p_idempotency_key,
+    now() + interval '2 minutes',
+    gen_random_uuid()
+  )
+  on conflict (created_by, idempotency_key) do nothing
+  returning id, analysis_lease_token
+    into new_execution_id, process_lease_token;
 
-  if found then
+  if new_execution_id is null then
+    select * into existing_execution
+    from public.expenditure_executions execution
+    where execution.created_by = p_actor_id
+      and execution.idempotency_key = p_idempotency_key
+    for update;
+
+    if not found then
+      raise exception 'Execution idempotency winner is unavailable';
+    end if;
+
     select * into existing_receipt
     from public.execution_receipts receipt
     where receipt.execution_id = existing_execution.id;
-    if existing_receipt.source_fingerprint <> p_source_fingerprint
-      or existing_execution.organization_id <> p_organization_id
-      or existing_execution.plan_item_id <> p_plan_item_id then
+
+    if not found
+      or existing_execution.organization_id is distinct from p_organization_id
+      or existing_execution.donation_id is distinct from p_donation_id
+      or existing_execution.plan_id is distinct from p_plan_id
+      or existing_execution.plan_item_id is distinct from p_plan_item_id
+      or existing_receipt.source_file_name is distinct from p_source_file_name
+      or existing_receipt.source_mime_type is distinct from p_source_mime_type
+      or existing_receipt.source_size_bytes is distinct from p_source_size_bytes
+      or existing_receipt.source_page_count is distinct from p_source_page_count
+      or existing_receipt.source_fingerprint is distinct from p_source_fingerprint then
       raise exception 'Execution idempotency key does not match';
     end if;
+
     if existing_execution.status = 'analyzing'
       and (
         existing_execution.analysis_lease_expires_at is null
@@ -319,27 +355,6 @@ begin
       process_lease_token is not null;
     return;
   end if;
-
-  insert into public.expenditure_executions (
-    organization_id,
-    donation_id,
-    plan_id,
-    plan_item_id,
-    created_by,
-    idempotency_key,
-    analysis_lease_expires_at,
-    analysis_lease_token
-  ) values (
-    p_organization_id,
-    p_donation_id,
-    p_plan_id,
-    p_plan_item_id,
-    p_actor_id,
-    p_idempotency_key,
-    now() + interval '2 minutes',
-    gen_random_uuid()
-  ) returning id, analysis_lease_token
-    into new_execution_id, process_lease_token;
 
   insert into public.execution_receipts (
     execution_id,

@@ -49,6 +49,16 @@ describe('execution migration security and atomicity', () => {
     expect(migration).toContain('claim_execution_analysis_retry');
   });
 
+  it('reads back the winner of a concurrent idempotent creation', () => {
+    expect(migration).toContain(
+      'on conflict (created_by, idempotency_key) do nothing',
+    );
+    expect(migration).toContain('if new_execution_id is null then');
+    expect(migration).toContain(
+      'existing_receipt.source_fingerprint is distinct from p_source_fingerprint',
+    );
+  });
+
   it('limits pending receipt documents to their uploader', () => {
     expect(migration).toContain("if path_segments[2] = 'pending' then");
     expect(migration).toContain('path_segments[3]::uuid = auth.uid()');

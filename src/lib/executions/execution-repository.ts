@@ -594,11 +594,12 @@ export function createExecutionRepository(
       const items: ExecutionListItem[] = [];
       const listedAt = Date.now();
       for (const execution of data ?? []) {
-        const { data: planItem } = await supabase
+        const { data: planItem, error: planItemError } = await supabase
           .from('expenditure_plan_items')
           .select('name')
           .eq('id', execution.plan_item_id)
           .maybeSingle();
+        if (planItemError) throw databaseError(planItemError.message);
         const leaseExpiresAt =
           (execution.analysis_lease_expires_at as string | null) ?? null;
         items.push({

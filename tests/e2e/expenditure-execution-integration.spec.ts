@@ -112,6 +112,48 @@ test('uploads, verifies and atomically registers one receipt', async ({
   );
   expect(actor).toBeTruthy();
 
+  const idempotentKey = 'execution-concurrent-idempotent';
+  const idempotentFingerprint = 'd'.repeat(64);
+  const idempotentCreations = await Promise.all(
+    Array.from({ length: 2 }, () =>
+      supabase
+        .rpc('create_expenditure_execution_analysis', {
+          p_actor_id: actor!.id,
+          p_organization_id: executionIntegrationIds.organization,
+          p_donation_id: executionIntegrationIds.donation,
+          p_plan_id: executionIntegrationIds.plan,
+          p_plan_item_id: executionIntegrationIds.planItem,
+          p_idempotency_key: idempotentKey,
+          p_source_file_name: 'idempotent.png',
+          p_source_mime_type: 'image/png',
+          p_source_size_bytes: 100,
+          p_source_page_count: 1,
+          p_source_fingerprint: idempotentFingerprint,
+        })
+        .single(),
+    ),
+  );
+  expect(idempotentCreations.every(({ error }) => error === null)).toBe(true);
+  expect(
+    new Set(
+      idempotentCreations.map(
+        ({ data }) => (data as { execution_id: string }).execution_id,
+      ),
+    ).size,
+  ).toBe(1);
+  expect(
+    idempotentCreations.map(
+      ({ data }) => (data as { should_process: boolean }).should_process,
+    ),
+  ).toEqual(expect.arrayContaining([true, false]));
+  const { count: idempotentCount, error: idempotentCountError } = await supabase
+    .from('expenditure_executions')
+    .select('*', { count: 'exact', head: true })
+    .eq('created_by', actor!.id)
+    .eq('idempotency_key', idempotentKey);
+  expect(idempotentCountError).toBeNull();
+  expect(idempotentCount).toBe(1);
+
   const concurrentDrafts = await Promise.all(
     [
       { suffix: '1', fingerprint: 'b'.repeat(64) },

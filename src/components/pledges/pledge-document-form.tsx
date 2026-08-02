@@ -138,7 +138,7 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
       ],
       [form.personalInfoConsent !== true, '개인정보 수집·이용 동의'],
       [form.thirdPartyInfoConsent !== true, '개인정보 제3자 제공 동의'],
-      [form.identityInfoConsent === null, '고유식별정보 처리 확인'],
+      [form.identityInfoConsent !== true, '고유식별정보 처리 확인'],
     ]
       .filter(([isMissing]) => isMissing)
       .map(([, label]) => label);

@@ -315,7 +315,7 @@ export async function analyzeExecution(
         creation.id,
         creation.leaseToken,
         code,
-        sourcePath,
+        sourcePath ?? input.sourcePath,
       );
     } catch {
       // Preserve the primary safe failure.

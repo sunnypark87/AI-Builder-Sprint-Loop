@@ -165,4 +165,30 @@ describe('analyzeExecution', () => {
     );
     expect(target.downloadPendingSource).not.toHaveBeenCalled();
   });
+
+  it('keeps the pending source reference when promotion fails before completion', async () => {
+    const target = repository({
+      promoteSource: vi
+        .fn()
+        .mockRejectedValue(new Error('storage move failed')),
+    });
+
+    await expect(
+      analyzeExecution(input, { repository: target }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<ExecutionServiceError>>({
+        code: 'persistence_failed',
+        retryable: true,
+        executionId: ids.executionId,
+      }),
+    );
+
+    expect(target.saveFailure).toHaveBeenCalledWith(
+      ids.executionId,
+      ids.uploadId,
+      'persistence_failed',
+      input.sourcePath,
+    );
+    expect(target.removeSource).not.toHaveBeenCalled();
+  });
 });

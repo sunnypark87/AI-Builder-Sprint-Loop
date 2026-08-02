@@ -122,10 +122,41 @@ describe('receipt schema', () => {
     });
   });
 
-  it('rejects a client-controlled OCR item identity change', () => {
+  it('allows reviewed item additions and removals without trusting new OCR provenance', () => {
     const edited = parseEditableReceiptDraft({
       ...validDraft,
-      items: [{ ...validDraft.items[0], id: 'fabricated-item' }],
+      items: [
+        {
+          ...validDraft.items[0],
+          id: 'manual-item',
+          name: '수동 추가 품목',
+          confidence: 1,
+          sourceText: 'fabricated',
+          sourceName: 'fabricated',
+          sourceAmount: 1,
+        },
+      ],
+    });
+
+    expect(edited).not.toBeNull();
+    expect(mergeReceiptOcrProvenance(edited!, validDraft)?.items).toEqual([
+      {
+        id: 'manual-item',
+        name: '수동 추가 품목',
+        quantity: 2,
+        amount: 2000,
+        confidence: null,
+        sourceText: '',
+        sourceName: '',
+        sourceAmount: null,
+      },
+    ]);
+  });
+
+  it('rejects duplicate reviewed item identities', () => {
+    const edited = parseEditableReceiptDraft({
+      ...validDraft,
+      items: [validDraft.items[0], validDraft.items[0]],
     });
 
     expect(edited).not.toBeNull();

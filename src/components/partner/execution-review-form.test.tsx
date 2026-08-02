@@ -142,6 +142,30 @@ describe('ExecutionReviewForm', () => {
     expect(screen.getByText('등록 차단')).toBeTruthy();
   });
 
+  it('allows the reviewer to add and remove item rows', async () => {
+    const user = userEvent.setup();
+    render(
+      <ExecutionReviewForm
+        executionId="77777777-7777-4777-8777-777777777777"
+        initialPlanItemId={planItemOptions[0].planItemId}
+        initialDraft={draft}
+        initialIssues={[]}
+        initialVerificationResults={[]}
+        initialWarningReason=""
+        planItemOptions={planItemOptions}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: '품목 추가' }));
+    expect(screen.getByLabelText('품목 2')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: '품목 1 삭제' }));
+    expect(screen.queryByDisplayValue('생수')).toBeNull();
+    expect((screen.getByLabelText('품목 1') as HTMLInputElement).value).toBe(
+      '',
+    );
+  });
+
   it('shows the saved warning acknowledgement in read-only evidence', () => {
     render(
       <ExecutionReviewForm

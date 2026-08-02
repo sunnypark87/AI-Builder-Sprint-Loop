@@ -1,6 +1,11 @@
 'use client';
 
-import { CheckIcon, LoaderCircleIcon } from 'lucide-react';
+import {
+  CheckIcon,
+  LoaderCircleIcon,
+  PlusIcon,
+  Trash2Icon,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
@@ -257,6 +262,38 @@ export function ExecutionReviewForm({
 
       <fieldset className="grid gap-4 border-t border-line pt-5">
         <legend className="text-base font-bold">품목</legend>
+        {!readOnly ? (
+          <div className="flex justify-end">
+            <button
+              className={buttonClassName({
+                variant: 'secondary',
+                size: 'small',
+              })}
+              onClick={() =>
+                setDraft((current) => ({
+                  ...current,
+                  items: [
+                    ...current.items,
+                    {
+                      id: `manual-${globalThis.crypto.randomUUID()}`,
+                      name: '',
+                      quantity: 1,
+                      amount: null,
+                      confidence: null,
+                      sourceText: '',
+                      sourceName: '',
+                      sourceAmount: null,
+                    },
+                  ],
+                }))
+              }
+              type="button"
+            >
+              <PlusIcon aria-hidden="true" className="size-4" />
+              품목 추가
+            </button>
+          </div>
+        ) : null}
         {draft.items.length === 0 ? (
           <p className="text-sm text-copy-muted">
             OCR에서 품목을 추출하지 못했습니다. 산술 검증 경고를 확인해 주세요.
@@ -265,7 +302,7 @@ export function ExecutionReviewForm({
         <div className="divide-y divide-line border-y border-line">
           {draft.items.map((item, index) => (
             <div
-              className="grid gap-4 py-4 sm:grid-cols-[1fr_100px_150px]"
+              className="grid gap-4 py-4 sm:grid-cols-[1fr_100px_150px_auto]"
               key={item.id}
             >
               <Input
@@ -328,8 +365,30 @@ export function ExecutionReviewForm({
                 type="number"
                 value={item.amount ?? ''}
               />
+              {!readOnly ? (
+                <button
+                  aria-label={`품목 ${index + 1} 삭제`}
+                  className={buttonClassName({
+                    variant: 'tertiary',
+                    size: 'small',
+                    className: 'self-end text-danger',
+                  })}
+                  onClick={() =>
+                    setDraft((current) => ({
+                      ...current,
+                      items: current.items.filter(
+                        (_, candidateIndex) => candidateIndex !== index,
+                      ),
+                    }))
+                  }
+                  type="button"
+                >
+                  <Trash2Icon aria-hidden="true" className="size-4" />
+                  삭제
+                </button>
+              ) : null}
               {item.sourceText ? (
-                <p className="text-xs text-copy-muted sm:col-span-3">
+                <p className="text-xs text-copy-muted sm:col-span-4">
                   원문: {item.sourceText}
                   {item.confidence !== null
                     ? ` · OCR 신뢰도 ${Math.round(item.confidence * 100)}%`

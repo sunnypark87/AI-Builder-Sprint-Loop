@@ -5,6 +5,7 @@ import {
   StatusIndicator,
   type StatusTone,
 } from '@/components/ui/status-indicator';
+import { InlineNotice } from '@/components/ui/inline-notice';
 import { cn } from '@/lib/cn';
 
 type Row = {
@@ -40,6 +41,7 @@ export function ManagementList({
   activeStatus = 'all',
   basePath,
   action,
+  error,
 }: {
   title: string;
   description: string;
@@ -49,11 +51,23 @@ export function ManagementList({
   activeStatus?: string;
   basePath: string;
   action?: React.ReactNode;
+  error?: { title: string; message: string };
 }) {
   const visibleRows =
     activeStatus === 'all'
       ? rows
       : rows.filter((row) => row.statusKey === activeStatus);
+
+  if (error) {
+    return (
+      <div>
+        <PageHeader title={title} description={description} action={action} />
+        <InlineNotice className="mt-6" title={error.title} tone="danger">
+          {error.message}
+        </InlineNotice>
+      </div>
+    );
+  }
 
   return (
     <div>

@@ -281,6 +281,7 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 - 등록 RPC가 기부 행의 최신 `paid` 상태를 잠금 확인하고, 같은 집행의 동시 등록은 최종 계획 항목과 draft가 동일할 때만 멱등 성공하도록 보강했다. 등록 완료 증빙은 이후 기부가 환불·취소돼도 역사적 감사 근거로 계속 조회할 수 있다.
 - 실패 후 재시도할 때 보존된 pending 영수증을 정식 집행 경로로 다시 승격하고, 등록된 경고 확인 사유를 읽기 전용 감사 화면에 표시하며, OCR 실행 이력 조회 오류를 빈 메타데이터로 숨기지 않도록 보강했다.
 - 동시 동일 멱등 키 분석 요청은 고유 제약 오류 대신 승자 집행을 다시 읽도록 원자화했고, 목록의 계획 항목 조회 오류를 정상 누락으로 숨기지 않도록 보강했다. OCR 평가는 값·라벨·날짜 표기·품목·배치가 서로 다른 비식별 영수증 8건으로 다양화했다.
+- 집행 목록 조회 실패를 빈 목록과 구분해 오류 안내를 표시하고, 검토자가 OCR 품목을 추가·삭제할 수 있게 하되 서버가 원본 품목의 OCR 근거를 복원하고 수동 품목에는 OCR 근거를 부여하지 않도록 보강했다.
 - 선행 계획 도메인이 공유 조직 테이블을 먼저 생성한 경우에도 서명·결제 마이그레이션이 누락 열과 역할 제약을 안전하게 보강하도록 빈 DB 적용 호환성을 추가했다.
 - 단위·Route·컴포넌트·pgTAP·Playwright 회귀 및 로컬 Supabase 통합 테스트와 8건 실 OCR 평가 스크립트를 추가했다.
 
@@ -293,6 +294,7 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 | 합계·식별자·기간·예산·중복 규칙    | `receipt-verification.ts`                            | `receipt-verification.test.ts`, 집행 E2E                                | PASS                |
 | 차단 오류와 경고 확인 사유         | 재검증 PATCH, 등록 RPC, 검토 UI                      | 검증기·컴포넌트·pgTAP                                                   | PASS                |
 | 수정값 서버 재검증·확정값 저장     | `[executionId]/route.ts`, 등록 RPC                   | 검토 폼 테스트, pgTAP, 집행 E2E                                         | PASS                |
+| 목록 오류·품목 구조 검토           | 집행 목록, 공통 목록 UI, 검토 UI·스키마              | 목록·검토 폼·스키마 컴포넌트/단위 테스트                                | PASS                |
 | 검토 중 계획 예산 항목 재선택      | 검토 UI, `[executionId]/route.ts`, 등록 RPC          | 컴포넌트·Route 테스트, pgTAP 재연결 검증, 집행 E2E                      | PASS                |
 | 등록 시 기부 상태·동시 제출 재검증 | 등록 RPC, `[executionId]/route.ts`                   | Route 409 테스트, pgTAP 환불·멱등·충돌 검증                             | PASS                |
 | 환불 후 등록 증빙 감사 접근        | `execution-repository.ts`, 읽기 전용 검토 화면       | 집행 E2E 환불 후 원본·검토 화면 접근                                    | PASS                |
@@ -301,7 +303,7 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 | 중복·동시 요청의 이중 집행 방지    | 고유 제약, 생성·등록 RPC                             | 동일 멱등 키 병렬 생성·동시 2건 등록 E2E                                | PASS                |
 | 조직 격리와 5분 서명 URL           | 테이블/Storage RLS, `getReview`                      | pgTAP 조직 A/B 행·객체 조회, 정적 정책 테스트                           | PASS                |
 | Upstage 오류의 안전한 실패·재시도  | 공통 OCR 어댑터, 집행 서비스·재시도 API              | 기존 OCR 429·5xx·타임아웃·비정상 응답 테스트, 집행 서비스/API 테스트    | PASS                |
-| 외부 호출 모킹 자동화·RLS 통합     | 테스트 구성 전체                                     | Vitest 285건, pgTAP 85건, 기본 E2E 33건, 집행 E2E 1건                   | PASS                |
+| 외부 호출 모킹 자동화·RLS 통합     | 테스트 구성 전체                                     | Vitest 288건, pgTAP 85건, 기본 E2E 33건, 집행 E2E 1건                   | PASS                |
 | 대표 영수증 OCR 정확도             | 실 Upstage 8건 평가 스크립트                         | `receipt-ocr-accuracy.evaluation.spec.ts`                               | PASS — 30/32, 93.8% |
 | 저장소 품질 게이트                 | 전체 변경                                            | `npm run check`                                                         | PASS                |
 | `verify-change` 차단 항목 없음     | 본 추적표와 실제 명령                                | 아래 결과                                                               | PASS                |
@@ -310,7 +312,10 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 
 ```text
 명령: npm run check
-결과: PASS — format, lint, typecheck, Vitest 72 files/285 tests, Next.js production build
+결과: PASS — format, lint, typecheck, Vitest 72 files/288 tests, Next.js production build
+
+명령: npm test -- --run src/lib/executions/receipt-schema.test.ts src/components/partner/execution-review-form.test.tsx src/components/partner/management-list.test.tsx src/app/api/partner/executions/[executionId]/route.test.ts
+결과: PASS — 4 files, 20 tests (목록 오류 상태, 품목 추가·삭제, OCR 근거 복원 및 Route 회귀 포함)
 
 명령: npx vitest run src/lib/executions/execution-service.test.ts src/lib/executions/execution-repository.test.ts src/components/partner/execution-review-form.test.tsx
 결과: PASS — 3 files, 10 tests (pending 원본 승격·OCR 감사 조회 오류·읽기 전용 경고 사유 포함)
@@ -341,6 +346,7 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 - 안전성 검증 결과: 악성 HTML/지시문을 값으로만 취급, 런타임 스키마 검증, 429·5xx·타임아웃·비정상 JSON의 안전한 오류, API 키·상류 응답 상세 비노출, 조직 RLS/Storage 격리와 담당자 확인 없는 자동 등록 금지를 테스트했다. 페이지 또는 품목 OCR 신뢰도가 0.8 미만이면 `ocr_review` 경고와 담당자 확인 사유를 요구한다.
 - AI가 발견하거나 예방한 품질 문제: 초기 검토 화면에서 blocker가 있으면 값을 수정해도 재검증 버튼을 누를 수 없던 문제를 수정했고, Storage 정책 함수의 `authenticated` 실행 권한 누락을 전체 pgTAP 회귀에서 발견해 최소 권한으로 보완했다. 동시 등록 테스트를 추가해 계획 항목 잠금이 예산 이중 사용을 막는 것도 확인했다. 리뷰에서 프로세스 중단 시 영구 `analyzing` 상태와 낮은 OCR 신뢰도 누락을 발견해 2분 lease 재획득·token 기반 늦은 쓰기 거부·만료 작업 재시도와 저신뢰 경고를 추가했다. 후속 리뷰에서 최종 수정값의 의미 키 미갱신, 날짜 단위 결제 선후 비교, DB보다 느슨한 텍스트 길이 검증을 발견해 등록 RPC 재계산·서울 시간대 전체 시각 비교·API 422 사전 검증으로 보완했다. 추가 리뷰에서 환불 금액의 음수 부호 제거와 존재하지 않는 거래일 정규화를 발견해 OCR 음수 보존·금액 차단 및 달력 구성요소 왕복 검증을 추가했다. 마지막으로 같은 조직의 다른 구성원이 업로더의 pending 영수증을 읽을 수 있던 Storage 정책을 발견해, 업로더 UUID·경로 세그먼트 검증과 pgTAP 격리를 추가했다. 이번 리뷰에서는 OCR 초안의 의미 키가 검토 전 고유 제약을 막을 수 있음을 확인해 등록 시점까지 저장을 보류했고, 명시 모델·환경 모델·기본 모델의 우선순위를 회귀 테스트로 고정했다. 로컬 리뷰에서는 원본 승격 실패가 pending 경로를 잃어 재시도를 막을 수 있음을 확인해, 실패 저장 시 최종 경로가 없으면 pending 경로를 보존하도록 보완했다. 추가 로컬 리뷰에서 PATCH의 OCR 근거 조작과 분석 요청 네트워크 실패 후 pending 원본 잔존 가능성을 확인해, 서버 초안의 신뢰도·원문 근거를 강제 병합하고 멱등 키로 분석 생성 여부를 조정한 뒤 미생성 업로드만 삭제하도록 수정했다. PR 리뷰에서는 검토 중 계획 항목을 바로잡을 수 없던 흐름과 자격 상실 재시도가 `analyzing`으로 반복 진입하는 문제를 확인해, 제한된 항목 재선택·등록 RPC 재연결과 `invalid_reference` 실패 복구를 추가했다. 빈 DB 검증 과정에서 공유 조직 테이블의 마이그레이션 순서 충돌도 발견해 호환 열·제약 보강으로 예방했다. 최신 리뷰에서는 Route와 RPC 사이의 기부 상태 변경, 같은 집행에 대한 상충 동시 등록, 환불 후 등록 증빙 404를 발견해 트랜잭션 기부 잠금·동일 draft 멱등 판정·역사적 조회 문맥 분리로 보완했다. 마지막 미해결 리뷰에서는 실패 후 pending 원본이 승격되지 않는 문제, 읽기 전용 화면에서 경고 확인 사유가 숨겨지는 문제, OCR 감사 조회 오류가 빈 값으로 은폐되는 문제를 확인해 정식 경로 재승격·감사 사유 표시·조회 오류 전파와 회귀 테스트로 보완했다.
 - 이번 후속 리뷰에서는 동일 멱등 키의 동시 생성 경쟁이 409로 끝나는 문제와 계획 항목 조회 오류 은폐를 발견해 승자 행 재사용과 오류 전파를 추가했다. 또한 동일 내용의 CSS 변형 8건이 대표 정확도를 과장하던 평가 결함을 발견해 서로 다른 8개 샘플 및 샘플별 기대값으로 교체했다.
+- 최종 리뷰에서는 집행 목록 조회 실패가 빈 상태로 오인되는 문제와 OCR 품목 행을 수정만 할 수 있는 제약을 확인해, 명시적 오류 상태와 품목 추가·삭제를 제공하고 서버 소유 OCR 근거는 계속 불변으로 유지했다.
 - 최종 판정: PASS — 모든 완료 조건과 필수 정확성·안전성·저장소 검증이 통과했고 차단 항목이 없다.
 
 ### 차단 항목과 미검증 범위
@@ -351,6 +357,7 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 - 원본 보존 기간과 pending 객체 lifecycle 삭제 주기는 운영 정책 확인이 필요하다.
 - 발행기관 원장과 연동하지 않으므로 실제 발행 사실과 법적 진위는 검증하지 않는다.
 - 다양화된 실 OCR 평가에서 영어 라벨 표 형식과 2열 서점 형식의 상호명 2건이 불일치했다. 전체 기준은 통과했지만 해당 배치는 담당자 원본 대조가 필요하다.
+- 집행 목록의 계획 항목 이름 조회는 현재 행별 조회 방식이다. Issue #14에는 목록 규모·페이지네이션·응답 시간 기준이 없어 기능 정확성 수정과 분리했으며, 운영 데이터가 늘기 전 배치 조회 또는 조인으로 최적화한다.
 
 ### 남은 작업과 알려진 제한
 

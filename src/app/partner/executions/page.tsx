@@ -31,7 +31,7 @@ async function getExecutions() {
     await requireUserId(supabase);
     return await createExecutionRepository(supabase).list();
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -46,6 +46,7 @@ export default async function Page({
 }) {
   const { status = 'all' } = await searchParams;
   const executions = await getExecutions();
+  const loadFailed = executions === null;
   return (
     <ManagementList
       activeStatus={status}
@@ -56,6 +57,15 @@ export default async function Page({
         <Link className={buttonClassName()} href="/partner/executions/new">
           영수증 등록
         </Link>
+      }
+      error={
+        loadFailed
+          ? {
+              title: '집행 내역을 불러오지 못했습니다.',
+              message:
+                '잠시 후 다시 시도해 주세요. 문제가 계속되면 관리자에게 문의해 주세요.',
+            }
+          : undefined
       }
       columns={[
         { key: 'amount', label: '집행 금액', align: 'right' },
@@ -70,7 +80,7 @@ export default async function Page({
         { key: 'registered', label: '내부 등록 완료' },
         { key: 'analysis_failed', label: '분석 실패' },
       ]}
-      rows={executions.map((execution) => ({
+      rows={(executions ?? []).map((execution) => ({
         id: execution.id,
         title: execution.merchantName,
         description: money(execution.totalAmount),

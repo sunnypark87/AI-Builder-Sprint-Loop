@@ -183,21 +183,26 @@ export function mergeReceiptOcrProvenance(
   edited: ReceiptDraft,
   original: ReceiptDraft,
 ): ReceiptDraft | null {
-  if (
-    edited.items.length !== original.items.length ||
-    edited.items.some((item, index) => item.id !== original.items[index]?.id)
-  ) {
-    return null;
+  const originalItems = new Map(original.items.map((item) => [item.id, item]));
+  const reviewedIds = new Set<string>();
+  const items: ReceiptItemDraft[] = [];
+  for (const item of edited.items) {
+    if (!item.id.trim() || item.id.length > 100 || reviewedIds.has(item.id)) {
+      return null;
+    }
+    reviewedIds.add(item.id);
+    const source = originalItems.get(item.id);
+    items.push({
+      ...item,
+      confidence: source?.confidence ?? null,
+      sourceText: source?.sourceText ?? '',
+      sourceName: source?.sourceName ?? '',
+      sourceAmount: source?.sourceAmount ?? null,
+    });
   }
   return {
     ...edited,
-    items: edited.items.map((item, index) => ({
-      ...item,
-      confidence: original.items[index].confidence,
-      sourceText: original.items[index].sourceText,
-      sourceName: original.items[index].sourceName,
-      sourceAmount: original.items[index].sourceAmount,
-    })),
+    items,
   };
 }
 

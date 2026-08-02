@@ -96,6 +96,9 @@ export async function POST(_request: Request, context: RouteContext) {
   if (pledge.third_party_info_consent !== true) {
     missingFields.push('third_party_info_consent');
   }
+  if (pledge.identity_info_consent !== true) {
+    missingFields.push('identity_info_consent');
+  }
   if (missingFields.length) {
     return NextResponse.json(
       { code: 'pledge_incomplete', fields: missingFields },
@@ -587,7 +590,8 @@ export async function POST(_request: Request, context: RouteContext) {
       .from('signature_documents')
       .update({
         sync_status:
-          providerDocumentCreated || failure.code === 'modusign_timeout'
+          providerDocumentCreated ||
+          failure.code === 'modusign_timeout'
             ? 'reconciliation_required'
             : 'failed',
         last_error_code: failure.code,

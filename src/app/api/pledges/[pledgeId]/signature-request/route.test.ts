@@ -224,6 +224,7 @@ describe('POST /api/pledges/[pledgeId]/signature-request', () => {
         donation_kind: 'general',
         donation_designation: 'education',
         id: 'pledge-1',
+        identity_info_consent: true,
         organization_id: 'org-1',
         payment_method: 'card',
         payment_schedule: 'once',
@@ -247,7 +248,11 @@ describe('POST /api/pledges/[pledgeId]/signature-request', () => {
     });
   });
 
-  it.each(['personal_info_consent', 'third_party_info_consent'])(
+  it.each([
+    'personal_info_consent',
+    'third_party_info_consent',
+    'identity_info_consent',
+  ])(
     'requires affirmative %s before sending personal data',
     async (consentField) => {
       createClient.mockResolvedValue(

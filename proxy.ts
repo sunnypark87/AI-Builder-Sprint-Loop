@@ -1,8 +1,12 @@
-import type { NextRequest } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 
 import { updateSession } from '@/lib/supabase/proxy';
 
 export function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname === '/api/modusign/webhook') {
+    return NextResponse.next();
+  }
+
   return updateSession(request);
 }
 

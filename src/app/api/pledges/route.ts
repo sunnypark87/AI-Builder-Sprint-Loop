@@ -43,6 +43,14 @@ export async function POST(request: Request) {
     );
   }
 
+  const conversationMessages = getConversationMessages(body);
+  if (!conversationMessages.ok) {
+    return NextResponse.json(
+      { code: 'invalid_conversation_messages' },
+      { status: 400 },
+    );
+  }
+
   let identityStorage: Record<string, string> = {};
   if (validation.value.identityNumber) {
     if (!isIdentityNumberCollectionEnabled()) {
@@ -139,19 +147,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ code: 'pledge_create_failed' }, { status: 503 });
   }
 
-  const conversationMessages =
-    isRecord(body) && Array.isArray(body.conversationMessages)
-      ? body.conversationMessages.filter(isChatMessage)
-      : [];
-  if (conversationMessages.length) {
-    await supabase.from('pledge_chat_messages').insert(
-      conversationMessages.map((message) => ({
-        content: message.content,
-        pledge_id: pledge.id,
-        proposed_patch: message.proposedPatch ?? null,
-        role: message.role,
-      })),
-    );
+  if (conversationMessages.value.length) {
+    const { error: conversationError } = await supabase
+      .from('pledge_chat_messages')
+      .insert(
+        conversationMessages.value.map((message) => ({
+          content: message.content,
+          pledge_id: pledge.id,
+          proposed_patch: message.proposedPatch ?? null,
+          role: message.role,
+        })),
+      );
+    if (conversationError) {
+      return NextResponse.json(
+        { code: 'pledge_conversation_save_failed', pledgeId: pledge.id },
+        { status: 503 },
+      );
+    }
   }
 
   return NextResponse.json(
@@ -169,6 +181,22 @@ function isChatMessage(value: unknown): value is PledgeChatMessage {
     isRecord(value) &&
     (value.role === 'user' || value.role === 'assistant') &&
     typeof value.content === 'string' &&
-    value.content.length > 0
+    value.content.length > 0 &&
+    value.content.length <= 4000
   );
+}
+
+function getConversationMessages(
+  body: unknown,
+): { ok: true; value: PledgeChatMessage[] } | { ok: false } {
+  if (!isRecord(body) || body.conversationMessages === undefined) {
+    return { ok: true, value: [] };
+  }
+  if (
+    !Array.isArray(body.conversationMessages) ||
+    !body.conversationMessages.every(isChatMessage)
+  ) {
+    return { ok: false };
+  }
+  return { ok: true, value: body.conversationMessages };
 }

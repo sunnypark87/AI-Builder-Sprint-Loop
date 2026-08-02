@@ -21,10 +21,12 @@ const validBody = {
   purpose: '교육 프로그램',
   receiptRequested: false,
 };
+const insertConversationMessages = vi.fn();
 
 describe('POST /api/pledges', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    insertConversationMessages.mockResolvedValue({ error: null });
     getCurrentUser.mockResolvedValue({ id: 'user-1' });
     createClient.mockResolvedValue({
       from: vi.fn((table: string) => {
@@ -41,6 +43,10 @@ describe('POST /api/pledges', () => {
               }),
             }),
           };
+        }
+
+        if (table === 'pledge_chat_messages') {
+          return { insert: insertConversationMessages };
         }
 
         return {
@@ -96,5 +102,66 @@ describe('POST /api/pledges', () => {
       pledgeId: 'pledge-1',
       status: 'draft',
     });
+  });
+
+  it('rejects oversized consultation messages before creating a pledge', async () => {
+    const response = await POST(
+      new Request('http://localhost/api/pledges', {
+        body: JSON.stringify({
+          ...validBody,
+          conversationMessages: [{ content: '가'.repeat(4001), role: 'user' }],
+        }),
+        method: 'POST',
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      code: 'invalid_conversation_messages',
+    });
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it('reports consultation message persistence failures', async () => {
+    insertConversationMessages.mockResolvedValueOnce({
+      error: { code: 'constraint_failed' },
+    });
+
+    const response = await POST(
+      new Request('http://localhost/api/pledges', {
+        body: JSON.stringify({
+          ...validBody,
+          conversationMessages: [{ content: '상담 내용', role: 'user' }],
+        }),
+        method: 'POST',
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      code: 'pledge_conversation_save_failed',
+      pledgeId: 'pledge-1',
+    });
+  });
+
+  it('persists valid consultation messages with the new pledge', async () => {
+    const response = await POST(
+      new Request('http://localhost/api/pledges', {
+        body: JSON.stringify({
+          ...validBody,
+          conversationMessages: [
+            { content: '상담 내용', role: 'user' },
+            { content: '상담 답변', role: 'assistant' },
+          ],
+        }),
+        method: 'POST',
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(insertConversationMessages).toHaveBeenCalledWith([
+      expect.objectContaining({ content: '상담 내용', pledge_id: 'pledge-1' }),
+      expect.objectContaining({ content: '상담 답변', pledge_id: 'pledge-1' }),
+    ]);
   });
 });

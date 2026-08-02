@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  mergeReceiptOcrProvenance,
+  parseEditableReceiptDraft,
   parseReceiptDraft,
   validateReceiptDraft,
 } from '@/lib/executions/receipt-schema';
@@ -89,5 +91,44 @@ describe('receipt schema', () => {
         path: 'transactionAt',
       }),
     );
+  });
+
+  it('ignores client-provided OCR provenance and restores server evidence', () => {
+    const edited = parseEditableReceiptDraft({
+      ...validDraft,
+      merchantName: '수정마트',
+      items: [
+        {
+          ...validDraft.items[0],
+          name: '수정 생수',
+          confidence: 1,
+          sourceText: 'fabricated',
+          sourceName: 'fabricated',
+          sourceAmount: 1,
+        },
+      ],
+    });
+
+    expect(edited).not.toBeNull();
+    expect(mergeReceiptOcrProvenance(edited!, validDraft)).toEqual({
+      ...validDraft,
+      merchantName: '수정마트',
+      items: [
+        {
+          ...validDraft.items[0],
+          name: '수정 생수',
+        },
+      ],
+    });
+  });
+
+  it('rejects a client-controlled OCR item identity change', () => {
+    const edited = parseEditableReceiptDraft({
+      ...validDraft,
+      items: [{ ...validDraft.items[0], id: 'fabricated-item' }],
+    });
+
+    expect(edited).not.toBeNull();
+    expect(mergeReceiptOcrProvenance(edited!, validDraft)).toBeNull();
   });
 });

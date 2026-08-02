@@ -24,15 +24,21 @@ type ApiError = {
   error?: { message?: string; retryable?: boolean };
 };
 
-async function cleanup(sourcePath: string) {
-  try {
-    await fetch('/api/partner/executions/upload-url', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sourcePath }),
-    });
-  } catch {
-    // Server storage lifecycle remains the fallback.
+async function cleanup(sourcePath: string, idempotencyKey: string | null) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const response = await fetch('/api/partner/executions/upload-url', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourcePath, idempotencyKey }),
+      });
+      if (response.ok) return;
+    } catch {
+      // Retry transient client-network failures below.
+    }
+    if (attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 100 * 2 ** attempt));
+    }
   }
 }
 
@@ -69,7 +75,6 @@ export function ExecutionUploadForm({
         setError('');
         idempotencyKey.current ??= `execution:${crypto.randomUUID()}`;
         let pendingPath: string | null = null;
-        let analysisStarted = false;
         try {
           const uploadResponse = await fetch(
             '/api/partner/executions/upload-url',
@@ -106,14 +111,13 @@ export function ExecutionUploadForm({
               upsert: false,
             });
           if (uploadError) {
-            await cleanup(upload.sourcePath);
+            await cleanup(upload.sourcePath, idempotencyKey.current);
             pendingPath = null;
             idempotencyKey.current = null;
             setError('영수증 원본을 업로드할 수 없습니다.');
             return;
           }
 
-          analysisStarted = true;
           const response = await fetch('/api/partner/executions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -133,7 +137,9 @@ export function ExecutionUploadForm({
           };
           if (result.executionId) pendingPath = null;
           if (!response.ok || !result.executionId) {
-            if (pendingPath) await cleanup(pendingPath);
+            if (pendingPath) {
+              await cleanup(pendingPath, idempotencyKey.current);
+            }
             if (!result.error?.retryable) idempotencyKey.current = null;
             setError(result.error?.message ?? '영수증을 분석할 수 없습니다.');
             return;
@@ -150,7 +156,9 @@ export function ExecutionUploadForm({
             );
           }
         } catch {
-          if (pendingPath && !analysisStarted) await cleanup(pendingPath);
+          if (pendingPath) {
+            await cleanup(pendingPath, idempotencyKey.current);
+          }
           setError('서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.');
         } finally {
           submitting.current = false;

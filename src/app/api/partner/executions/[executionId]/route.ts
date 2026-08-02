@@ -7,7 +7,8 @@ import {
 } from '@/lib/executions/execution-service';
 import { receiptSemanticKey } from '@/lib/executions/parse-ocr-receipt';
 import {
-  parseReceiptDraft,
+  mergeReceiptOcrProvenance,
+  parseEditableReceiptDraft,
   validateReceiptDraft,
 } from '@/lib/executions/receipt-schema';
 import {
@@ -131,19 +132,19 @@ export async function PATCH(
       typeof payload === 'object' && payload !== null
         ? (payload as Record<string, unknown>)
         : {};
-    const draft = parseReceiptDraft(record.draft);
+    const editableDraft = parseEditableReceiptDraft(record.draft);
     const warningReason =
       typeof record.warningReason === 'string'
         ? record.warningReason.trim()
         : '';
-    if (!draft || warningReason.length > 1000) {
+    if (!editableDraft || warningReason.length > 1000) {
       return responseError(
         400,
         'invalid_draft',
         '영수증 입력값을 확인해 주세요.',
       );
     }
-    const issues = validateReceiptDraft(draft);
+    const issues = validateReceiptDraft(editableDraft);
     if (issues.length > 0) {
       return NextResponse.json(
         {
@@ -162,6 +163,14 @@ export async function PATCH(
     const review = await target.getReview(executionId);
     if (!review) {
       return responseError(404, 'not_found', '집행 내역을 찾을 수 없습니다.');
+    }
+    const draft = mergeReceiptOcrProvenance(editableDraft, review.draft);
+    if (!draft) {
+      return responseError(
+        400,
+        'invalid_draft',
+        '영수증 품목 구성을 확인해 주세요.',
+      );
     }
     if (review.status === 'registered') {
       if (JSON.stringify(review.draft) === JSON.stringify(draft)) {

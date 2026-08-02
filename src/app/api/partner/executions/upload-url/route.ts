@@ -18,6 +18,7 @@ import {
 
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const IDEMPOTENCY_KEY = /^[A-Za-z0-9:_-]{16,128}$/;
 
 function field(payload: unknown, name: string) {
   const value =
@@ -144,6 +145,7 @@ export async function DELETE(request: Request) {
     const supabase = await createClient();
     const userId = await requireUserId(supabase);
     const sourcePath = field(payload, 'sourcePath');
+    const idempotencyKey = field(payload, 'idempotencyKey');
     const segments = sourcePath.split('/');
     if (
       segments.length !== 5 ||
@@ -151,7 +153,8 @@ export async function DELETE(request: Request) {
       segments[1] !== 'pending' ||
       segments[2] !== userId ||
       !UUID.test(segments[3]) ||
-      !['source.pdf', 'source.png', 'source.jpg'].includes(segments[4])
+      !['source.pdf', 'source.png', 'source.jpg'].includes(segments[4]) ||
+      !IDEMPOTENCY_KEY.test(idempotencyKey)
     ) {
       return errorResponse(
         400,
@@ -159,6 +162,14 @@ export async function DELETE(request: Request) {
         '업로드 경로를 확인해 주세요.',
       );
     }
+    const { data: execution, error: executionError } = await supabase
+      .from('expenditure_executions')
+      .select('id')
+      .eq('created_by', userId)
+      .eq('idempotency_key', idempotencyKey)
+      .maybeSingle();
+    if (executionError) throw executionError;
+    if (execution) return new NextResponse(null, { status: 204 });
     await createExecutionRepository(supabase, {
       actorUserId: userId,
       client: createServiceClient(),

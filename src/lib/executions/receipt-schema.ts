@@ -79,6 +79,32 @@ function parseItem(value: unknown): ReceiptItemDraft | null {
   };
 }
 
+function parseEditableItem(value: unknown): ReceiptItemDraft | null {
+  if (!isRecord(value)) return null;
+  const id = stringValue(value.id);
+  const name = stringValue(value.name);
+  const quantity = nullableInteger(value.quantity);
+  const amount = nullableInteger(value.amount);
+  if (
+    id === null ||
+    name === null ||
+    quantity === undefined ||
+    amount === undefined
+  ) {
+    return null;
+  }
+  return {
+    id,
+    name,
+    quantity,
+    amount,
+    confidence: null,
+    sourceText: '',
+    sourceName: '',
+    sourceAmount: null,
+  };
+}
+
 export function parseReceiptDraft(value: unknown): ReceiptDraft | null {
   if (!isRecord(value) || !Array.isArray(value.items)) return null;
   const merchantName = stringValue(value.merchantName);
@@ -113,6 +139,65 @@ export function parseReceiptDraft(value: unknown): ReceiptDraft | null {
     paymentMethod,
     approvalNumber,
     items: items as ReceiptItemDraft[],
+  };
+}
+
+export function parseEditableReceiptDraft(value: unknown): ReceiptDraft | null {
+  if (!isRecord(value) || !Array.isArray(value.items)) return null;
+  const merchantName = stringValue(value.merchantName);
+  const businessNumber = stringValue(value.businessNumber);
+  const transactionAt = stringValue(value.transactionAt);
+  const supplyAmount = nullableInteger(value.supplyAmount);
+  const taxAmount = nullableInteger(value.taxAmount);
+  const totalAmount = nullableInteger(value.totalAmount);
+  const paymentMethod = stringValue(value.paymentMethod);
+  const approvalNumber = stringValue(value.approvalNumber);
+  const items = value.items.map(parseEditableItem);
+  if (
+    merchantName === null ||
+    businessNumber === null ||
+    transactionAt === null ||
+    supplyAmount === undefined ||
+    taxAmount === undefined ||
+    totalAmount === undefined ||
+    paymentMethod === null ||
+    approvalNumber === null ||
+    items.some((item) => item === null)
+  ) {
+    return null;
+  }
+  return {
+    merchantName,
+    businessNumber,
+    transactionAt,
+    supplyAmount,
+    taxAmount,
+    totalAmount,
+    paymentMethod,
+    approvalNumber,
+    items: items as ReceiptItemDraft[],
+  };
+}
+
+export function mergeReceiptOcrProvenance(
+  edited: ReceiptDraft,
+  original: ReceiptDraft,
+): ReceiptDraft | null {
+  if (
+    edited.items.length !== original.items.length ||
+    edited.items.some((item, index) => item.id !== original.items[index]?.id)
+  ) {
+    return null;
+  }
+  return {
+    ...edited,
+    items: edited.items.map((item, index) => ({
+      ...item,
+      confidence: original.items[index].confidence,
+      sourceText: original.items[index].sourceText,
+      sourceName: original.items[index].sourceName,
+      sourceAmount: original.items[index].sourceAmount,
+    })),
   };
 }
 

@@ -99,4 +99,57 @@ describe('ExecutionUploadForm', () => {
       ).disabled,
     ).toBe(true);
   });
+
+  it('requests reconciled cleanup when analysis fetch fails after upload', async () => {
+    const sourcePath =
+      '22222222-2222-4222-8222-222222222222/pending/11111111-1111-4111-8111-111111111111/66666666-6666-4666-8666-666666666666/source.png';
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ sourcePath, token: 'signed-token' }),
+      )
+      .mockRejectedValueOnce(new TypeError('network failure'))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    render(
+      <ExecutionUploadForm
+        options={[
+          {
+            organizationId: '22222222-2222-4222-8222-222222222222',
+            donationId: '33333333-3333-4333-8333-333333333333',
+            planId: '44444444-4444-4444-8444-444444444444',
+            planTitle: '8월 급식 계획',
+            planItemId: '55555555-5555-4555-8555-555555555555',
+            planItemName: '식재료',
+            remainingBudget: 10000,
+          },
+        ]}
+      />,
+    );
+    await user.selectOptions(
+      screen.getByLabelText('계획 예산 항목'),
+      '55555555-5555-4555-8555-555555555555',
+    );
+    fireEvent.change(screen.getByLabelText(/영수증 원본/), {
+      target: {
+        files: [new File(['receipt'], 'receipt.png', { type: 'image/png' })],
+      },
+    });
+    fireEvent.submit(
+      screen.getByRole('button', { name: '영수증 분석' }).closest('form')!,
+    );
+
+    await screen.findByText(
+      '서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const [cleanupUrl, cleanupRequest] = fetchMock.mock.calls[2];
+    expect(cleanupUrl).toBe('/api/partner/executions/upload-url');
+    expect(cleanupRequest).toMatchObject({ method: 'DELETE' });
+    expect(JSON.parse(String(cleanupRequest?.body))).toMatchObject({
+      sourcePath,
+      idempotencyKey: expect.stringMatching(/^execution:/),
+    });
+  });
 });

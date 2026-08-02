@@ -6,6 +6,8 @@ import { PartnerSidebar } from '@/components/layout/partner-sidebar';
 import { getCurrentUser } from '@/lib/supabase/auth';
 import { createClient } from '@/lib/supabase/server';
 
+export const dynamic = 'force-dynamic';
+
 export default async function PartnerLayout({
   children,
 }: {

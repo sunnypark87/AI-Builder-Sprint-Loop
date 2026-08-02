@@ -803,3 +803,13 @@ src/components/donations/
 명령: git diff --check origin/main...HEAD 및 충돌 마커·skip/todo·비밀값 패턴 탐색
 결과: PASS, 변경 오류·충돌 마커·실제 비밀값 없음. Issue와 무관한 live OCR 평가 1건만 환경 변수 부재 시 조건부 skip
 ```
+
+### 2026-08-02 PR #13 CI 빌드 오류 수정
+
+- GitHub Actions의 `npm run check`에서 테스트 207개는 통과했지만 `/partner/donations` 사전 렌더링 중 Supabase 환경 변수 누락으로 production build가 실패했다.
+- 원인은 인증·조직 멤버십을 조회하는 파트너 레이아웃과 기부 내역 화면이 정적 렌더링 대상으로 남아 있어, 외부 키가 없는 CI 빌드 중 Supabase client를 생성한 것이었다.
+- `src/app/partner/layout.tsx`와 `src/app/my-donations/page.tsx`를 `force-dynamic`으로 지정했다.
+- 각 보호 경로가 빌드 시점 사전 렌더링으로 회귀하지 않도록 렌더링 모드 테스트 2개를 추가했다.
+- Supabase URL·공개 키·비밀 키를 모두 비운 상태의 `npm run build` PASS를 확인했다.
+- `npm run check` PASS: format, lint, typecheck, Vitest 57개 파일·209개 테스트, Next.js production build.
+- 변경 후 `/partner/*`와 `/my-donations`는 production build route manifest에서 동적 서버 렌더링 경로로 확인됐다.

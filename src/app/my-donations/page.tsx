@@ -9,6 +9,8 @@ import { getPledgeStatusPresentation } from '@/lib/pledges/presentation';
 import { getCurrentUser } from '@/lib/supabase/auth';
 import { createClient } from '@/lib/supabase/server';
 
+export const dynamic = 'force-dynamic';
+
 export default async function MyDonationsPage() {
   const user = await getCurrentUser();
   if (!user) redirect('/login?next=/my-donations');

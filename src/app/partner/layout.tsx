@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 
 import { PartnerHeader } from '@/components/layout/partner-header';
 import { PartnerSidebar } from '@/components/layout/partner-sidebar';
+import { getActiveOrganizationMembership } from '@/lib/organizations/membership';
 import { getCurrentUser } from '@/lib/supabase/auth';
 import { createClient } from '@/lib/supabase/server';
 
@@ -16,11 +17,10 @@ export default async function PartnerLayout({
   const user = await getCurrentUser();
   if (!user) redirect('/login?next=/partner');
   const supabase = await createClient();
-  const { data: membership } = await supabase
-    .from('organization_members')
-    .select('organization_id')
-    .eq('user_id', user.id)
-    .maybeSingle();
+  const { data: membership } = await getActiveOrganizationMembership(
+    supabase,
+    user.id,
+  );
   if (!membership) redirect('/account');
 
   return (

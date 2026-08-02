@@ -1,4 +1,5 @@
 import { ManagementList } from '@/components/partner/management-list';
+import { getActiveOrganizationMembership } from '@/lib/organizations/membership';
 import { getPaymentStatusPresentation } from '@/lib/payments/presentation';
 import { getCurrentUser } from '@/lib/supabase/auth';
 import { createClient } from '@/lib/supabase/server';
@@ -12,11 +13,10 @@ export default async function Page({
   const user = await getCurrentUser();
   if (!user) return null;
   const supabase = await createClient();
-  const { data: membership } = await supabase
-    .from('organization_members')
-    .select('organization_id')
-    .eq('user_id', user.id)
-    .maybeSingle();
+  const { data: membership } = await getActiveOrganizationMembership(
+    supabase,
+    user.id,
+  );
   const { data: pledges } = membership
     ? await supabase
         .from('pledges')

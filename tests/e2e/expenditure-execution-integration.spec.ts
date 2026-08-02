@@ -185,6 +185,7 @@ test('uploads, verifies and atomically registers one receipt', async ({
       supabase.rpc('register_expenditure_execution', {
         p_actor_id: actor!.id,
         p_execution_id: executionId,
+        p_plan_item_id: executionIntegrationIds.planItem,
         p_draft: draft,
         p_verification_results: verificationResults,
         p_warning_reason: '',

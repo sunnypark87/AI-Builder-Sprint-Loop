@@ -7,6 +7,7 @@ import type {
 import {
   analyzeExecution,
   ExecutionServiceError,
+  retryExecutionAnalysis,
 } from '@/lib/executions/execution-service';
 
 const ids = {
@@ -190,5 +191,42 @@ describe('analyzeExecution', () => {
       input.sourcePath,
     );
     expect(target.removeSource).not.toHaveBeenCalled();
+  });
+});
+
+describe('retryExecutionAnalysis', () => {
+  it('restores a retryable failed state when eligibility was revoked after claim', async () => {
+    const sourcePath = `${ids.organizationId}/${ids.executionId}/source.png`;
+    const target = repository({
+      claimRetry: vi.fn().mockResolvedValue({
+        executionId: ids.executionId,
+        organizationId: ids.organizationId,
+        donationId: ids.donationId,
+        planId: ids.planId,
+        planItemId: ids.planItemId,
+        sourcePath,
+        fileName: 'receipt.png',
+        mimeType: 'image/png',
+        fingerprint: 'a'.repeat(64),
+        leaseToken: ids.uploadId,
+      }),
+      getEligibility: vi.fn().mockResolvedValue(null),
+    });
+
+    await expect(
+      retryExecutionAnalysis(ids.executionId, { repository: target }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<ExecutionServiceError>>({
+        code: 'forbidden',
+        httpStatus: 403,
+      }),
+    );
+    expect(target.saveFailure).toHaveBeenCalledWith(
+      ids.executionId,
+      ids.uploadId,
+      'invalid_reference',
+      sourcePath,
+    );
+    expect(target.downloadSource).not.toHaveBeenCalled();
   });
 });

@@ -120,6 +120,7 @@ export interface ExecutionRepository {
   getReview(executionId: string): Promise<ExecutionReview | null>;
   register(
     executionId: string,
+    planItemId: string,
     draft: ReceiptDraft,
     verificationResults: ReceiptVerificationResult[],
     warningReason: string,
@@ -552,11 +553,18 @@ export function createExecutionRepository(
       };
     },
 
-    async register(executionId, draft, verificationResults, warningReason) {
+    async register(
+      executionId,
+      planItemId,
+      draft,
+      verificationResults,
+      warningReason,
+    ) {
       const { client, actorUserId } = mutationClient();
       const { error } = await client.rpc('register_expenditure_execution', {
         p_actor_id: actorUserId,
         p_execution_id: executionId,
+        p_plan_item_id: planItemId,
         p_draft: draft,
         p_verification_results: verificationResults,
         p_warning_reason: warningReason,

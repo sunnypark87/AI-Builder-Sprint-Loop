@@ -133,11 +133,17 @@ export async function PATCH(
         ? (payload as Record<string, unknown>)
         : {};
     const editableDraft = parseEditableReceiptDraft(record.draft);
+    const planItemId =
+      typeof record.planItemId === 'string' ? record.planItemId : '';
     const warningReason =
       typeof record.warningReason === 'string'
         ? record.warningReason.trim()
         : '';
-    if (!editableDraft || warningReason.length > 1000) {
+    if (
+      !editableDraft ||
+      !UUID.test(planItemId) ||
+      warningReason.length > 1000
+    ) {
       return responseError(
         400,
         'invalid_draft',
@@ -173,7 +179,10 @@ export async function PATCH(
       );
     }
     if (review.status === 'registered') {
-      if (JSON.stringify(review.draft) === JSON.stringify(draft)) {
+      if (
+        review.planItemId === planItemId &&
+        JSON.stringify(review.draft) === JSON.stringify(draft)
+      ) {
         return NextResponse.json({ executionId, status: 'registered' });
       }
       return responseError(
@@ -193,7 +202,7 @@ export async function PATCH(
       review.organizationId,
       review.donationId,
       review.planId,
-      review.planItemId,
+      planItemId,
     );
     if (!eligibility) {
       return responseError(
@@ -237,6 +246,7 @@ export async function PATCH(
     }
     await target.register(
       executionId,
+      planItemId,
       draft,
       verificationResults,
       warningReason,

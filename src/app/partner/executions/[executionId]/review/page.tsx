@@ -7,6 +7,7 @@ import { ReviewWorkspace } from '@/components/partner/review-workspace';
 import { buttonClassName } from '@/components/ui/button';
 import { InlineNotice } from '@/components/ui/inline-notice';
 import { createExecutionRepository } from '@/lib/executions/execution-repository';
+import type { ExecutionReview } from '@/lib/executions/types';
 import { requireUserId } from '@/lib/supabase/auth';
 import { createClient } from '@/lib/supabase/server';
 
@@ -18,12 +19,47 @@ export default async function Page({
   params: Promise<{ executionId: string }>;
 }) {
   const { executionId } = await params;
-  let execution;
+  let execution: ExecutionReview | null | undefined;
+  let planItemOptions: {
+    planItemId: string;
+    planItemName: string;
+    remainingBudget: number;
+  }[] = [];
   try {
     const supabase = await createClient();
     await requireUserId(supabase);
-    execution =
-      await createExecutionRepository(supabase).getReview(executionId);
+    const repository = createExecutionRepository(supabase);
+    execution = await repository.getReview(executionId);
+    if (execution) {
+      const currentExecution = execution;
+      const eligible =
+        currentExecution.status === 'registered'
+          ? []
+          : await repository.listEligible();
+      planItemOptions = eligible
+        .filter(
+          (option) =>
+            option.organizationId === currentExecution.organizationId &&
+            option.donationId === currentExecution.donationId &&
+            option.planId === currentExecution.planId,
+        )
+        .map(({ planItemId, planItemName, remainingBudget }) => ({
+          planItemId,
+          planItemName,
+          remainingBudget,
+        }));
+      if (
+        !planItemOptions.some(
+          (option) => option.planItemId === currentExecution.planItemId,
+        )
+      ) {
+        planItemOptions.unshift({
+          planItemId: currentExecution.planItemId,
+          planItemName: currentExecution.planItemName,
+          remainingBudget: currentExecution.remainingBudget,
+        });
+      }
+    }
   } catch {
     return (
       <div>
@@ -80,13 +116,13 @@ export default async function Page({
       >
         <ExecutionReviewForm
           executionId={execution.id}
+          initialPlanItemId={execution.planItemId}
           initialDraft={execution.draft}
           initialIssues={execution.issues}
           initialVerificationResults={execution.verificationResults}
           initialWarningReason={execution.warningReason}
-          planItemName={execution.planItemName}
+          planItemOptions={planItemOptions}
           readOnly={execution.status === 'registered'}
-          remainingBudget={execution.remainingBudget}
         />
       </ReviewWorkspace>
     </div>

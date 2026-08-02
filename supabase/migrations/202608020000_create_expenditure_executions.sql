@@ -590,6 +590,7 @@ $$;
 create or replace function public.register_expenditure_execution(
   p_actor_id uuid,
   p_execution_id uuid,
+  p_plan_item_id uuid,
   p_draft jsonb,
   p_verification_results jsonb,
   p_warning_reason text
@@ -623,7 +624,7 @@ begin
 
   select * into current_item
   from public.expenditure_plan_items item
-  where item.id = current_execution.plan_item_id
+  where item.id = p_plan_item_id
     and item.plan_id = current_execution.plan_id
   for update;
   select * into current_plan
@@ -705,7 +706,8 @@ begin
   end if;
 
   update public.expenditure_executions
-  set merchant_name = trim(p_draft->>'merchantName'),
+  set plan_item_id = current_item.id,
+      merchant_name = trim(p_draft->>'merchantName'),
       business_number = nullif(p_draft->>'businessNumber', ''),
       transaction_at = transaction_time,
       supply_amount = nullif(p_draft->>'supplyAmount', '')::bigint,
@@ -758,7 +760,7 @@ revoke all on function public.claim_execution_analysis_retry(
   uuid, uuid
 ) from public;
 revoke all on function public.register_expenditure_execution(
-  uuid, uuid, jsonb, jsonb, text
+  uuid, uuid, uuid, jsonb, jsonb, text
 ) from public;
 
 grant execute on function public.create_expenditure_execution_analysis(
@@ -777,5 +779,5 @@ grant execute on function public.claim_execution_analysis_retry(
   uuid, uuid
 ) to service_role;
 grant execute on function public.register_expenditure_execution(
-  uuid, uuid, jsonb, jsonb, text
+  uuid, uuid, uuid, jsonb, jsonb, text
 ) to service_role;

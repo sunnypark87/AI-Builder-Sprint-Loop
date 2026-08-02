@@ -37,6 +37,19 @@ const draft: ReceiptDraft = {
   ],
 };
 
+const planItemOptions = [
+  {
+    planItemId: '55555555-5555-4555-8555-555555555555',
+    planItemName: '식재료',
+    remainingBudget: 10000,
+  },
+  {
+    planItemId: '66666666-6666-4666-8666-666666666666',
+    planItemName: '생활용품',
+    remainingBudget: 8000,
+  },
+];
+
 afterEach(() => {
   cleanup();
   push.mockReset();
@@ -56,6 +69,7 @@ describe('ExecutionReviewForm', () => {
     render(
       <ExecutionReviewForm
         executionId="77777777-7777-4777-8777-777777777777"
+        initialPlanItemId={planItemOptions[0].planItemId}
         initialDraft={draft}
         initialIssues={[]}
         initialVerificationResults={[
@@ -68,11 +82,14 @@ describe('ExecutionReviewForm', () => {
           },
         ]}
         initialWarningReason=""
-        planItemName="식재료"
-        remainingBudget={10000}
+        planItemOptions={planItemOptions}
       />,
     );
 
+    await user.selectOptions(
+      screen.getByLabelText('계획 예산 항목'),
+      planItemOptions[1].planItemId,
+    );
     await user.type(
       screen.getByLabelText('검증 경고 확인 사유'),
       '원본과 결제 내역을 직접 대조했습니다.',
@@ -87,6 +104,11 @@ describe('ExecutionReviewForm', () => {
         body: expect.stringContaining('원본과 결제 내역을 직접 대조했습니다.'),
       }),
     );
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toMatchObject(
+      {
+        planItemId: planItemOptions[1].planItemId,
+      },
+    );
     expect(push).toHaveBeenCalledWith('/partner/executions?status=registered');
   });
 
@@ -94,6 +116,7 @@ describe('ExecutionReviewForm', () => {
     render(
       <ExecutionReviewForm
         executionId="77777777-7777-4777-8777-777777777777"
+        initialPlanItemId={planItemOptions[0].planItemId}
         initialDraft={draft}
         initialIssues={[]}
         initialVerificationResults={[
@@ -106,8 +129,7 @@ describe('ExecutionReviewForm', () => {
           },
         ]}
         initialWarningReason=""
-        planItemName="식재료"
-        remainingBudget={1000}
+        planItemOptions={[{ ...planItemOptions[0], remainingBudget: 1000 }]}
       />,
     );
     expect(

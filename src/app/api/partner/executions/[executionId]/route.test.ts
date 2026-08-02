@@ -28,6 +28,8 @@ vi.mock('@/lib/executions/execution-repository', async (importOriginal) => ({
 import { PATCH } from '@/app/api/partner/executions/[executionId]/route';
 
 const executionId = '11111111-1111-4111-8111-111111111111';
+const planItemId = '55555555-5555-4555-8555-555555555555';
+const replacementPlanItemId = '66666666-6666-4666-8666-666666666666';
 const validDraft = {
   merchantName: '모두마트',
   businessNumber: '1208155297',
@@ -68,6 +70,7 @@ describe('PATCH /api/partner/executions/[executionId]', () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             draft: { ...validDraft, [field]: value },
+            planItemId,
             warningReason: '',
           }),
         }),
@@ -89,6 +92,7 @@ describe('PATCH /api/partner/executions/[executionId]', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           draft: { ...validDraft, transactionAt: '2026-02-30T10:00' },
+          planItemId,
           warningReason: '',
         }),
       }),
@@ -120,7 +124,7 @@ describe('PATCH /api/partner/executions/[executionId]', () => {
       organizationId: '22222222-2222-4222-8222-222222222222',
       donationId: '33333333-3333-4333-8333-333333333333',
       planId: '44444444-4444-4444-8444-444444444444',
-      planItemId: '55555555-5555-4555-8555-555555555555',
+      planItemId,
       status: 'verification_warning',
       draft: serverDraft,
       sourceFingerprint: 'a'.repeat(64),
@@ -129,7 +133,7 @@ describe('PATCH /api/partner/executions/[executionId]', () => {
       organizationId: '22222222-2222-4222-8222-222222222222',
       donationId: '33333333-3333-4333-8333-333333333333',
       planId: '44444444-4444-4444-8444-444444444444',
-      planItemId: '55555555-5555-4555-8555-555555555555',
+      planItemId: replacementPlanItemId,
       planPeriodStart: '2026-08-01',
       planPeriodEnd: '2026-08-31',
       donationPaidAt: '2026-08-01T00:00:00Z',
@@ -165,6 +169,7 @@ describe('PATCH /api/partner/executions/[executionId]', () => {
               },
             ],
           },
+          planItemId: replacementPlanItemId,
           warningReason: '낮은 신뢰도를 원본과 대조했습니다.',
         }),
       }),
@@ -174,6 +179,7 @@ describe('PATCH /api/partner/executions/[executionId]', () => {
     expect(response.status).toBe(200);
     expect(repository.register).toHaveBeenCalledWith(
       executionId,
+      replacementPlanItemId,
       expect.objectContaining({
         merchantName: '수정마트',
         items: [
@@ -190,6 +196,12 @@ describe('PATCH /api/partner/executions/[executionId]', () => {
         expect.objectContaining({ code: 'ocr_review', outcome: 'warning' }),
       ]),
       '낮은 신뢰도를 원본과 대조했습니다.',
+    );
+    expect(repository.getEligibility).toHaveBeenCalledWith(
+      '22222222-2222-4222-8222-222222222222',
+      '33333333-3333-4333-8333-333333333333',
+      '44444444-4444-4444-8444-444444444444',
+      replacementPlanItemId,
     );
   });
 });

@@ -33,25 +33,30 @@ const outcomeLabel = {
 
 export function ExecutionReviewForm({
   executionId,
+  initialPlanItemId,
   initialDraft,
   initialIssues,
   initialVerificationResults,
   initialWarningReason,
-  planItemName,
-  remainingBudget,
+  planItemOptions,
   readOnly = false,
 }: {
   executionId: string;
+  initialPlanItemId: string;
   initialDraft: ReceiptDraft;
   initialIssues: ReceiptValidationIssue[];
   initialVerificationResults: ReceiptVerificationResult[];
   initialWarningReason: string;
-  planItemName: string;
-  remainingBudget: number;
+  planItemOptions: {
+    planItemId: string;
+    planItemName: string;
+    remainingBudget: number;
+  }[];
   readOnly?: boolean;
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState(initialDraft);
+  const [planItemId, setPlanItemId] = useState(initialPlanItemId);
   const [issues, setIssues] = useState(initialIssues);
   const [verificationResults, setVerificationResults] = useState(
     initialVerificationResults,
@@ -65,6 +70,9 @@ export function ExecutionReviewForm({
   const hasBlocker = verificationResults.some(
     (result) => result.outcome === 'blocked',
   );
+  const selectedPlanItem =
+    planItemOptions.find((option) => option.planItemId === planItemId) ??
+    planItemOptions[0];
 
   return (
     <form
@@ -82,7 +90,7 @@ export function ExecutionReviewForm({
             {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ draft, warningReason }),
+              body: JSON.stringify({ draft, planItemId, warningReason }),
             },
           );
           const result = (await response.json()) as {
@@ -122,15 +130,29 @@ export function ExecutionReviewForm({
         </InlineNotice>
       )}
 
-      <div className="grid gap-2 border-y border-line py-4 text-sm sm:grid-cols-2">
-        <p>
-          <span className="text-copy-muted">계획 예산 항목</span>
-          <strong className="mt-1 block">{planItemName}</strong>
-        </p>
+      <div className="grid gap-4 border-y border-line py-4 text-sm sm:grid-cols-2">
+        <label className="grid gap-1.5 font-medium">
+          계획 예산 항목
+          <select
+            className="h-10 rounded-[var(--radius-sm)] border border-line bg-panel px-3 text-sm"
+            disabled={readOnly || pending}
+            onChange={(event) => {
+              setPlanItemId(event.target.value);
+              setRequestError('');
+            }}
+            value={planItemId}
+          >
+            {planItemOptions.map((option) => (
+              <option key={option.planItemId} value={option.planItemId}>
+                {option.planItemName}
+              </option>
+            ))}
+          </select>
+        </label>
         <p>
           <span className="text-copy-muted">현재 잔액</span>
           <strong className="mt-1 block">
-            {remainingBudget.toLocaleString('ko-KR')}원
+            {(selectedPlanItem?.remainingBudget ?? 0).toLocaleString('ko-KR')}원
           </strong>
         </p>
       </div>

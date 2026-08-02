@@ -378,6 +378,12 @@ export async function retryExecutionAnalysis(
     source.planItemId,
   );
   if (!eligibility) {
+    await dependencies.repository.saveFailure(
+      executionId,
+      source.leaseToken,
+      'invalid_reference',
+      source.sourcePath,
+    );
     throw new ExecutionServiceError(
       'forbidden',
       '집행 참조가 유효하지 않습니다.',

@@ -277,6 +277,8 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 - 집행·영수증·OCR 실행·규칙 결과·감사 정보를 저장하는 스키마, 조직 RLS, 비공개 `receipt-documents` 버킷과 service-role 전용 원자 등록 RPC를 추가했다.
 - PDF/JPEG/PNG 검증, SHA-256 지문, 범용 Upstage OCR 경계, 영수증 구조화 파서와 합계·체크섬·기간·예산·중복·수동 검토 규칙을 구현했다.
 - 업로드 URL, 분석, 조회·재시도·재검증·등록 API와 실제 목록·업로드·동적 검토 화면을 연결했다. UI와 문서에는 법적 진위 보증이 아닌 내부 일관성 검증임을 명시했다.
+- 검토 중 잘못 선택한 계획 예산 항목을 같은 조직·기부·등록 계획 범위에서 다시 선택하고, 서버 재검증과 등록 RPC의 행 잠금 안에서 원자적으로 재연결하도록 보완했다. 재시도 claim 이후 참조 자격이 사라진 경우에는 원본 경로를 보존한 실패 상태로 복구한다.
+- 선행 계획 도메인이 공유 조직 테이블을 먼저 생성한 경우에도 서명·결제 마이그레이션이 누락 열과 역할 제약을 안전하게 보강하도록 빈 DB 적용 호환성을 추가했다.
 - 단위·Route·컴포넌트·pgTAP·Playwright 회귀 및 로컬 Supabase 통합 테스트와 8건 실 OCR 평가 스크립트를 추가했다.
 
 ### 완료 조건 추적표
@@ -288,6 +290,7 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 | 합계·식별자·기간·예산·중복 규칙    | `receipt-verification.ts`                            | `receipt-verification.test.ts`, 집행 E2E                                | PASS                 |
 | 차단 오류와 경고 확인 사유         | 재검증 PATCH, 등록 RPC, 검토 UI                      | 검증기·컴포넌트·pgTAP                                                   | PASS                 |
 | 수정값 서버 재검증·확정값 저장     | `[executionId]/route.ts`, 등록 RPC                   | 검토 폼 테스트, pgTAP, 집행 E2E                                         | PASS                 |
+| 검토 중 계획 예산 항목 재선택       | 검토 UI, `[executionId]/route.ts`, 등록 RPC          | 컴포넌트·Route 테스트, pgTAP 재연결 검증, 집행 E2E                       | PASS                 |
 | 증빙·계획 항목·검증 이력 원자 등록 | 등록 RPC                                             | pgTAP, 집행 E2E                                                         | PASS                 |
 | 중복·동시 요청의 이중 집행 방지    | 고유 제약, 계획 항목 잠금 RPC                        | 동일 원본 E2E, 동시 2건 등록 E2E                                        | PASS                 |
 | 조직 격리와 5분 서명 URL           | 테이블/Storage RLS, `getReview`                      | pgTAP 조직 A/B 행·객체 조회, 정적 정책 테스트                           | PASS                 |
@@ -301,7 +304,7 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 
 ```text
 명령: npm run check
-결과: PASS — format, lint, typecheck, Vitest 71 files/277 tests, Next.js production build
+결과: PASS — format, lint, typecheck, Vitest 71 files/278 tests, Next.js production build
 
 명령: npm run test:e2e
 결과: PASS — Playwright 33/33
@@ -310,7 +313,7 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 결과: PASS — 기존 2개와 신규 집행 마이그레이션을 빈 로컬 DB에 순서대로 적용
 
 명령: npx supabase test db
-결과: PASS — 2 files, 81 tests (집행 스키마·권한·RLS·Storage pending 업로더 격리·lease 복구·OCR 의미 키 보류·최종 의미 키·RPC 포함)
+결과: PASS — 2 files, 82 tests (집행 스키마·권한·RLS·Storage pending 업로더 격리·lease 복구·계획 항목 재연결·OCR 의미 키 보류·최종 의미 키·RPC 포함)
 
 명령: npm run test:e2e:executions
 결과: PASS — 업로드·OCR mock·검토·등록·동일 원본 차단 및 동시 예산 등록 중 1건만 성공
@@ -327,7 +330,7 @@ docs/issue_plan/ISSUE-14-RECEIPT-OCR-EXECUTION.md
 - AI 동작 변경 여부: 해당. Upstage OCR 결과를 영수증 초안으로 구조화한다.
 - 정확성 검증 결과: 필드 파서·스키마·규칙의 결정적 테스트와 실 Upstage 8건 평가가 PASS했다. 필수 필드는 32/32(100.0%), 거래일·합계는 16/16으로 사전 기준을 충족했다.
 - 안전성 검증 결과: 악성 HTML/지시문을 값으로만 취급, 런타임 스키마 검증, 429·5xx·타임아웃·비정상 JSON의 안전한 오류, API 키·상류 응답 상세 비노출, 조직 RLS/Storage 격리와 담당자 확인 없는 자동 등록 금지를 테스트했다. 페이지 또는 품목 OCR 신뢰도가 0.8 미만이면 `ocr_review` 경고와 담당자 확인 사유를 요구한다.
-- AI가 발견하거나 예방한 품질 문제: 초기 검토 화면에서 blocker가 있으면 값을 수정해도 재검증 버튼을 누를 수 없던 문제를 수정했고, Storage 정책 함수의 `authenticated` 실행 권한 누락을 전체 pgTAP 회귀에서 발견해 최소 권한으로 보완했다. 동시 등록 테스트를 추가해 계획 항목 잠금이 예산 이중 사용을 막는 것도 확인했다. 리뷰에서 프로세스 중단 시 영구 `analyzing` 상태와 낮은 OCR 신뢰도 누락을 발견해 2분 lease 재획득·token 기반 늦은 쓰기 거부·만료 작업 재시도와 저신뢰 경고를 추가했다. 후속 리뷰에서 최종 수정값의 의미 키 미갱신, 날짜 단위 결제 선후 비교, DB보다 느슨한 텍스트 길이 검증을 발견해 등록 RPC 재계산·서울 시간대 전체 시각 비교·API 422 사전 검증으로 보완했다. 추가 리뷰에서 환불 금액의 음수 부호 제거와 존재하지 않는 거래일 정규화를 발견해 OCR 음수 보존·금액 차단 및 달력 구성요소 왕복 검증을 추가했다. 마지막으로 같은 조직의 다른 구성원이 업로더의 pending 영수증을 읽을 수 있던 Storage 정책을 발견해, 업로더 UUID·경로 세그먼트 검증과 pgTAP 격리를 추가했다. 이번 리뷰에서는 OCR 초안의 의미 키가 검토 전 고유 제약을 막을 수 있음을 확인해 등록 시점까지 저장을 보류했고, 명시 모델·환경 모델·기본 모델의 우선순위를 회귀 테스트로 고정했다. 로컬 리뷰에서는 원본 승격 실패가 pending 경로를 잃어 재시도를 막을 수 있음을 확인해, 실패 저장 시 최종 경로가 없으면 pending 경로를 보존하도록 보완했다. 추가 로컬 리뷰에서 PATCH의 OCR 근거 조작과 분석 요청 네트워크 실패 후 pending 원본 잔존 가능성을 확인해, 서버 초안의 신뢰도·원문 근거를 강제 병합하고 멱등 키로 분석 생성 여부를 조정한 뒤 미생성 업로드만 삭제하도록 수정했다.
+- AI가 발견하거나 예방한 품질 문제: 초기 검토 화면에서 blocker가 있으면 값을 수정해도 재검증 버튼을 누를 수 없던 문제를 수정했고, Storage 정책 함수의 `authenticated` 실행 권한 누락을 전체 pgTAP 회귀에서 발견해 최소 권한으로 보완했다. 동시 등록 테스트를 추가해 계획 항목 잠금이 예산 이중 사용을 막는 것도 확인했다. 리뷰에서 프로세스 중단 시 영구 `analyzing` 상태와 낮은 OCR 신뢰도 누락을 발견해 2분 lease 재획득·token 기반 늦은 쓰기 거부·만료 작업 재시도와 저신뢰 경고를 추가했다. 후속 리뷰에서 최종 수정값의 의미 키 미갱신, 날짜 단위 결제 선후 비교, DB보다 느슨한 텍스트 길이 검증을 발견해 등록 RPC 재계산·서울 시간대 전체 시각 비교·API 422 사전 검증으로 보완했다. 추가 리뷰에서 환불 금액의 음수 부호 제거와 존재하지 않는 거래일 정규화를 발견해 OCR 음수 보존·금액 차단 및 달력 구성요소 왕복 검증을 추가했다. 마지막으로 같은 조직의 다른 구성원이 업로더의 pending 영수증을 읽을 수 있던 Storage 정책을 발견해, 업로더 UUID·경로 세그먼트 검증과 pgTAP 격리를 추가했다. 이번 리뷰에서는 OCR 초안의 의미 키가 검토 전 고유 제약을 막을 수 있음을 확인해 등록 시점까지 저장을 보류했고, 명시 모델·환경 모델·기본 모델의 우선순위를 회귀 테스트로 고정했다. 로컬 리뷰에서는 원본 승격 실패가 pending 경로를 잃어 재시도를 막을 수 있음을 확인해, 실패 저장 시 최종 경로가 없으면 pending 경로를 보존하도록 보완했다. 추가 로컬 리뷰에서 PATCH의 OCR 근거 조작과 분석 요청 네트워크 실패 후 pending 원본 잔존 가능성을 확인해, 서버 초안의 신뢰도·원문 근거를 강제 병합하고 멱등 키로 분석 생성 여부를 조정한 뒤 미생성 업로드만 삭제하도록 수정했다. PR 리뷰에서는 검토 중 계획 항목을 바로잡을 수 없던 흐름과 자격 상실 재시도가 `analyzing`으로 반복 진입하는 문제를 확인해, 제한된 항목 재선택·등록 RPC 재연결과 `invalid_reference` 실패 복구를 추가했다. 빈 DB 검증 과정에서 공유 조직 테이블의 마이그레이션 순서 충돌도 발견해 호환 열·제약 보강으로 예방했다.
 - 최종 판정: PASS — 모든 완료 조건과 필수 정확성·안전성·저장소 검증이 통과했고 차단 항목이 없다.
 
 ### 차단 항목과 미검증 범위

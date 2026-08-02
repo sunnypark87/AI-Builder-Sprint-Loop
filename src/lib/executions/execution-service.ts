@@ -91,6 +91,18 @@ function isPendingPath(input: AnalyzeExecutionInput) {
   );
 }
 
+function isOrganizationPendingPath(sourcePath: string, organizationId: string) {
+  const segments = sourcePath.split('/');
+  return Boolean(
+    segments.length === 5 &&
+    segments[0] === organizationId &&
+    segments[1] === 'pending' &&
+    UUID.test(segments[2]) &&
+    UUID.test(segments[3]) &&
+    /^source\.(?:pdf|png|jpg)$/.test(segments[4]),
+  );
+}
+
 async function cleanup(repository: ExecutionRepository, sourcePath: string) {
   try {
     await repository.removeSource(sourcePath);
@@ -390,14 +402,29 @@ export async function retryExecutionAnalysis(
       403,
     );
   }
+  let sourcePath = source.sourcePath;
   try {
     const file = await dependencies.repository.downloadSource(source);
+    if (isOrganizationPendingPath(sourcePath, source.organizationId)) {
+      sourcePath = await dependencies.repository.promoteSource(
+        executionId,
+        source.organizationId,
+        sourcePath,
+        file,
+        null,
+      );
+      await dependencies.repository.markSourceUploaded(
+        executionId,
+        sourcePath,
+        source.leaseToken,
+      );
+    }
     const analyzed = await analyzeStoredSource(
       executionId,
       source.leaseToken,
       eligibility,
       file,
-      source.sourcePath,
+      sourcePath,
       source.fingerprint,
       dependencies,
     );
@@ -412,7 +439,7 @@ export async function retryExecutionAnalysis(
       executionId,
       source.leaseToken,
       error instanceof DocumentOcrError ? error.code : 'persistence_failed',
-      source.sourcePath,
+      sourcePath,
     );
     if (error instanceof DocumentOcrError) {
       throw new ExecutionServiceError(

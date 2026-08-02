@@ -522,13 +522,14 @@ export function createExecutionRepository(
         .createSignedUrl(receipt.source_path as string, 300);
       if (signedError || !signed)
         throw databaseError(signedError?.message ?? '원본 URL 오류');
-      const { data: run } = await supabase
+      const { data: run, error: runError } = await supabase
         .from('receipt_ocr_runs')
         .select('api_version,model_version,page_count,processed_at')
         .eq('execution_id', executionId)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
+      if (runError) throw databaseError(runError.message);
       return {
         id: execution.id as string,
         organizationId: execution.organization_id as string,

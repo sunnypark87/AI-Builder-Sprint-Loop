@@ -141,4 +141,35 @@ describe('ExecutionReviewForm', () => {
     ).toBe(false);
     expect(screen.getByText('등록 차단')).toBeTruthy();
   });
+
+  it('shows the saved warning acknowledgement in read-only evidence', () => {
+    render(
+      <ExecutionReviewForm
+        executionId="77777777-7777-4777-8777-777777777777"
+        initialPlanItemId={planItemOptions[0].planItemId}
+        initialDraft={draft}
+        initialIssues={[]}
+        initialVerificationResults={[
+          {
+            code: 'donation_paid_at',
+            version: 1,
+            outcome: 'warning',
+            message: '결제 시각을 확인해 주세요.',
+            evidence: '결제 확정 시각 없음',
+          },
+        ]}
+        initialWarningReason="원본과 결제 내역을 직접 대조했습니다."
+        planItemOptions={planItemOptions}
+        readOnly
+      />,
+    );
+
+    expect(screen.getByText('검증 경고 확인 사유')).toBeTruthy();
+    expect(
+      screen.getByText('원본과 결제 내역을 직접 대조했습니다.'),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole('textbox', { name: '검증 경고 확인 사유' }),
+    ).toBeNull();
+  });
 });

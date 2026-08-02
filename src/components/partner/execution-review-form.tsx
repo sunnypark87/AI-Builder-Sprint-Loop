@@ -379,6 +379,13 @@ export function ExecutionReviewForm({
         </label>
       ) : null}
 
+      {readOnly && warningReason ? (
+        <div className="grid gap-1.5 rounded-[var(--radius-sm)] border border-line bg-surface-muted p-4 text-sm">
+          <p className="font-medium">검증 경고 확인 사유</p>
+          <p className="whitespace-pre-wrap text-copy-muted">{warningReason}</p>
+        </div>
+      ) : null}
+
       {requestError ? (
         <InlineNotice title="집행 내역을 등록하지 못했습니다." tone="danger">
           {requestError}

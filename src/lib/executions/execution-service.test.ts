@@ -42,6 +42,29 @@ function pngFile() {
   );
 }
 
+function recognizedReceipt() {
+  return {
+    apiVersion: '1',
+    modelVersion: 'test',
+    pages: [
+      {
+        page: 1,
+        confidence: 0.99,
+        text: [
+          '상호명: 모두마트',
+          '사업자등록번호: 120-81-55297',
+          '거래일시: 2026.08.02 14:30',
+          '품목: 생수 | 수량 2 | 금액 2,000원',
+          '공급가액: 1,819원',
+          '부가세: 181원',
+          '합계: 2,000원',
+          '승인번호: 12345678',
+        ].join('\n'),
+      },
+    ],
+  };
+}
+
 function repository(overrides: Partial<ExecutionRepository> = {}) {
   const base: ExecutionRepository = {
     getEligibility: vi.fn().mockResolvedValue(eligibility),
@@ -95,26 +118,7 @@ describe('analyzeExecution', () => {
     const target = repository();
     const result = await analyzeExecution(input, {
       repository: target,
-      recognize: vi.fn().mockResolvedValue({
-        apiVersion: '1',
-        modelVersion: 'test',
-        pages: [
-          {
-            page: 1,
-            confidence: 0.99,
-            text: [
-              '상호명: 모두마트',
-              '사업자등록번호: 120-81-55297',
-              '거래일시: 2026.08.02 14:30',
-              '품목: 생수 | 수량 2 | 금액 2,000원',
-              '공급가액: 1,819원',
-              '부가세: 181원',
-              '합계: 2,000원',
-              '승인번호: 12345678',
-            ].join('\n'),
-          },
-        ],
-      }),
+      recognize: vi.fn().mockResolvedValue(recognizedReceipt()),
       now: () => new Date('2026-08-02T00:00:00Z'),
     });
 
@@ -195,6 +199,58 @@ describe('analyzeExecution', () => {
 });
 
 describe('retryExecutionAnalysis', () => {
+  it('promotes a retained pending source before saving a successful retry', async () => {
+    const pendingPath = input.sourcePath;
+    const finalPath = `${ids.organizationId}/${ids.executionId}/source.png`;
+    const target = repository({
+      claimRetry: vi.fn().mockResolvedValue({
+        executionId: ids.executionId,
+        organizationId: ids.organizationId,
+        donationId: ids.donationId,
+        planId: ids.planId,
+        planItemId: ids.planItemId,
+        sourcePath: pendingPath,
+        fileName: 'receipt.png',
+        mimeType: 'image/png',
+        fingerprint: 'a'.repeat(64),
+        leaseToken: ids.uploadId,
+      }),
+      promoteSource: vi.fn().mockResolvedValue(finalPath),
+    });
+
+    await expect(
+      retryExecutionAnalysis(ids.executionId, {
+        repository: target,
+        recognize: vi.fn().mockResolvedValue(recognizedReceipt()),
+        now: () => new Date('2026-08-02T00:00:00Z'),
+      }),
+    ).resolves.toMatchObject({
+      executionId: ids.executionId,
+      status: 'review_required',
+    });
+
+    expect(target.promoteSource).toHaveBeenCalledWith(
+      ids.executionId,
+      ids.organizationId,
+      pendingPath,
+      expect.any(File),
+      null,
+    );
+    expect(target.markSourceUploaded).toHaveBeenCalledWith(
+      ids.executionId,
+      finalPath,
+      ids.uploadId,
+    );
+    expect(target.saveAnalysis).toHaveBeenCalledWith(
+      ids.executionId,
+      ids.uploadId,
+      finalPath,
+      expect.anything(),
+      expect.anything(),
+      expect.any(String),
+    );
+  });
+
   it('restores a retryable failed state when eligibility was revoked after claim', async () => {
     const sourcePath = `${ids.organizationId}/${ids.executionId}/source.png`;
     const target = repository({

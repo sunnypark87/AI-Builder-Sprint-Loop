@@ -36,6 +36,12 @@ describe('execution migration security and atomicity', () => {
     expect(migration).toContain('semantic_key = final_semantic_key');
   });
 
+  it('defers the unique semantic key until reviewed registration', () => {
+    expect(migration).toMatch(
+      /draft_data = p_draft,[\s\S]*?semantic_key = null,[\s\S]*?analysis_error_code = null,/,
+    );
+  });
+
   it('uses an expiring ownership token for analysis and retry writes', () => {
     expect(migration).toContain('analysis_lease_expires_at');
     expect(migration).toContain('analysis_lease_token');

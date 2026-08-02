@@ -53,7 +53,7 @@ describe('parseDocumentOcrResponse', () => {
 });
 
 describe('recognizePlanDocument', () => {
-  it('sends the API key only in the upstream authorization header', async () => {
+  it('sends the API key only in the upstream authorization header and uses the configured model', async () => {
     vi.stubEnv('UPSTAGE_MODEL', 'solar-pro3');
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({
@@ -74,6 +74,44 @@ describe('recognizePlanDocument', () => {
       Authorization: 'Bearer secret-test-key',
     });
     expect(request?.body).toBeInstanceOf(FormData);
+    expect((request?.body as FormData).get('model')).toBe('solar-pro3');
+  });
+
+  it('prefers an explicit model over the configured model', async () => {
+    vi.stubEnv('UPSTAGE_OCR_MODEL', 'receipt-ocr');
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        apiVersion: '1.1',
+        modelVersion: 'ocr-test',
+        pages: [{ page: 1, text: '계획명: 교육 지원' }],
+      }),
+    );
+
+    await recognizePlanDocument(plan, {
+      apiKey: 'secret-test-key',
+      model: 'custom-ocr',
+      fetchImpl,
+    });
+
+    const [, request] = fetchImpl.mock.calls[0];
+    expect((request?.body as FormData).get('model')).toBe('custom-ocr');
+  });
+
+  it('uses the default model when no model is configured', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        apiVersion: '1.1',
+        modelVersion: 'ocr-test',
+        pages: [{ page: 1, text: '계획명: 교육 지원' }],
+      }),
+    );
+
+    await recognizePlanDocument(plan, {
+      apiKey: 'secret-test-key',
+      fetchImpl,
+    });
+
+    const [, request] = fetchImpl.mock.calls[0];
     expect((request?.body as FormData).get('model')).toBe('ocr');
   });
 

@@ -183,10 +183,7 @@ export async function recognizePlanDocument(
     process.env.UPSTAGE_OCR_MODEL?.trim() || process.env.UPSTAGE_MODEL?.trim();
   body.append(
     'model',
-    options.model ??
-      (configuredModel === DEFAULT_DOCUMENT_OCR_MODEL
-        ? configuredModel
-        : DEFAULT_DOCUMENT_OCR_MODEL),
+    options.model?.trim() || configuredModel || DEFAULT_DOCUMENT_OCR_MODEL,
   );
 
   try {

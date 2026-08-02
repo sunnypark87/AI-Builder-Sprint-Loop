@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(26);
+select plan(27);
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values
@@ -142,6 +142,12 @@ select lives_ok(
     )
   $$,
   'analysis results and evidence are saved'
+);
+
+select is(
+  (select semantic_key from public.expenditure_executions where idempotency_key = 'execution-submit-key-0001'),
+  null,
+  'the OCR semantic key is deferred until reviewed registration'
 );
 
 select lives_ok(

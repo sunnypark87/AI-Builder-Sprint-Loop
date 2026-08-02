@@ -435,7 +435,9 @@ begin
       draft_data = p_draft,
       validation_issues = p_validation_issues,
       verification_results = p_verification_results,
-      semantic_key = nullif(p_semantic_key, ''),
+      -- OCR values are not authoritative. The unique semantic key is assigned
+      -- only by register_expenditure_execution after a reviewer confirms the draft.
+      semantic_key = null,
       analysis_error_code = null,
       analysis_lease_expires_at = null,
       analysis_lease_token = null,

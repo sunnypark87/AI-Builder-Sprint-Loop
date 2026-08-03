@@ -41,4 +41,17 @@ describe('PledgeChatPanel', () => {
     expect(html).not.toContain('추가로 확인할 항목');
     expect(html).not.toContain('자동 저장');
   });
+
+  it('renders the parent-owned conversation state when provided', () => {
+    const html = renderToStaticMarkup(
+      <PledgeChatPanel
+        initialMessages={[{ content: '처음 안내', role: 'assistant' }]}
+        messages={[
+          { content: '처음 안내', role: 'assistant' },
+          { content: '추가로 보낸 메시지', role: 'user' },
+        ]}
+      />,
+    );
+    expect(html).toContain('추가로 보낸 메시지');
+  });
 });

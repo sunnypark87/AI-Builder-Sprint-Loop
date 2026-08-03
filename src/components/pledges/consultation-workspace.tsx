@@ -11,14 +11,20 @@ import type { PledgeChatMessage, PledgeChatPatch } from '@/lib/pledges/chat';
 export function ConsultationWorkspace({
   organizationId,
   initialMessages,
+  initialPledgeId,
 }: {
   organizationId: string;
   initialMessages: PledgeChatMessage[];
+  initialPledgeId?: string;
 }) {
   const router = useRouter();
   const [, setMessages] = useState(initialMessages);
-  const [pledgeId, setPledgeId] = useState<string | null>(null);
-  const [draftPatch, setDraftPatch] = useState<PledgeChatPatch>({});
+  const [pledgeId, setPledgeId] = useState<string | null>(
+    initialPledgeId ?? null,
+  );
+  const [draftPatch, setDraftPatch] = useState<PledgeChatPatch>(() =>
+    getAppliedPatch(initialMessages),
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,6 +52,9 @@ export function ConsultationWorkspace({
     if (!response.ok) throw new Error('pledge_create_failed');
     const result = (await response.json()) as { pledgeId: string };
     setPledgeId(result.pledgeId);
+    const searchParams = new URLSearchParams(window.location.search);
+    searchParams.set('pledgeId', result.pledgeId);
+    router.replace(`${window.location.pathname}?${searchParams.toString()}`);
     return result.pledgeId;
   }
 
@@ -121,6 +130,15 @@ export function ConsultationWorkspace({
       </div>
     </div>
   );
+}
+
+function getAppliedPatch(messages: PledgeChatMessage[]) {
+  return messages
+    .filter((message) => message.role === 'assistant')
+    .reduce<PledgeChatPatch>(
+      (patch, message) => ({ ...patch, ...message.proposedPatch }),
+      {},
+    );
 }
 
 function getPledgeProgress(patch: PledgeChatPatch) {

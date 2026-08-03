@@ -25,6 +25,7 @@ export function PledgeReviewWorkspace({
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [currentPledge, setCurrentPledge] = useState(pledge);
+  const [chatMessages, setChatMessages] = useState(messages);
   const [appliedPatch, setAppliedPatch] = useState<PledgeChatPatch>();
 
   function handleAppliedPatch(
@@ -116,6 +117,8 @@ export function PledgeReviewWorkspace({
         <div className="xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)]">
           <PledgeChatPanel
             initialMessages={messages}
+            messages={chatMessages}
+            onMessagesChange={setChatMessages}
             onAppliedPatch={handleAppliedPatch}
             onCollapse={() => setChatCollapsed(true)}
             pledgeId={pledge.id}

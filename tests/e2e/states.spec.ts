@@ -13,21 +13,14 @@ test('legacy demo signing routes guide the user to the account entry point', asy
   await expect(page).toHaveURL(/\/account$/);
 });
 
-test('consultation keeps the selected organization in its heading and guidance', async ({
+test('consultation requires authentication before showing donor guidance', async ({
   page,
 }) => {
   await page.goto('/donate/green-tomorrow/consultation');
 
-  await expect(
-    page.getByRole('heading', { name: '푸른내일 AI 약정 도우미' }),
-  ).toBeVisible();
-  await expect(
-    page.getByText('기부하고 싶은 내용을 자유롭게 이야기해 주세요.'),
-  ).toBeVisible();
-  await expect(page.getByText('약정 작성 대화')).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: '재단 활동과 성과 보기' }),
-  ).toBeVisible();
+  await expect(page).toHaveURL(
+    /\/login\?next=\/donate\/green-tomorrow\/consultation$/,
+  );
 });
 
 test('protected donor pledge pages require authentication', async ({

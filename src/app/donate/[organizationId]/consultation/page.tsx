@@ -1,15 +1,34 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { ConsultationWorkspace } from '@/components/pledges/consultation-workspace';
 import { getOrganization } from '@/lib/mock-data/organizations';
+import { getCurrentUser } from '@/lib/supabase/auth';
+import { createClient } from '@/lib/supabase/server';
 
 export default async function ConsultationPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ organizationId: string }>;
+  searchParams: Promise<{ pledgeId?: string }>;
 }) {
   const { organizationId } = await params;
+  const user = await getCurrentUser();
+  if (!user) redirect(`/login?next=/donate/${organizationId}/consultation`);
   const org = getOrganization(organizationId);
   if (!org) notFound();
+  const { pledgeId } = await searchParams;
+  const restored = pledgeId
+    ? await getRestoredConsultation(user.id, pledgeId)
+    : null;
+  const initialMessages = restored?.messages.length
+    ? restored.messages
+    : [
+        {
+          content:
+            '어떤 활동에 얼마를, 어떤 주기로 기부하고 싶은지 알려주세요.',
+          role: 'assistant' as const,
+        },
+      ];
   return (
     <main className="mx-auto max-w-[960px] px-4 py-10 md:px-6">
       <h1 className="text-3xl font-bold">{org.name} AI 약정 도우미</h1>
@@ -23,15 +42,39 @@ export default async function ConsultationPage({
         활동 안내는 재단이 등록하고 승인한 자료만을 기준으로 표시합니다.
       </div>
       <ConsultationWorkspace
-        initialMessages={[
-          {
-            content:
-              '어떤 활동에 얼마를, 어떤 주기로 기부하고 싶은지 알려주세요.',
-            role: 'assistant',
-          },
-        ]}
+        initialMessages={initialMessages}
+        initialPledgeId={restored?.pledgeId}
         organizationId={org.id}
       />
     </main>
   );
+}
+
+async function getRestoredConsultation(userId: string, pledgeId: string) {
+  const supabase = await createClient();
+  const { data: pledge } = await supabase
+    .from('pledges')
+    .select('id')
+    .eq('id', pledgeId)
+    .eq('donor_user_id', userId)
+    .eq('status', 'draft')
+    .maybeSingle();
+  if (!pledge) return null;
+
+  const { data: messages } = await supabase
+    .from('pledge_chat_messages')
+    .select('id, role, content, proposed_patch, created_at')
+    .eq('pledge_id', pledge.id)
+    .order('created_at', { ascending: true });
+  return {
+    pledgeId: pledge.id,
+    messages: (messages ?? []).map((message) => ({
+      id: message.id,
+      content: message.content,
+      createdAt: message.created_at,
+      proposedPatch: message.proposed_patch ?? undefined,
+      role:
+        message.role === 'user' ? ('user' as const) : ('assistant' as const),
+    })),
+  };
 }

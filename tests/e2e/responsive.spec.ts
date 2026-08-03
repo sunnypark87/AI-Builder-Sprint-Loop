@@ -22,7 +22,7 @@ const routes = [
   {
     name: 'consultation',
     path: '/donate/green-tomorrow/consultation',
-    heading: '푸른내일 AI 약정 도우미',
+    heading: '로그인',
   },
   {
     name: 'account',

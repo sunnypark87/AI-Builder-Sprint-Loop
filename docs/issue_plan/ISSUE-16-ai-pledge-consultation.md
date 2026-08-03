@@ -418,3 +418,11 @@ tests/e2e/pledge-ai-consultation.spec.ts
 - 근거가 없는 조건은 상담 전체를 실패시키지 않고 해당 patch 필드만 제외하며, 다른 약정 필드는 유지하고 승인된 조건을 다시 선택하도록 안내한다.
 - 자연어 변형, 근거 없는 조건의 부분 반영 방지, 다중 턴 지정 기부 상태, 비지정 기부 상태를 회귀 테스트로 검증했다.
 - 검증 결과: 관련 단위 테스트 11개 PASS, `npm run check` PASS(Prettier, ESLint, TypeScript, Vitest 96개 파일·385개 테스트, production build).
+
+### 리뷰 후속 보완 기록: 상담 상태·인증 (2026-08-03)
+
+- 상담 draft ID를 URL query에 보존하고, 소유자·draft 상태를 확인한 뒤 저장된 상담 메시지를 새로고침 화면에 복원하도록 수정했다.
+- 검토 화면의 채팅 메시지를 workspace가 소유하도록 변경해 채팅 panel을 접었다 펴도 현재 방문 중 대화가 유지되도록 했다.
+- 상담 페이지와 관련 성과 안내는 로그인 후에만 접근하도록 보호하고, 로그인 후 원래 상담 경로로 돌아오도록 연결했다.
+- 복원 URL, 채팅 state 유지, 인증 redirect 회귀 테스트를 추가했다.
+- 검증 결과: `npm run check` PASS(Prettier, ESLint, TypeScript, Vitest 97개 파일·388개 테스트, production build), `npm run test:e2e` PASS(25개), `git diff --check` PASS.

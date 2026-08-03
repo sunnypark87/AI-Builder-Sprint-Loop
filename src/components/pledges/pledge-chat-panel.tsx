@@ -11,6 +11,7 @@ import { cn } from '@/lib/cn';
 
 export function PledgeChatPanel({
   initialMessages,
+  messages: controlledMessages,
   pledgeId,
   onEnsurePledge,
   onMessagesChange,
@@ -19,6 +20,7 @@ export function PledgeChatPanel({
   renderContextualHelp,
 }: {
   initialMessages: PledgeChatMessage[];
+  messages?: PledgeChatMessage[];
   pledgeId?: string;
   onEnsurePledge?: () => Promise<string | null>;
   onMessagesChange?: (messages: PledgeChatMessage[]) => void;
@@ -29,7 +31,8 @@ export function PledgeChatPanel({
   onCollapse?: () => void;
   renderContextualHelp?: (select: (value: string) => void) => ReactNode;
 }) {
-  const [messages, setMessages] = useState(initialMessages);
+  const [internalMessages, setInternalMessages] = useState(initialMessages);
+  const messages = controlledMessages ?? internalMessages;
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +59,7 @@ export function PledgeChatPanel({
   }, [messages.length]);
 
   function updateMessages(next: PledgeChatMessage[]) {
-    setMessages(next);
+    if (!controlledMessages) setInternalMessages(next);
     onMessagesChange?.(next);
   }
 

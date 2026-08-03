@@ -10,11 +10,6 @@ const categories = [
   '전체',
   ...new Set(organizations.map((item) => item.category)),
 ];
-const marks: Record<string, { short: string; color: string }> = {
-  haebom: { short: '해봄', color: '#c83d00' },
-  'green-tomorrow': { short: '푸른내일', color: '#176b3a' },
-  'warm-table': { short: '따뜻한식탁', color: '#7a4b00' },
-};
 
 export function OrganizationShowcase() {
   const [category, setCategory] = useState('전체');
@@ -33,7 +28,7 @@ export function OrganizationShowcase() {
             기부처를 알아보세요
           </h2>
           <p className="mt-5 text-sm leading-6 text-copy-muted md:text-base">
-            공개 자료와 최근 집행 보고를 확인할 수 있는 가상 기부처입니다.
+            관심 분야와 활동 내용을 살펴보고 기부처를 선택해 보세요.
           </p>
           <label className="relative mx-auto mt-8 block max-w-sm text-left">
             <span className="sr-only">기부 분야 선택</span>
@@ -53,32 +48,25 @@ export function OrganizationShowcase() {
         </div>
         <div
           aria-live="polite"
-          className="mt-12 grid grid-cols-2 md:mt-16 md:grid-cols-3"
+          className="mt-12 grid grid-cols-1 sm:grid-cols-2 md:mt-16 lg:grid-cols-4"
         >
-          {visible.map((organization) => {
-            const mark = marks[organization.id];
-            return (
-              <Link
-                className="group flex min-h-52 flex-col items-center justify-center px-3 py-8 text-center transition-colors hover:bg-panel-muted md:min-h-60"
-                href={`/organizations/${organization.id}`}
-                key={organization.id}
-              >
-                <span
-                  className="text-xl font-bold tracking-[-0.05em] md:text-2xl"
-                  style={{ color: mark.color }}
-                >
-                  {mark.short}
-                </span>
-                <span className="mt-5 text-sm font-medium md:text-base">
-                  {organization.name}
-                </span>
-                <span className="mt-2 text-xs text-copy-muted">
-                  공개 자료 {organization.verifiedItems}/
-                  {organization.totalItems} 확인
-                </span>
-              </Link>
-            );
-          })}
+          {visible.map((organization) => (
+            <Link
+              className="group flex min-h-52 flex-col items-center justify-center px-5 py-8 text-center transition-colors hover:bg-panel-muted md:min-h-60"
+              href={`/organizations/${organization.id}`}
+              key={organization.id}
+            >
+              <span className="text-sm text-copy-muted">
+                {organization.category}
+              </span>
+              <span className="mt-2 text-xl font-bold tracking-[-0.04em] md:text-2xl">
+                {organization.name}
+              </span>
+              <span className="mt-4 text-sm leading-6 text-copy-muted">
+                {organization.summary}
+              </span>
+            </Link>
+          ))}
         </div>
         <div className="mt-10 text-center">
           <Link

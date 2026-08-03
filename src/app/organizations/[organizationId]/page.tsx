@@ -26,37 +26,20 @@ export default async function OrganizationPage({
             {org.summary}
           </p>
           <section className="mt-10 border-t border-line pt-8">
-            <h2 className="text-2xl font-bold">공개 자료 분석</h2>
-            <p className="mt-2 text-sm text-copy-muted">
-              공개 자료를 바탕으로 구성한 데모 분석이며 실제 평가가 아닙니다.
-              최근 갱신 {org.latestReport}
+            <h2 className="text-2xl font-bold">기부금 활용 목적</h2>
+            <p className="mt-3 text-base leading-7 text-copy-muted">
+              {org.donationPurpose}
             </p>
-            <div className="mt-5 grid gap-3">
-              {org.allocation.map((x) => (
-                <div key={x.label}>
-                  <div className="flex justify-between text-sm">
-                    <span>{x.label}</span>
-                    <strong>{x.value}%</strong>
-                  </div>
-                  <div className="mt-2 h-2 bg-panel-muted">
-                    <div
-                      className="h-full bg-accent"
-                      style={{ width: `${x.value}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+            <p className="mt-2 text-sm text-copy-muted">
+              활동 지역 {org.location}
+            </p>
           </section>
         </div>
         <aside>
           <Card className="sticky top-24 p-5">
-            <p className="text-sm text-copy-muted">확인된 공개 항목</p>
-            <p className="mt-1 text-3xl font-bold">
-              {org.verifiedItems}/{org.totalItems}
-            </p>
-            <p className="mt-4 text-sm leading-6 text-copy-muted">
-              기부 조건은 AI 상담 후 약정서에서 다시 확인합니다.
+            <h2 className="text-lg font-bold">기부 안내</h2>
+            <p className="mt-3 text-sm leading-6 text-copy-muted">
+              AI 상담에서 기부 목적과 조건을 정리한 뒤 약정서를 작성합니다.
             </p>
             <Link
               className={buttonClassName({

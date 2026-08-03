@@ -1,10 +1,12 @@
-import { CheckIcon } from 'lucide-react';
 import Link from 'next/link';
 
 import { FilterTabs } from '@/components/ui/filter-tabs';
 import { organizations } from '@/lib/mock-data/organizations';
 
-const categories = ['전체', '아동·청소년', '환경', '지역사회'];
+const categories = [
+  '전체',
+  ...new Set(organizations.map((organization) => organization.category)),
+];
 
 export default async function OrganizationsPage({
   searchParams,
@@ -19,10 +21,10 @@ export default async function OrganizationsPage({
 
   return (
     <main className="mx-auto max-w-[1200px] px-4 py-12 md:px-6 lg:px-9">
-      <p className="text-sm text-copy-muted">공개 자료 기반 · 데모 데이터</p>
+      <p className="text-sm text-copy-muted">데모 기부처</p>
       <h1 className="mt-2 text-3xl font-bold">기부처 찾기</h1>
       <p className="mt-3 text-copy-muted">
-        관심 분야와 공개 자료를 비교해 기부처를 살펴보세요.
+        관심 분야와 활동 내용을 살펴보고 기부처를 선택해 보세요.
       </p>
       <div className="mt-8">
         <FilterTabs
@@ -48,28 +50,18 @@ export default async function OrganizationsPage({
             href={`/organizations/${org.id}`}
             key={org.id}
           >
-            <div className="grid gap-5 md:grid-cols-[1fr_auto]">
+            <div className="grid gap-5 md:grid-cols-[1fr_280px]">
               <div>
                 <p className="text-sm text-copy-muted">{org.category}</p>
                 <h2 className="mt-1 text-xl font-bold">{org.name}</h2>
                 <p className="mt-2 text-sm text-copy-muted">{org.summary}</p>
-                <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-success">
-                  {org.tags.map((tag) => (
-                    <li className="flex items-center gap-1" key={tag}>
-                      <CheckIcon aria-hidden="true" className="size-3.5" />
-                      {tag}
-                    </li>
-                  ))}
-                </ul>
               </div>
-              <div className="min-w-44 border-l-0 border-line md:border-l md:pl-6">
-                <p className="text-xs text-copy-muted">공개 자료 확인</p>
-                <p className="mt-1 text-2xl font-bold">
-                  {org.verifiedItems}/{org.totalItems}
+              <div className="border-l-0 border-line md:border-l md:pl-6">
+                <p className="text-xs text-copy-muted">기부금 활용 목적</p>
+                <p className="mt-1 text-sm font-medium leading-6">
+                  {org.donationPurpose}
                 </p>
-                <p className="mt-2 text-xs text-copy-muted">
-                  최근 갱신 {org.latestReport}
-                </p>
+                <p className="mt-2 text-xs text-copy-muted">{org.location}</p>
               </div>
             </div>
           </Link>

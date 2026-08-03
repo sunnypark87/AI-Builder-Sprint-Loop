@@ -11,14 +11,14 @@ const evidence = buildReportEvidence({
   donationCondition: '보고 필요',
   plan: {
     id: '44444444-4444-4444-8444-444444444444',
-    title: '급식 계획',
+    title: '8월 급식 계획',
     periodStart: '2026-07-01',
     periodEnd: '2026-07-31',
     totalAmount: 3000,
     items: [
       {
         id: '55555555-5555-4555-8555-555555555555',
-        name: '식재료',
+        name: '1차 식재료',
         description: '',
         amount: 3000,
       },
@@ -91,6 +91,7 @@ describe('report schema', () => {
     for (const claim of [
       '3,000명에게 지원했습니다.',
       '-3,000원을 집행했습니다.',
+      '- 3,000원을 집행했습니다.',
     ]) {
       content.planComparison.text = claim;
       expect(
@@ -113,10 +114,18 @@ describe('report schema', () => {
     expect(parseAndValidateReportContent(content, evidence).issues).toEqual([]);
   });
 
-  it('accepts complete evidence dates without allowing their components as claims', () => {
+  it('accepts dates only when their specific evidence is cited', () => {
     const dated = valid();
     dated.summary.text = '2026년 7월 10일에 집행 내역을 등록했습니다.';
+    dated.summary.evidenceIds = [`execution:${evidence.executions[0].id}`];
     expect(parseAndValidateReportContent(dated, evidence).issues).toEqual([]);
+
+    dated.summary.evidenceIds = [`pledge:${evidence.pledgeId}`];
+    expect(
+      parseAndValidateReportContent(dated, evidence).issues.map(
+        (issue) => issue.code,
+      ),
+    ).toContain('numeric_claim_not_allowed');
 
     dated.summary.text = '7명에게 지원했습니다.';
     expect(
@@ -125,9 +134,33 @@ describe('report schema', () => {
       ),
     ).toContain('numeric_claim_not_allowed');
 
+    dated.summary.evidenceIds = [`execution:${evidence.executions[0].id}`];
     dated.summary.text = '2026-07-11에 집행했습니다.';
     expect(
       parseAndValidateReportContent(dated, evidence).issues.map(
+        (issue) => issue.code,
+      ),
+    ).toContain('numeric_claim_not_allowed');
+  });
+
+  it('accepts numeric labels copied from cited source fields', () => {
+    const content = valid();
+    content.title = `${evidence.plan.title} 완료 보고`;
+    content.items[0].title = evidence.plan.items[0].name;
+    content.items[0].text = `${evidence.plan.items[0].name} 구매 내역입니다.`;
+    expect(parseAndValidateReportContent(content, evidence).issues).toEqual([]);
+
+    content.outcomes.text = '8명에게 지원했습니다.';
+    expect(
+      parseAndValidateReportContent(content, evidence).issues.map(
+        (issue) => issue.code,
+      ),
+    ).toContain('numeric_claim_not_allowed');
+
+    content.outcomes.text = '성과 정보는 담당자 확인이 필요합니다.';
+    content.title = '8명 지원 완료 보고';
+    expect(
+      parseAndValidateReportContent(content, evidence).issues.map(
         (issue) => issue.code,
       ),
     ).toContain('numeric_claim_not_allowed');

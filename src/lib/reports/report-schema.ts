@@ -78,7 +78,7 @@ export function parseReportContent(value: unknown): ReportContent | null {
 }
 
 const HTML = /<\/?[a-z][^>]*>/i;
-const NUMERIC_CLAIM = /[+-]?\d[\d,]*(?:\.\d+)?\s*(?:%|원|건|회|명)?/g;
+const NUMERIC_CLAIM = /(?:[+-]\s*)?\d[\d,]*(?:\.\d+)?\s*(?:%|원|건|회|명)?/g;
 const DATE_CLAIMS = [
   /\b(\d{4})-(\d{1,2})-(\d{1,2})\b/g,
   /\b(\d{4})\.(\d{1,2})\.(\d{1,2})\.?/g,
@@ -90,16 +90,16 @@ type NumericClaimKind = 'money' | 'count' | 'percent';
 function normalizedNumericClaim(value: string) {
   const match = value
     .trim()
-    .match(/^([+-]?\d[\d,]*(?:\.\d+)?)\s*(%|원|건|회|명)?$/);
+    .match(/^([+-]?)\s*(\d[\d,]*(?:\.\d+)?)\s*(%|원|건|회|명)?$/);
   if (!match) return null;
-  const parsed = Number(match[1].replaceAll(',', ''));
+  const parsed = Number(`${match[1]}${match[2].replaceAll(',', '')}`);
   if (!Number.isFinite(parsed)) return null;
   const kind: NumericClaimKind | null =
-    match[2] === '원'
+    match[3] === '원'
       ? 'money'
-      : match[2] === '건' || match[2] === '회'
+      : match[3] === '건' || match[3] === '회'
         ? 'count'
-        : match[2] === '%'
+        : match[3] === '%'
           ? 'percent'
           : null;
   return kind ? `${parsed}:${kind}` : null;
@@ -144,12 +144,46 @@ function allowedNumericClaimsByEvidence(evidence: ReportEvidence) {
   return claims;
 }
 
-function allowedDateClaims(evidence: ReportEvidence) {
-  return new Set([
-    evidence.plan.periodStart,
-    evidence.plan.periodEnd,
-    ...evidence.executions.map((execution) => execution.transactionDate),
+function allowedDateClaimsByEvidence(evidence: ReportEvidence) {
+  return new Map<string, Set<string>>([
+    [
+      `plan:${evidence.plan.id}`,
+      new Set([evidence.plan.periodStart, evidence.plan.periodEnd]),
+    ],
+    ...evidence.executions.map(
+      (execution) =>
+        [
+          `execution:${execution.id}`,
+          new Set([execution.transactionDate]),
+        ] as const,
+    ),
   ]);
+}
+
+function groundedLabelsByEvidence(evidence: ReportEvidence) {
+  const labels = new Map<string, string[]>();
+  labels.set(`pledge:${evidence.pledgeId}`, [
+    evidence.purpose,
+    evidence.donationCondition,
+  ]);
+  labels.set(`plan:${evidence.plan.id}`, [evidence.plan.title]);
+  for (const item of evidence.plan.items) {
+    labels.set(`plan-item:${item.id}`, [item.name]);
+  }
+  for (const execution of evidence.executions) {
+    labels.set(`execution:${execution.id}`, [execution.merchantName]);
+  }
+  return labels;
+}
+
+function removeGroundedLabels(value: string, labels: string[]) {
+  return labels
+    .filter(
+      (label) =>
+        label.length > 0 && /\d/.test(label) && /[A-Za-z가-힣]/.test(label),
+    )
+    .sort((left, right) => right.length - left.length)
+    .reduce((remaining, label) => remaining.replaceAll(label, ''), value);
 }
 
 function normalizeDateClaim(year: string, month: string, day: string) {
@@ -183,12 +217,14 @@ export function validateReportContent(
   const issues: ReportValidationIssue[] = [];
   const knownEvidence = reportEvidenceIds(evidence);
   const allowedNumbersByEvidence = allowedNumericClaimsByEvidence(evidence);
-  const allowedDates = allowedDateClaims(evidence);
+  const allowedDatesByEvidence = allowedDateClaimsByEvidence(evidence);
+  const labelsByEvidence = groundedLabelsByEvidence(evidence);
   const validateText = (
     value: string,
     path: string,
     max: number,
     evidenceIds: string[] = [],
+    sourceLabels: string[] = [],
   ) => {
     if (!value.trim()) {
       issues.push({ code: 'required', path, message: '내용을 입력해 주세요.' });
@@ -207,9 +243,25 @@ export function validateReportContent(
       });
     }
     let unsupportedDate = '';
-    const withoutDates = removeDateClaims(value, allowedDates, (claim) => {
-      unsupportedDate ||= claim;
-    });
+    const groundedLabels = [
+      ...sourceLabels,
+      ...evidenceIds.flatMap(
+        (evidenceId) => labelsByEvidence.get(evidenceId) ?? [],
+      ),
+    ];
+    const withoutLabels = removeGroundedLabels(value, groundedLabels);
+    const allowedDates = new Set(
+      evidenceIds.flatMap((evidenceId) => [
+        ...(allowedDatesByEvidence.get(evidenceId) ?? []),
+      ]),
+    );
+    const withoutDates = removeDateClaims(
+      withoutLabels,
+      allowedDates,
+      (claim) => {
+        unsupportedDate ||= claim;
+      },
+    );
     const allowedNumbers = new Set(
       evidenceIds.flatMap((evidenceId) => [
         ...(allowedNumbersByEvidence.get(evidenceId) ?? []),
@@ -250,7 +302,13 @@ export function validateReportContent(
     }
   };
 
-  validateText(content.title, 'title', 200);
+  validateText(
+    content.title,
+    'title',
+    200,
+    [],
+    [evidence.purpose, evidence.plan.title],
+  );
   validateNarrative(content.summary, 'summary');
   validateNarrative(content.planComparison, 'planComparison');
   validateNarrative(content.outcomes, 'outcomes');

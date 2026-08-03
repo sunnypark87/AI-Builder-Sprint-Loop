@@ -10,6 +10,16 @@ function clean(value: string) {
   return value.replace(/\s+/g, ' ').trim();
 }
 
+const RECEIPT_FIELD_BOUNDARY =
+  /[ \t]+(?=(?:상호명?|가맹점명?|사업자(?:등록)?번호|사업자No\.?|거래일시|거래일|승인일시|일시|공급가액|공급금액|부가세|세액|합계|총액|결제금액|받을금액|결제수단|지불수단|승인번호|품목|상품|merchant|business\s*(?:no|number)|date|supply|vat|total|payment|approval\s*(?:no|number))\s*[:：])/gi;
+
+function restoreReceiptLines(value: string) {
+  return value
+    .normalize('NFKC')
+    .replace(/\u00a0/g, ' ')
+    .replace(RECEIPT_FIELD_BOUNDARY, '\n');
+}
+
 function digits(value: string) {
   return value.replace(/[^0-9]/g, '');
 }
@@ -39,16 +49,21 @@ function normalizeDateTime(value: string) {
 function parseItems(text: string, confidence: number | null) {
   const items: ReceiptItemDraft[] = [];
   for (const line of text.split(/\r?\n/)) {
-    const match = line.match(
+    const sequentialMatch = line.match(
       /^\s*(?:품목|상품)\s*[:：]\s*(.+?)\s*(?:\||,)\s*(?:수량\s*[:：]?\s*)?(\d+)\s*(?:\||,)\s*(?:금액\s*[:：]?\s*)?([-−﹣－]?[\d,]+)\s*원?\s*$/,
     );
+    const reorderedMatch = line.match(
+      /^\s*(?:품목|상품)\s*[:：]\s*(.+?)\s+수량\s*[:：]\s*금액\s*[:：]\s*([-−﹣－]?[\d,]+)\s*원?\s*(?:\||,)\s*(\d+)\s*(?:\||,)?\s*$/,
+    );
+    const match = sequentialMatch ?? reorderedMatch;
     if (!match) continue;
     const name = clean(match[1]);
-    const amount = money(match[3]);
+    const quantity = Number(sequentialMatch ? match[2] : match[3]);
+    const amount = money(sequentialMatch ? match[3] : match[2]);
     items.push({
       id: `receipt-item-${items.length + 1}`,
       name,
-      quantity: Number(match[2]),
+      quantity,
       amount,
       confidence,
       sourceText: clean(line),
@@ -63,10 +78,12 @@ export function parseOcrReceipt(
   ocr: DocumentOcrResult,
   processedAt: string,
 ): ParsedReceipt {
-  const text = ocr.pages
-    .map((page) => page.text)
-    .join('\n')
-    .slice(0, 100_000);
+  const text = restoreReceiptLines(
+    ocr.pages
+      .map((page) => page.text)
+      .join('\n')
+      .slice(0, 100_000),
+  );
   const confidence = ocr.pages.every((page) => page.confidence === null)
     ? null
     : Math.min(...ocr.pages.map((page) => page.confidence ?? 1));

@@ -14,7 +14,7 @@ const FULL_DATE =
   /(\d{4})\s*(?:[./-]|년)\s*(\d{1,2})\s*(?:[./-]|월)\s*(\d{1,2})\s*(?:일)?/g;
 const AMOUNT_AT_END = /([+-]?\s*[\dOoIl,\s]+)\s*(?:원|₩)\s*$/;
 const STRUCTURAL_LABEL =
-  /[ \t]+(?=(?:집행\s*)?(?:계획명|사업명|프로그램명|기간)\s*[:：]|(?:총\s*(?:계획\s*)?(?:예산|금액)|합계)\s*[:：]?)/g;
+  /[ \t]+(?=(?:집행\s*)?(?:계획명|사업명|프로그램명|기간)\s*[:：]|(?:항목명|계획\s*항목)\s*[:：]|(?:총\s*(?:계획\s*)?(?:예산|금액)|합계)\s*[:：]?)/g;
 
 function normalizeText(value: string) {
   return value
@@ -58,6 +58,17 @@ function splitJoinedPeriodLine(line: string) {
   return remainder ? [period, remainder] : [period];
 }
 
+function splitJoinedItemLines(line: string) {
+  return line
+    .replace(
+      /(\d\s*원)\s+(?=(?:[-•·]\s*|\d+[.)]\s*)?[^|｜\n]{1,120}\s*[|｜])/g,
+      '$1\n',
+    )
+    .split('\n')
+    .map(normalizeText)
+    .filter(Boolean);
+}
+
 function logicalLines(value: string) {
   const separated = value
     .normalize('NFKC')
@@ -68,7 +79,8 @@ function logicalLines(value: string) {
     .split(/\r?\n/)
     .map(normalizeText)
     .filter(Boolean)
-    .flatMap(splitJoinedPeriodLine);
+    .flatMap(splitJoinedPeriodLine)
+    .flatMap(splitJoinedItemLines);
 }
 
 function parseAmount(value: string) {
@@ -93,6 +105,27 @@ function parseItemLine(
 ): PlanItemDraft | null {
   if (TOTAL_LABEL.test(line) || PERIOD_LABEL.test(line)) {
     return null;
+  }
+
+  const labeledMatch = line.match(
+    /^(?:항목명|계획\s*항목)\s*[:：]\s*(.+?)\s+(?:사용\s*목적|설명|내용)\s*[:：]\s*(.+?)\s+(?:계획\s*금액|금액)\s*[:：]\s*([+-]?\s*[\dOoIl,\s]+)\s*(?:원|₩)\s*$/,
+  );
+  if (labeledMatch) {
+    const name = labeledMatch[1].trim();
+    const description = labeledMatch[2].trim();
+    const amount = parseAmount(labeledMatch[3]);
+    if (!name || !description || amount === null) return null;
+    const sourcePage = pages.find((page) => page.text.includes(line));
+    return {
+      id: `ocr-item-${index + 1}`,
+      name,
+      description,
+      amount,
+      confidence: sourcePage?.confidence ?? null,
+      sourceText: line,
+      sourceName: name,
+      sourceAmount: amount,
+    };
   }
 
   const amountMatch = line.match(AMOUNT_AT_END);

@@ -169,6 +169,48 @@ test('receipt accuracy corpus contains eight distinct layouts and expectations',
   ).toBe(8);
 });
 
+test('Upstage OCR maps all items from the demo receipt PDF', async ({}, testInfo) => {
+  test.skip(!process.env.UPSTAGE_API_KEY, 'UPSTAGE_API_KEY is required.');
+  const filePath = path.resolve(
+    'public/demo-documents/2026-08-haebom-mart-receipt.pdf',
+  );
+  const file = new globalThis.File(
+    [await readFile(filePath)],
+    path.basename(filePath),
+    { type: 'application/pdf' },
+  );
+  const ocr = await recognizeDocument(file);
+  const parsed = parseOcrReceipt(ocr, new Date().toISOString());
+
+  await testInfo.attach('demo-receipt-ocr-result', {
+    body: JSON.stringify(
+      { ocr, draft: parsed.draft, issues: parsed.issues },
+      null,
+      2,
+    ),
+    contentType: 'application/json',
+  });
+
+  expect(parsed.draft).toMatchObject({
+    merchantName: '해봄마트',
+    businessNumber: '1234567891',
+    transactionAt: '2026-08-12T14:30',
+    supplyAmount: 2_727_273,
+    taxAmount: 272_727,
+    totalAmount: 3_000_000,
+    paymentMethod: '법인카드',
+    approvalNumber: '26081201',
+  });
+  expect(parsed.draft.items).toMatchObject([
+    { name: '급식 식재료', quantity: 1, amount: 1_500_000 },
+    { name: '도시락 용기 및 포장재', quantity: 1, amount: 900_000 },
+    { name: '급식 배송비', quantity: 1, amount: 600_000 },
+  ]);
+  expect(parsed.issues.map((issue) => issue.code)).toEqual([
+    'ocr_confidence_low',
+  ]);
+});
+
 test('Upstage OCR meets receipt field accuracy thresholds on eight synthetic samples', async ({
   page,
 }, testInfo) => {

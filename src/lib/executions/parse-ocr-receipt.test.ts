@@ -51,6 +51,101 @@ describe('parseOcrReceipt', () => {
     );
   });
 
+  it('restores fields and items when PDF OCR flattens the receipt', () => {
+    const parsed = parseOcrReceipt(
+      {
+        apiVersion: '1.0',
+        modelVersion: 'ocr-test',
+        pages: [
+          {
+            page: 1,
+            confidence: 0.97,
+            text: [
+              '기부 집행 내역 등록용 시연 영수증',
+              '상호명: 해봄마트',
+              '사업자등록번호: 123-45-67891',
+              '거래일시: 2026-08-12 14:30',
+              '결제수단: 법인카드',
+              '승인번호: 26081201',
+              '품목: 급식 식재료 | 수량: 1 | 금액: 1,500,000원',
+              '품목: 도시락 용기 및 포장재 | 수량: 1 | 금액: 900,000원',
+              '품목: 급식 배송비 | 수량: 1 | 금액: 600,000원',
+              '공급가액: 2,727,273원',
+              '부가세: 272,727원',
+              '합계: 3,000,000원',
+            ].join(' '),
+          },
+        ],
+      },
+      '2026-08-12T00:00:00.000Z',
+    );
+
+    expect(parsed.draft).toMatchObject({
+      merchantName: '해봄마트',
+      businessNumber: '1234567891',
+      transactionAt: '2026-08-12T14:30',
+      supplyAmount: 2_727_273,
+      taxAmount: 272_727,
+      totalAmount: 3_000_000,
+      paymentMethod: '법인카드',
+      approvalNumber: '26081201',
+      items: [
+        expect.objectContaining({
+          name: '급식 식재료',
+          quantity: 1,
+          amount: 1_500_000,
+        }),
+        expect.objectContaining({
+          name: '도시락 용기 및 포장재',
+          quantity: 1,
+          amount: 900_000,
+        }),
+        expect.objectContaining({
+          name: '급식 배송비',
+          quantity: 1,
+          amount: 600_000,
+        }),
+      ],
+    });
+    expect(parsed.issues).toEqual([]);
+  });
+
+  it('maps items when PDF OCR moves each quantity behind its amount', () => {
+    const parsed = parseOcrReceipt(
+      {
+        apiVersion: '1.0',
+        modelVersion: 'ocr-test',
+        pages: [
+          {
+            page: 1,
+            confidence: 0.97,
+            text: [
+              '상호명: 해봄마트',
+              '사업자등록번호: 123-45-67891',
+              '거래일시: 2026-08-12 14:30',
+              '결제수단: 법인카드',
+              '승인번호: 26081201',
+              '품목: 급식 식재료 수량: 금액: 1,500,000원 | 1 |',
+              '품목: 도시락 용기 및 포장재 수량: 금액: 900,000원 | 1 |',
+              '품목: 급식 배송비 수량: 금액: 600,000원 | 1 |',
+              '공급가액: 2,727,273원',
+              '부가세: 272,727원',
+              '합계: 3,000,000원',
+            ].join(' '),
+          },
+        ],
+      },
+      '2026-08-12T00:00:00.000Z',
+    );
+
+    expect(parsed.draft.items).toMatchObject([
+      { name: '급식 식재료', quantity: 1, amount: 1_500_000 },
+      { name: '도시락 용기 및 포장재', quantity: 1, amount: 900_000 },
+      { name: '급식 배송비', quantity: 1, amount: 600_000 },
+    ]);
+    expect(parsed.issues).toEqual([]);
+  });
+
   it('keeps malicious text as plain source data and reports missing fields', () => {
     const parsed = parseOcrReceipt(
       {

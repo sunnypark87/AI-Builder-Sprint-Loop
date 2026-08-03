@@ -85,6 +85,40 @@ async function asFile(filePath: string, type: string) {
   );
 }
 
+test('Upstage OCR maps every item from the demo plan PDF', async ({}, testInfo) => {
+  test.skip(!process.env.UPSTAGE_API_KEY, 'UPSTAGE_API_KEY is required.');
+  const filePath = path.resolve(
+    'public/demo-documents/2026-08-child-meal-expenditure-plan.pdf',
+  );
+  const ocr = await recognizePlanDocument(
+    await asFile(filePath, 'application/pdf'),
+  );
+  const parsed = parseOcrPlan(ocr);
+
+  await testInfo.attach('demo-plan-ocr-result', {
+    body: JSON.stringify(
+      { ocr, draft: parsed.draft, issues: parsed.issues },
+      null,
+      2,
+    ),
+    contentType: 'application/json',
+  });
+  expect(parsed.draft).toMatchObject({
+    title: '2026년 8월 아동 급식 지원 계획',
+    periodStart: '2026-08-01',
+    periodEnd: '2026-08-31',
+    totalAmount: 3_000_000,
+    items: [
+      {
+        name: '아동 급식 지원',
+        description: '방학 급식 식재료·포장재 구매 및 지원 가정 배송',
+        amount: 3_000_000,
+      },
+    ],
+  });
+  expect(parsed.issues).toEqual([]);
+});
+
 test('Upstage OCR meets the representative plan field accuracy threshold', async ({
   page,
 }, testInfo) => {

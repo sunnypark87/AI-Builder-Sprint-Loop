@@ -1,4 +1,5 @@
-export type SensitiveInputKind = 'identity_number' | 'card_number' | 'secret';
+export type SensitiveInputKind =
+  'identity_number' | 'card_number' | 'bank_account' | 'secret';
 
 export type SensitiveInputMatch = {
   kind: SensitiveInputKind;
@@ -9,12 +10,14 @@ export type SensitiveInputMatch = {
 const PATTERNS: Array<[SensitiveInputKind, RegExp]> = [
   ['identity_number', /\b\d{6}[- ]?\d{7}\b/g],
   ['card_number', /\b(?:\d[ -]?){13,19}\b/g],
+  ['bank_account', /\b(?!01[016789])\d{2,4}[- ]\d{2,4}[- ]\d{4,6}\b/g],
   ['secret', /\b(?:sk|pk|api[_ -]?key|token|password)\s*[:=]\s*\S+/gi],
 ];
 
 const PRIORITY: Record<SensitiveInputKind, number> = {
   identity_number: 3,
   card_number: 2,
+  bank_account: 3,
   secret: 1,
 };
 

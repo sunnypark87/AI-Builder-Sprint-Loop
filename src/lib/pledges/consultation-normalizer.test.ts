@@ -77,4 +77,59 @@ describe('consultation result normalization', () => {
       value: { assistantMessage: '기부 조건을 확인해 주세요.' },
     });
   });
+
+  it('rejects designated conditions without an approved program ground', () => {
+    const result = normalizeConsultationResult({
+      currentPledge: {},
+      organization: {
+        ...organization,
+        programs: [
+          {
+            id: 'program-1',
+            key: 'education',
+            name: '아동 교육',
+            description: '교육 지원',
+            allowedConditions: ['교재비 지원'],
+          },
+        ],
+      },
+      modelOutput: {
+        assistantMessage: '조건을 확인해 주세요.',
+        proposedPatch: {
+          donationDesignation: 'designated',
+          donationCondition: '해외 의료비 지원',
+        },
+      },
+    });
+    expect(result).toEqual({
+      ok: false,
+      errors: ['지정 기부 조건이 승인된 기부처 사업 근거와 일치하지 않습니다.'],
+    });
+  });
+
+  it('accepts conditions grounded in an approved program or condition', () => {
+    const result = normalizeConsultationResult({
+      currentPledge: {},
+      organization: {
+        ...organization,
+        programs: [
+          {
+            id: 'program-1',
+            key: 'education',
+            name: '아동 교육',
+            description: '교육 지원',
+            allowedConditions: ['교재비 지원'],
+          },
+        ],
+      },
+      modelOutput: {
+        assistantMessage: '조건을 확인해 주세요.',
+        proposedPatch: {
+          donationDesignation: 'designated',
+          donationCondition: '아동 교육 사업의 교재비 지원',
+        },
+      },
+    });
+    expect(result).toMatchObject({ ok: true });
+  });
 });

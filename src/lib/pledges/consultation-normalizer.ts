@@ -19,6 +19,11 @@ export function normalizeConsultationResult(input: {
   | { ok: true; value: PledgeConsultationResult }
   | { ok: false; errors: string[] } {
   const proposedPatch = normalizePatch(input.modelOutput.proposedPatch);
+  const groundingErrors = validateDonationConditionGrounding(
+    proposedPatch,
+    input.organization,
+  );
+  if (groundingErrors.length) return { ok: false, errors: groundingErrors };
   const missingFields = getMissingPledgeFields(
     input.currentPledge,
     proposedPatch,
@@ -43,6 +48,28 @@ export function normalizeConsultationResult(input: {
   };
 }
 
+function validateDonationConditionGrounding(
+  patch: PledgeConsultationResult['proposedPatch'],
+  organization: OrganizationAiContext,
+) {
+  if (
+    patch.donationDesignation !== 'designated' ||
+    !patch.donationCondition?.trim()
+  )
+    return [];
+  const condition = normalize(patch.donationCondition);
+  const grounded = (organization.programs ?? []).some((program) => {
+    const candidates = [program.name, ...program.allowedConditions];
+    return candidates.some((candidate) => {
+      const normalized = normalize(candidate);
+      return condition.includes(normalized) || normalized.includes(condition);
+    });
+  });
+  return grounded
+    ? []
+    : ['지정 기부 조건이 승인된 기부처 사업 근거와 일치하지 않습니다.'];
+}
+
 function normalizePatch(patch: ModelConsultationOutput['proposedPatch']) {
   const normalized = { ...patch };
   if (normalized.donationDesignation === 'undesignated')
@@ -52,4 +79,8 @@ function normalizePatch(patch: ModelConsultationOutput['proposedPatch']) {
   if (normalized.paymentMethod && normalized.paymentMethod !== 'other')
     normalized.paymentMethodOther = null;
   return normalized;
+}
+
+function normalize(value: string) {
+  return value.replace(/\s+/g, '').toLocaleLowerCase('ko-KR');
 }

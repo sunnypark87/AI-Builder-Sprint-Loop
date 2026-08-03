@@ -24,4 +24,23 @@ describe('pledge review workspace', () => {
       version: 4,
     });
   });
+
+  it('merges only AI fields without replacing unrelated unsaved form fields', () => {
+    const pledge = {
+      amount: 100000,
+      donor_name: '기부자',
+      donation_designation: null,
+      payment_method: null,
+      version: 3,
+    } as EditablePledge;
+
+    expect(
+      mergePledgeChatPatch(pledge, { paymentMethod: 'online' }, 4),
+    ).toMatchObject({
+      amount: 100000,
+      donor_name: '기부자',
+      payment_method: 'online',
+      version: 4,
+    });
+  });
 });

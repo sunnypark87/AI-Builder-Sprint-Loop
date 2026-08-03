@@ -25,11 +25,13 @@ export function PledgeReviewWorkspace({
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [currentPledge, setCurrentPledge] = useState(pledge);
+  const [appliedPatch, setAppliedPatch] = useState<PledgeChatPatch>();
 
   function handleAppliedPatch(
     patch: PledgeChatPatch,
     pledgeVersion: number | null,
   ) {
+    setAppliedPatch(patch);
     setCurrentPledge((current) =>
       mergePledgeChatPatch(current, patch, pledgeVersion),
     );
@@ -104,7 +106,7 @@ export function PledgeReviewWorkspace({
         <div className="overflow-auto bg-panel-muted">
           <div className="origin-top-left" style={{ zoom: `${zoom}%` }}>
             <PledgeDocumentForm
-              key={`${currentPledge.id}-${currentPledge.version ?? 1}`}
+              appliedPatch={appliedPatch}
               pledge={currentPledge}
             />
           </div>

@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation';
 
 import { Button, buttonClassName } from '@/components/ui/button';
 import { cn } from '@/lib/cn';
+import type { PledgeChatPatch } from '@/lib/pledges/chat';
 import {
   formatIdentityNumberInput,
   formatMobilePhoneInput,
@@ -53,7 +54,13 @@ export type EditablePledge = {
     | null;
 };
 
-export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
+export function PledgeDocumentForm({
+  pledge,
+  appliedPatch,
+}: {
+  pledge: EditablePledge;
+  appliedPatch?: PledgeChatPatch;
+}) {
   const router = useRouter();
   const organization = Array.isArray(pledge.organizations)
     ? pledge.organizations[0]
@@ -92,6 +99,39 @@ export function PledgeDocumentForm({ pledge }: { pledge: EditablePledge }) {
     () => getMissingReviewFields(form, pledge)[0]?.key ?? null,
   );
   const guidedField = missingReviewFields.length ? activeField : null;
+
+  useEffect(() => {
+    if (!appliedPatch) return;
+    const updateId = window.setTimeout(() => {
+      setForm((current) => ({
+        ...current,
+        ...(appliedPatch.amount !== undefined
+          ? { amount: String(appliedPatch.amount) }
+          : {}),
+        ...(appliedPatch.donationDesignation !== undefined
+          ? { donationDesignation: appliedPatch.donationDesignation }
+          : {}),
+        ...(appliedPatch.donationCondition !== undefined
+          ? { donationCondition: appliedPatch.donationCondition ?? '' }
+          : {}),
+        ...(appliedPatch.paymentSchedule !== undefined
+          ? { paymentSchedule: appliedPatch.paymentSchedule }
+          : {}),
+        ...(appliedPatch.paymentScheduleOther !== undefined
+          ? {
+              paymentScheduleOther: appliedPatch.paymentScheduleOther ?? '',
+            }
+          : {}),
+        ...(appliedPatch.paymentMethod !== undefined
+          ? { paymentMethod: appliedPatch.paymentMethod }
+          : {}),
+        ...(appliedPatch.paymentMethodOther !== undefined
+          ? { paymentMethodOther: appliedPatch.paymentMethodOther ?? '' }
+          : {}),
+      }));
+    }, 0);
+    return () => window.clearTimeout(updateId);
+  }, [appliedPatch]);
 
   useEffect(() => {
     if (!activeField) return;

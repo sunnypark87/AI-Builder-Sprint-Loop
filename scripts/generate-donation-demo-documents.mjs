@@ -91,9 +91,7 @@ const planHtml = `<!doctype html>
       <section class="ocr-block" aria-label="OCR 등록 정보">
         <div class="plan-line"><strong>계획명:</strong> 2026년 8월 아동 급식 지원 계획</div>
         <div class="plan-line"><strong>집행 기간:</strong> 2026-08-01 ~ 2026-08-31</div>
-        <div class="plan-line item">항목명: 급식 식재료　사용 목적: 쌀, 채소, 과일 및 단백질 식재료 구매　계획 금액: 1,500,000원</div>
-        <div class="plan-line item">항목명: 도시락 용기　사용 목적: 친환경 도시락 용기 및 포장재 구매　계획 금액: 900,000원</div>
-        <div class="plan-line item">항목명: 급식 배송비　사용 목적: 지원 가정 대상 도시락 배송　계획 금액: 600,000원</div>
+        <div class="plan-line item">항목명: 아동 급식 지원　사용 목적: 방학 급식 식재료·포장재 구매 및 지원 가정 배송　계획 금액: 3,000,000원</div>
         <div class="plan-line total">총 계획 예산: 3,000,000원</div>
       </section>
     </main>
@@ -149,12 +147,12 @@ const receiptHtml = `<!doctype html>
         <div class="ocr-line"><strong>거래일시:</strong> 2026-08-12 14:30</div>
         <div class="ocr-line"><strong>결제수단:</strong> 법인카드</div>
         <div class="ocr-line"><strong>승인번호:</strong> 26081201</div>
-        <div class="ocr-line item">품목: 쌀 및 곡류 | 수량: 1 | 금액: 180,000원</div>
-        <div class="ocr-line item">품목: 채소 및 과일 | 수량: 1 | 금액: 148,000원</div>
-        <div class="ocr-line item">품목: 단백질 식재료 | 수량: 1 | 금액: 100,000원</div>
-        <div class="ocr-line"><strong>공급가액:</strong> 389,091원</div>
-        <div class="ocr-line"><strong>부가세:</strong> 38,909원</div>
-        <div class="ocr-line grand-total"><strong>합계:</strong> 428,000원</div>
+        <div class="ocr-line item">품목: 급식 식재료 | 수량: 1 | 금액: 1,500,000원</div>
+        <div class="ocr-line item">품목: 도시락 용기 및 포장재 | 수량: 1 | 금액: 900,000원</div>
+        <div class="ocr-line item">품목: 급식 배송비 | 수량: 1 | 금액: 600,000원</div>
+        <div class="ocr-line"><strong>공급가액:</strong> 2,727,273원</div>
+        <div class="ocr-line"><strong>부가세:</strong> 272,727원</div>
+        <div class="ocr-line grand-total"><strong>합계:</strong> 3,000,000원</div>
       </section>
     </main>
   </body>

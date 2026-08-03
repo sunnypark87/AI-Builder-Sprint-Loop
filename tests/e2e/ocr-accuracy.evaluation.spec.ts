@@ -110,19 +110,9 @@ test('Upstage OCR maps every item from the demo plan PDF', async ({}, testInfo) 
     totalAmount: 3_000_000,
     items: [
       {
-        name: '급식 식재료',
-        description: '쌀, 채소, 과일 및 단백질 식재료 구매',
-        amount: 1_500_000,
-      },
-      {
-        name: '도시락 용기',
-        description: '친환경 도시락 용기 및 포장재 구매',
-        amount: 900_000,
-      },
-      {
-        name: '급식 배송비',
-        description: '지원 가정 대상 도시락 배송',
-        amount: 600_000,
+        name: '아동 급식 지원',
+        description: '방학 급식 식재료·포장재 구매 및 지원 가정 배송',
+        amount: 3_000_000,
       },
     ],
   });

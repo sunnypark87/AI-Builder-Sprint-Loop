@@ -195,16 +195,16 @@ test('Upstage OCR maps all items from the demo receipt PDF', async ({}, testInfo
     merchantName: '해봄마트',
     businessNumber: '1234567891',
     transactionAt: '2026-08-12T14:30',
-    supplyAmount: 389_091,
-    taxAmount: 38_909,
-    totalAmount: 428_000,
+    supplyAmount: 2_727_273,
+    taxAmount: 272_727,
+    totalAmount: 3_000_000,
     paymentMethod: '법인카드',
     approvalNumber: '26081201',
   });
   expect(parsed.draft.items).toMatchObject([
-    { name: '쌀 및 곡류', quantity: 1, amount: 180_000 },
-    { name: '채소 및 과일', quantity: 1, amount: 148_000 },
-    { name: '단백질 식재료', quantity: 1, amount: 100_000 },
+    { name: '급식 식재료', quantity: 1, amount: 1_500_000 },
+    { name: '도시락 용기 및 포장재', quantity: 1, amount: 900_000 },
+    { name: '급식 배송비', quantity: 1, amount: 600_000 },
   ]);
   expect(parsed.issues.map((issue) => issue.code)).toEqual([
     'ocr_confidence_low',

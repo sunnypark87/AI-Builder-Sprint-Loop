@@ -1,27 +1,129 @@
-# AI Builder Sprint 2026
+# Loop
 
-> 총 168시간, AI와 함께 만드는 도전
+> 기부의 약속부터 집행과 보고까지, 신뢰의 흐름을 연결하는 AI 기부 플랫폼
 
-## 개발 시작하기
+Loop는 기부자가 기부처와 기부 목적을 이해하고 약정할 수 있도록 돕고, 기부처는 약정·집행·증빙·보고 과정을 관리할 수 있도록 지원하는 서비스입니다.
 
-현재 프로젝트는 Next.js App Router와 TypeScript 기반 웹앱으로 구성되어 있습니다.
+현재 프로젝트는 AI Builder Sprint 2026을 위해 개발 중인 데모 서비스입니다.
+
+## 주요 기능
+
+### 기부자
+
+- 기부처 목록 및 분야별 탐색
+- AI 상담을 통한 기부 목적·금액·조건 정리
+- 약정서 작성 및 검토
+- 모두싸인 전자서명
+- 서명 완료 후 데모 결제
+- 기부 내역과 집행 보고 확인
+
+### 기부처
+
+- 조직 및 약정 템플릿 관리
+- 기부 약정 확인 및 대표자 전자서명
+- 지출 계획 직접 등록 또는 문서 OCR 분석
+- 영수증 업로드 및 OCR 추출
+- 금액·기간·예산 잔액·중복 증빙 검증
+- 집행 보고서 AI 초안 생성 및 검토
+
+### AI 활용
+
+- Upstage Document OCR을 통한 지출 계획서·영수증 정보 추출
+- AI 기부 상담
+- 집행 보고서 초안 생성
+- AI 결과를 담당자가 검토한 뒤 저장하는 검토 기반 흐름
+
+## 핵심 흐름
+
+### 기부자 흐름
+
+```text
+기부처 선택 → AI 상담 → 약정서 작성 → 기부자 서명
+→ 기부처 서명 → 데모 결제 → 집행·보고 확인
+```
+
+### 기부처 흐름
+
+```text
+약정 확인 → 대표자 서명 → 지출 계획 등록
+→ 영수증 업로드 및 분석 → 담당자 검토
+→ 집행 등록 → 보고서 작성 및 공개
+```
+
+## 기술 스택
+
+- Next.js App Router
+- TypeScript, React
+- Tailwind CSS
+- Supabase Auth / Database / Storage / Row Level Security
+- Upstage Document OCR / Solar Chat
+- 모두싸인 Modusign API 및 Webhook
+- Vitest / Playwright
+
+## 로컬 실행
+
+### 요구 사항
+
+- Node.js 20.19 이상
+- npm 11 이상
+- Supabase 통합 흐름을 실행하려면 Supabase CLI가 필요합니다.
+
+### 설치 및 실행
 
 ```bash
 npm install
+cp .env.example .env.local
 npm run dev
 ```
 
-개발 서버는 `http://localhost:3000`에서 실행됩니다. 환경변수가 필요한 기능을 개발할 때는 예시 파일을 복사한 뒤 실제 값을 로컬에서만 설정합니다.
+개발 서버는 `http://localhost:3000`에서 실행됩니다.
+
+## 환경변수
+
+`.env.example`을 기준으로 `.env.local`을 작성합니다. 실제 비밀 값은 저장소에 커밋하지 않습니다.
+
+기본 실행에 필요한 변수:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+
+AI 기능:
+
+- `UPSTAGE_API_KEY`
+- `UPSTAGE_OCR_MODEL`
+- `UPSTAGE_CHAT_MODEL`
+- `UPSTAGE_SOLAR_MODEL`
+
+전자서명 및 배포:
+
+- `MODUSIGN_AUTH_KEY`
+- `MODUSIGN_TEMPLATE_ID`
+- `MODUSIGN_WEBHOOK_SECRET`
+- `NEXT_PUBLIC_SITE_URL`
+
+서버 전용 변수를 브라우저 코드에 노출하지 않습니다. 전체 변수 목록과 용도는 [`.env.example`](.env.example)에서 확인할 수 있습니다.
+
+## 데모 계정과 전자서명
+
+데모 계정은 환경변수를 설정한 뒤 다음 명령으로 생성하거나 갱신할 수 있습니다.
 
 ```bash
-cp .env.example .env.local
+npm run demo:accounts
 ```
 
-집행 계획은 계획명·기간·예산 항목을 직접 작성해 등록할 수 있습니다. 계획서 PDF 또는 이미지가 있는 경우에만 선택적으로 OCR 자동 입력을 사용하며, 이 기능에는 서버 전용 `UPSTAGE_API_KEY`와 Supabase 프로젝트 설정이 필요합니다. 필요한 변수와 용도는 [`.env.example`](.env.example)에 정리되어 있으며 실제 비밀 값은 저장소에 커밋하지 않습니다.
+기본 데모 조직은 `DEMO_ORGANIZATION_SLUG`으로 지정하며, 현재 목 데이터에는 `haebom`, `green-tomorrow`, `warm-table`, `loop-foundation` 기부처가 포함되어 있습니다.
 
-검증 명령은 `npm run check`로 한 번에 실행할 수 있습니다. 세부 명령은 `AGENTS.md`에 정리되어 있습니다.
+기부자는 약정서를 작성하고 모두싸인 전자서명을 진행합니다. 이후 기부처 대표자가 같은 약정서에 서명하면 약정이 완료됩니다. 배포 환경에서는 모두싸인 Webhook을 다음 주소로 등록합니다.
 
-집행 계획의 실제 Auth·RLS·Storage·RPC 흐름은 로컬 Supabase를 시작한 뒤 별도 통합 테스트로 확인합니다. 이 명령은 Upstage 호출만 로컬 목으로 대체하며 Supabase 로컬 키를 파일이나 로그에 남기지 않습니다.
+```text
+https://<배포 도메인>/api/modusign/webhook
+```
+
+Webhook에는 `X-Modusign-Webhook-Secret` 헤더를 사용하고, 그 값은 `MODUSIGN_WEBHOOK_SECRET`과 일치해야 합니다.
+
+## Supabase 로컬 설정
+
+Auth·RLS·Storage·RPC가 포함된 통합 흐름은 로컬 Supabase에서 확인합니다.
 
 ```bash
 npx supabase start
@@ -29,120 +131,89 @@ npx supabase db reset --local
 npx supabase test db
 npm run test:e2e:plans
 npm run test:e2e:executions
+npm run test:e2e:reports
 ```
 
-실제 Upstage 정확도 평가는 비식별 합성 대표 문서에만 사용하며 `.env.local`의 `UPSTAGE_API_KEY`를 현재 프로세스에 설정한 환경에서 `npm run test:ai:ocr`로 실행합니다. 일반 `npm run check`와 E2E는 외부 API를 호출하지 않습니다.
+## 주요 경로
 
-영수증 집행 등록은 등록 완료된 집행 계획의 예산 항목에 영수증 1건을 연결합니다. Upstage OCR 추출 후 합계, 사업자등록번호 형식, 계획 기간, 예산 잔액과 중복 여부를 검사하고 담당자 확인 후 내부 등록합니다. 이 검사는 카드사·국세청 등 발행기관 조회나 법적 진위 보증이 아닙니다. 비식별 합성 영수증 8건의 실제 OCR 평가는 `npm run test:ai:receipt-ocr`로 별도 실행합니다.
+| 경로                                    | 설명                       |
+| --------------------------------------- | -------------------------- |
+| `/`                                     | 서비스 소개 및 주요 기부처 |
+| `/organizations`                        | 기부처 목록                |
+| `/donate/[organizationId]/consultation` | AI 기부 상담               |
+| `/pledges/[pledgeId]/sign`              | 기부자 전자서명            |
+| `/donations/[pledgeId]/payment`         | 서명 완료 약정의 데모 결제 |
+| `/my-donations`                         | 기부자 기부 내역           |
+| `/partner`                              | 기부처 관리자 대시보드     |
+| `/partner/plans`                        | 지출 계획 관리             |
+| `/partner/executions`                   | 집행 증빙 관리             |
+| `/partner/reports`                      | 집행 보고서 관리           |
 
-### 데모 서명 계정 설정
+## 검증 명령
 
-기부자와 기부처 모두 앱에서 로그인한 뒤 모두싸인 `SECURE_LINK` iframe에서 서명합니다. 모두싸인 개인 계정은 `MODUSIGN_AUTH_KEY`를 통한 서버 API 인증에만 사용됩니다.
-
-Supabase 마이그레이션과 seed를 적용한 뒤 `.env.local`에 다음 변수를 설정합니다. 실제 계정 값은 커밋하지 않습니다.
-
-```text
-DEMO_DONOR_EMAIL=
-DEMO_DONOR_PASSWORD=
-DEMO_ORGANIZATION_EMAIL=
-DEMO_ORGANIZATION_PASSWORD=
-DEMO_ORGANIZATION_SIGNER_NAME=
-DEMO_ORGANIZATION_SLUG=haebom
-```
-
-다음 명령은 데모 Auth 계정을 생성하거나 갱신하고, 기부처 계정을 선택한 조직의 대표 `signer` membership으로 연결합니다.
+개별 검증:
 
 ```bash
-npm run demo:accounts
+npm run format:check
+npm run lint
+npm run typecheck
+npm run test
+npm run build
 ```
 
-명령은 기부처 Auth 이메일을 `organization_members.signer_email`에 저장하고 해당 멤버를 조직의 유일한 대표 서명자로 지정합니다. 이후 기부자 계정으로 약정을 생성·서명하고, 기부처 계정으로 로그인해 같은 약정의 2차 서명을 진행합니다.
+전체 검증:
 
-Vercel Production에서는 `NEXT_PUBLIC_SITE_URL`을 고정 HTTPS 배포 주소로 설정하고, 모두싸인 Webhook URL을 `https://<domain>/api/modusign/webhook`으로 등록합니다. `document_signed`, `document_all_signed`를 구독하고 `X-Modusign-Webhook-Secret` 헤더에 `MODUSIGN_WEBHOOK_SECRET`과 같은 값을 설정합니다. Webhook은 이벤트를 claim한 뒤 202를 응답하고, 문서 상태 동기화는 응답 후 실행합니다. iframe 화면은 내부 DB를 자동 조회하며 Webhook이 늦을 때만 제한적으로 모두싸인 상태를 재동기화합니다.
+```bash
+npm run check
+```
+
+Upstage API를 사용하는 대표 문서 정확도 평가는 별도로 실행합니다.
+
+```bash
+npm run test:ai:ocr
+npm run test:ai:receipt-ocr
+npm run test:ai:reports
+```
+
+일반 테스트와 `npm run check`는 외부 AI API를 호출하지 않도록 구성되어 있습니다.
+
+## 프로젝트 구조
+
+```text
+src/app/          App Router 페이지와 API Route Handler
+src/components/   기부자·기부처 화면 및 공통 UI
+src/lib/          AI, 전자서명, Supabase, 약정·계획·집행·보고 도메인 로직
+supabase/         마이그레이션, RLS, Storage, RPC, 테스트 데이터
+tests/e2e/        Playwright 브라우저 및 통합 테스트
+docs/             디자인 시스템, 테스트 전략, 운영 검증 문서
+```
+
+## 현재 구현 범위와 제한사항
+
+- 기부처 데이터 일부는 데모 목 데이터이며 `Loop 재단`도 데모 기부처입니다.
+- 결제 화면은 데모 결제 흐름이며 실제 결제 승인을 처리하지 않습니다.
+- OCR 결과는 담당자 검토 후 저장됩니다.
+- OCR은 카드사·국세청 등 외부 발행기관의 법적 진위 확인을 제공하지 않습니다.
+- 모두싸인 Webhook은 배포 환경에서 별도 설정이 필요합니다.
+- 주민등록번호 등 민감정보 기능은 기본적으로 비활성화되어 있습니다.
+- 실제 환경에서는 Supabase RLS와 서버 전용 키 설정을 함께 검증해야 합니다.
 
 ## 대회 소개
 
-**AI Builder Sprint 2026**은 부산대학교 **APPTIVE**가 주최하고, **Upstage**, 부산대학교 **Anchor 사업단** 및 부산대학교 **AI융합교육원**이 후원하는 해커톤입니다. 참가자들은 자유로운 기술 스택을 바탕으로 실제로 동작하는 서비스를 직접 코드로 구현합니다.
+**AI Builder Sprint 2026**은 부산대학교 **APPTIVE**가 주최하고, **Upstage**, 부산대학교 **Anchor 사업단** 및 부산대학교 **AI융합교육원**이 후원하는 해커톤입니다.
 
-| 항목      | 내용                                                    |
-| --------- | ------------------------------------------------------- |
-| 주제      | AI를 통해 인간다움을 더욱 잘 드러낼 수 있는 서비스 개발 |
-| 팀 구성   | 2~4인 1팀                                               |
-| 개발 방식 | 코드 기반 앱 개발 필수 (노코드/로우코드 단독 사용 불가) |
+프로젝트 저장소는 대회 제출과 개발 과정을 위해 운영되며, 브랜치·커밋·PR 규칙은 [`docs/git-conventions.md`](docs/git-conventions.md)를 따릅니다. 구현 계획과 검증 결과는 [`docs/issue_plan/`](docs/issue_plan/)에 기록합니다.
 
-### 진행 흐름
+## 참고 문서
 
-1. **팀 단위 참가 신청** — 팀원 정보, 프로젝트 아이디어, 활용 예정 AI 기술·API 제출
-2. **참가팀 선발** (20~50팀) — 아이디어 참신성·실현 가능성·AI 활용 계획 기반 서류 심사
-3. **예선 개발 기간** (7.27 ~ 8.3, 약 1주일) — API 크레딧 발급, 아이디어 구체화 및 개발
-4. **결과물 제출 및 1차 심사** — 데모 영상/배포 링크, 코드 저장소, 발표 자료, AI 활용 증빙 제출
-5. **본선 발표 및 질의응답** (8.7) — 팀당 7분 발표 + 5분 Q&A, 심사 후 수상팀 확정
-
-### 기술 스택 및 규칙
-
-- 사용 API·모델은 자유이며, **Upstage API**(Solar LLM, Document Parse, Information Extract) 활용 시 심사 가점
-- Claude, GPT, Gemini 등 타사 모델 병행 사용 가능 (제약 없음)
-- 프레임워크/언어 자유 (Python, JavaScript, React, Flutter 등)
-- 결과물은 데모 가능한 동작하는 앱 (웹앱, 모바일앱, CLI 도구 등 형태 무관)
-- 코딩 에이전트(Claude Code, Codex 등) 활용 시 `.claude/`, `AGENTS.md` 등 관련 설정·지침 파일을 저장소에 포함해야 심사에 반영됩니다
-
-### 심사 기준
-
-| 기준                  | 배점 |
-| --------------------- | ---- |
-| 창의성                | 20점 |
-| AI 활용도             | 20점 |
-| 완성도                | 20점 |
-| 실용성                | 20점 |
-| 발표력 (본선)         | 20점 |
-| Upstage API 활용 가점 | +5점 |
-| 지역사회 기여도 가점  | +5점 |
-
-### 시상 내역
-
-- 대상 1팀: 100만원 + 상품
-- 최우수상 1팀: 50만원 + 상품
-- 우수상 1팀: 상품
-- 본선 참가 10팀: Upstage 굿즈 + 참가 인증서
-
-## Git Fork 하는 방법
-
-참가팀은 이 저장소를 팀 대표의 GitHub 계정으로 **Fork**한 뒤, 해당 Fork 저장소에서 프로젝트를 개발하고 최종 결과물을 제출합니다.
-
-### 1. 저장소 Fork하기
-
-1. [AI-Builder-Sprint 저장소](https://github.com/ApptiveDev/AI-Builder-Sprint)에 접속합니다.
-2. 우측 상단의 **Fork** 버튼을 클릭합니다.
-  <img width="1888" height="1131" alt="스크린샷 2026-07-27 오전 12 31 16" src="https://github.com/user-attachments/assets/2f0f7f80-6c92-4ba5-87c5-89ed6107eeab" />
-
-3. 본인(또는 팀 대표) GitHub 계정으로 저장소가 복사됩니다. (`https://github.com/<내-계정>/AI-Builder-Sprint`)
-
-### 2. Fork한 저장소 로컬로 클론하기
-
-```bash
-git clone https://github.com/<내-계정>/AI-Builder-Sprint.git
-cd AI-Builder-Sprint
-```
-
-### 3. 개발 진행 및 커밋
-
-```bash
-git checkout main
-git pull origin main
-git checkout -b feature/<github-issue-number>-<short-description>
-# 코드 작성 및 수정
-git push origin feature/<github-issue-number>-<short-description>
-```
-
-작업 유형에 따라 `feature/*`, `fix/*`, `refactor/*` 브랜치를 사용합니다. 모든 Pull Request의 base branch는 `main`이며, PR 생성 전 `npm run check`를 통과해야 합니다. 자세한 규칙은 [`docs/git-conventions.md`](docs/git-conventions.md)를 참고하세요.
-
-### 4. 결과물 제출
-
-- **팀별로 Fork한 본인 저장소 URL을 제출 양식에 기재합니다.**
-- 제출 마감 전까지 코드, 데모 영상/배포 링크, 발표 자료를 함께 준비해 제출해주세요.
-- 코딩 에이전트를 활용한 경우 `.claude/`, `AGENTS.md` 등 설정 파일도 반드시 저장소에 포함해주세요.
+- [`AGENTS.md`](AGENTS.md): 개발 및 검증 작업 지침
+- [`docs/design-system.md`](docs/design-system.md): 화면·접근성·UI 기준
+- [`docs/testing-strategy.md`](docs/testing-strategy.md): 테스트 및 AI 검증 기준
+- [`docs/modusign-manual-verification.md`](docs/modusign-manual-verification.md): 전자서명 수동 검증
+- [`docs/vercel-webhook-verification.md`](docs/vercel-webhook-verification.md): 배포 Webhook 검증
 
 ## 문의
 
 - 대회 관련 문의: 해커톤 문의 오픈채팅방
-- 주최: 부산대학교 APPTIVE, 정보컴퓨터공학부 동아리연합회 / 후원: Upstage, 부산대 Anchor 사업단, 부산대 AI융합교육원
+- 주최: 부산대학교 APPTIVE
+- 후원: Upstage, 부산대학교 Anchor 사업단, 부산대학교 AI융합교육원

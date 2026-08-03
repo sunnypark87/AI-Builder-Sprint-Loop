@@ -351,7 +351,7 @@ node --env-file-if-exists=.env --env-file-if-exists=.env.local ./node_modules/@p
   PASS — 실제 SolarLLM 1개 테스트 안의 비식별 대표 사례 3건(급식, 교육, 프롬프트 인젝션/HTML)
 
 npm run check
-  PASS — format:check, ESLint, TypeScript, Vitest 83개 파일/323개 테스트, Next.js 프로덕션 빌드
+  PASS — 최신 origin/main 병합 후 format:check, ESLint, TypeScript, Vitest 105개 파일/414개 테스트, Next.js 프로덕션 빌드
 
 git diff --check
   PASS — 공백 오류 없음

@@ -10,6 +10,7 @@
     "dev": "next dev",
     "demo:accounts": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/setup-demo-accounts.mjs",
     "verify:rls": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/verify-rls.mjs",
+    "import:organization-source": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/import-organization-source.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

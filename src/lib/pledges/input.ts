@@ -23,7 +23,7 @@ export type CreatePledgeInput = {
   donationDesignation?: 'designated' | 'undesignated';
   donationKind?: 'cash' | 'other';
   donationKindOther?: string;
-  donationType: string;
+  donationType?: string;
   identityInfoConsent?: boolean;
   organizationSlug: string;
   paymentMethod?: 'online' | 'direct' | 'other';
@@ -32,7 +32,7 @@ export type CreatePledgeInput = {
   paymentScheduleOther?: string;
   personalInfoConsent?: boolean;
   pledgeDate: string;
-  purpose: string;
+  purpose?: string;
   receiptRecipientAddress?: string;
   receiptRecipientName?: string;
   receiptRequested: boolean;
@@ -76,8 +76,6 @@ export function validateCreatePledgeInput(
     ['donorName', '기부자명'],
     ['address', '주소'],
     ['contact', '연락처'],
-    ['donationType', '기부 유형'],
-    ['purpose', '기부 목적'],
     ['pledgeDate', '약정일'],
   ] as const;
 
@@ -133,6 +131,56 @@ export function validateCreatePledgeInput(
     });
   }
 
+  if (
+    input.donationDesignation !== undefined &&
+    !isEnum(input.donationDesignation, ['designated', 'undesignated'])
+  ) {
+    errors.push({
+      field: 'donationDesignation',
+      message: '기부 유형은 지정 기부 또는 비지정 기부여야 합니다.',
+    });
+  }
+  if (
+    input.donationDesignation === 'designated' &&
+    (typeof input.donationCondition !== 'string' ||
+      !input.donationCondition.trim())
+  ) {
+    errors.push({
+      field: 'donationCondition',
+      message: '지정 기부에는 기부 조건을 입력해 주세요.',
+    });
+  }
+  if (
+    input.donationDesignation === 'undesignated' &&
+    typeof input.donationCondition === 'string' &&
+    input.donationCondition.trim()
+  ) {
+    errors.push({
+      field: 'donationCondition',
+      message: '비지정 기부에는 기부 조건을 입력할 수 없습니다.',
+    });
+  }
+  if (
+    input.paymentSchedule === 'other' &&
+    (typeof input.paymentScheduleOther !== 'string' ||
+      !input.paymentScheduleOther.trim())
+  ) {
+    errors.push({
+      field: 'paymentScheduleOther',
+      message: '기타 납부 시점의 상세 내용을 입력해 주세요.',
+    });
+  }
+  if (
+    input.paymentMethod === 'other' &&
+    (typeof input.paymentMethodOther !== 'string' ||
+      !input.paymentMethodOther.trim())
+  ) {
+    errors.push({
+      field: 'paymentMethodOther',
+      message: '기타 납부 수단의 상세 내용을 입력해 주세요.',
+    });
+  }
+
   if (errors.length > 0) {
     return { errors, ok: false };
   }
@@ -169,7 +217,9 @@ export function validateCreatePledgeInput(
         ? { donationKind: input.donationKind }
         : {}),
       donationKindOther: optionalString(input.donationKindOther),
-      donationType: requiredString(input.donationType),
+      ...(typeof input.donationType === 'string'
+        ? { donationType: input.donationType.trim() }
+        : {}),
       ...(typeof input.identityInfoConsent === 'boolean'
         ? { identityInfoConsent: input.identityInfoConsent }
         : {}),
@@ -186,7 +236,9 @@ export function validateCreatePledgeInput(
         ? { personalInfoConsent: input.personalInfoConsent }
         : {}),
       pledgeDate: pledgeDate as string,
-      purpose: requiredString(input.purpose),
+      ...(typeof input.purpose === 'string'
+        ? { purpose: input.purpose.trim() }
+        : {}),
       receiptRecipientAddress:
         input.receiptRequested === true
           ? requiredString(input.address)
@@ -277,6 +329,63 @@ export function validateDraftPledgeInput(
     errors.push({
       field: 'pledgeDate',
       message: '약정일 형식이 올바르지 않습니다.',
+    });
+  }
+  if (
+    input.donationDesignation !== undefined &&
+    !isEnum(input.donationDesignation, ['designated', 'undesignated'])
+  ) {
+    errors.push({
+      field: 'donationDesignation',
+      message: '기부 유형은 지정 기부 또는 비지정 기부여야 합니다.',
+    });
+  }
+  if (
+    input.paymentSchedule !== undefined &&
+    !isEnum(input.paymentSchedule, ['lump_sum', 'other'])
+  ) {
+    errors.push({
+      field: 'paymentSchedule',
+      message: '납부 시점 선택값이 올바르지 않습니다.',
+    });
+  }
+  if (
+    input.paymentMethod !== undefined &&
+    !isEnum(input.paymentMethod, ['online', 'direct', 'other'])
+  ) {
+    errors.push({
+      field: 'paymentMethod',
+      message: '납부 수단 선택값이 올바르지 않습니다.',
+    });
+  }
+  if (
+    input.donationDesignation === 'undesignated' &&
+    typeof input.donationCondition === 'string' &&
+    input.donationCondition.trim()
+  ) {
+    errors.push({
+      field: 'donationCondition',
+      message: '비지정 기부에는 기부 조건을 입력할 수 없습니다.',
+    });
+  }
+  if (
+    input.paymentSchedule === 'other' &&
+    typeof input.paymentScheduleOther === 'string' &&
+    !input.paymentScheduleOther.trim()
+  ) {
+    errors.push({
+      field: 'paymentScheduleOther',
+      message: '기타 납부 시점의 상세 내용을 입력해 주세요.',
+    });
+  }
+  if (
+    input.paymentMethod === 'other' &&
+    typeof input.paymentMethodOther === 'string' &&
+    !input.paymentMethodOther.trim()
+  ) {
+    errors.push({
+      field: 'paymentMethodOther',
+      message: '기타 납부 수단의 상세 내용을 입력해 주세요.',
     });
   }
   if (errors.length) return { errors, ok: false };

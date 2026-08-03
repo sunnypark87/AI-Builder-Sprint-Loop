@@ -29,18 +29,56 @@ describe('create pledge input validation', () => {
     }
   });
 
-  it('reports required and invalid amount/date fields', () => {
+  it('reports invalid amount/date fields without requiring a purpose', () => {
     const result = validateCreatePledgeInput({
       ...validInput,
       amount: 0,
       pledgeDate: 'not-a-date',
-      purpose: '',
+      purpose: undefined,
     });
 
     expect(result).toMatchObject({ ok: false });
     if (!result.ok) {
       expect(result.errors.map((error) => error.field)).toEqual(
-        expect.arrayContaining(['amount', 'pledgeDate', 'purpose']),
+        expect.arrayContaining(['amount', 'pledgeDate']),
+      );
+    }
+  });
+
+  it('requires a condition only for designated donations', () => {
+    const designated = validateCreatePledgeInput({
+      ...validInput,
+      purpose: undefined,
+      donationDesignation: 'designated',
+    });
+    expect(designated.ok).toBe(false);
+    if (!designated.ok) {
+      expect(designated.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ field: 'donationCondition' }),
+        ]),
+      );
+    }
+    expect(
+      validateCreatePledgeInput({
+        ...validInput,
+        purpose: undefined,
+        donationDesignation: 'undesignated',
+      }),
+    ).toMatchObject({ ok: true });
+  });
+
+  it('requires details for other payment selections', () => {
+    const result = validateCreatePledgeInput({
+      ...validInput,
+      purpose: undefined,
+      paymentSchedule: 'other',
+      paymentMethod: 'other',
+    });
+    expect(result).toMatchObject({ ok: false });
+    if (!result.ok) {
+      expect(result.errors.map((error) => error.field)).toEqual(
+        expect.arrayContaining(['paymentScheduleOther', 'paymentMethodOther']),
       );
     }
   });

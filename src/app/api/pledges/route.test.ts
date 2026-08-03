@@ -104,6 +104,20 @@ describe('POST /api/pledges', () => {
     });
   });
 
+  it('creates an incomplete draft for the first consultation message', async () => {
+    const response = await POST(
+      new Request('http://localhost/api/pledges', {
+        body: JSON.stringify({ organizationSlug: 'haebom' }),
+        method: 'POST',
+      }),
+    );
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toEqual({
+      pledgeId: 'pledge-1',
+      status: 'draft',
+    });
+  });
+
   it('rejects oversized consultation messages before creating a pledge', async () => {
     const response = await POST(
       new Request('http://localhost/api/pledges', {

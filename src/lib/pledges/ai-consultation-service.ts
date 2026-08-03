@@ -98,6 +98,9 @@ export async function consultPledge(input: {
       modelOutput: completion.output,
       currentPledge: input.currentPledge,
       organization: input.organization,
+      latestUserMessage:
+        [...input.messages].reverse().find((message) => message.role === 'user')
+          ?.content ?? '',
     });
     if (!normalized.ok)
       return { ok: false, code: 'grounding_failed', retryable: false };

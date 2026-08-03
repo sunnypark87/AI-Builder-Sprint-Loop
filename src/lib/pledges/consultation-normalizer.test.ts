@@ -15,6 +15,7 @@ describe('consultation result normalization', () => {
   it('derives missing and confirmation fields on the server', () => {
     const result = normalizeConsultationResult({
       currentPledge: { organizationId: 'org-1' },
+      latestUserMessage: '10만원을 지정 기부로 할게요.',
       organization,
       modelOutput: {
         assistantMessage: '확인해 주세요.',
@@ -41,6 +42,7 @@ describe('consultation result normalization', () => {
         donationDesignation: 'designated',
         donationCondition: '교육',
       },
+      latestUserMessage: '비지정 기부로 바꾸고 한 번에 온라인 납부할게요.',
       organization,
       modelOutput: {
         assistantMessage: '변경했어요.',
@@ -66,6 +68,7 @@ describe('consultation result normalization', () => {
   it('keeps the conversation result independent from impact summaries', () => {
     const result = normalizeConsultationResult({
       currentPledge: {},
+      latestUserMessage: '추천해 주세요.',
       organization,
       modelOutput: {
         assistantMessage: '기부 조건을 확인해 주세요.',
@@ -81,6 +84,7 @@ describe('consultation result normalization', () => {
   it('keeps unrelated patch fields when a condition lacks approved grounding', () => {
     const result = normalizeConsultationResult({
       currentPledge: {},
+      latestUserMessage: '지정 기부로 해외 의료비 지원에 사용해 주세요.',
       organization: {
         ...organization,
         programs: [
@@ -116,6 +120,8 @@ describe('consultation result normalization', () => {
   it('accepts conditions grounded in an approved program or condition', () => {
     const result = normalizeConsultationResult({
       currentPledge: {},
+      latestUserMessage:
+        '지정 기부로 아동 교육 사업의 교재비 지원에 사용해 주세요.',
       organization: {
         ...organization,
         programs: [
@@ -147,6 +153,7 @@ describe('consultation result normalization', () => {
       currentPledge: {
         donationDesignation: 'designated',
       },
+      latestUserMessage: '해외 의료비 지원에 사용해 주세요.',
       organization: {
         ...organization,
         programs: [
@@ -179,6 +186,7 @@ describe('consultation result normalization', () => {
   it('does not ground a condition while the effective designation is undesignated', () => {
     const result = normalizeConsultationResult({
       currentPledge: { donationDesignation: 'undesignated' },
+      latestUserMessage: '교재비 지원에 사용해 주세요.',
       organization: {
         ...organization,
         programs: [
@@ -199,6 +207,114 @@ describe('consultation result normalization', () => {
     expect(result).toMatchObject({
       ok: true,
       value: { proposedPatch: {}, groundingWarnings: expect.any(Array) },
+    });
+  });
+
+  it('applies only amount when the latest donor message mentions only amount', () => {
+    const result = normalizeConsultationResult({
+      currentPledge: { organizationId: 'org-1' },
+      latestUserMessage: '10만원 기부할게요.',
+      organization: {
+        ...organization,
+        programs: [
+          {
+            id: 'program-1',
+            key: 'education',
+            name: '아동 교육',
+            description: '교육 지원',
+            allowedConditions: ['교재비 지원'],
+          },
+        ],
+      },
+      modelOutput: {
+        assistantMessage: '확인했어요.',
+        proposedPatch: {
+          amount: 100000,
+          donationDesignation: 'designated',
+          donationCondition: '교재비 지원',
+          paymentMethod: 'online',
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        proposedPatch: { amount: 100000 },
+        confirmationFields: ['amount'],
+        nextQuestionField: 'donationDesignation',
+      },
+    });
+  });
+
+  it('recovers an explicit Korean amount even when the model omits it', () => {
+    const result = normalizeConsultationResult({
+      currentPledge: { organizationId: 'org-1' },
+      latestUserMessage: '10만원을 기부할게요.',
+      organization,
+      modelOutput: {
+        assistantMessage: '확인했어요.',
+        proposedPatch: {},
+      },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { proposedPatch: { amount: 100000 } },
+    });
+  });
+
+  it('does not infer a detailed condition from a program name alone', () => {
+    const result = normalizeConsultationResult({
+      currentPledge: {
+        organizationId: 'org-1',
+        donationDesignation: 'designated',
+      },
+      latestUserMessage: '아동 교육 사업에 기부할게요.',
+      organization: {
+        ...organization,
+        programs: [
+          {
+            id: 'program-1',
+            key: 'education',
+            name: '아동 교육',
+            description: '교육 지원',
+            allowedConditions: ['교재비 지원'],
+          },
+        ],
+      },
+      modelOutput: {
+        assistantMessage: '확인했어요.',
+        proposedPatch: { donationCondition: '교재비 지원' },
+      },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        proposedPatch: {},
+        missingFields: expect.arrayContaining(['donationCondition']),
+      },
+    });
+  });
+
+  it('asks for donation designation when the donor chooses to decide the type first', () => {
+    const result = normalizeConsultationResult({
+      currentPledge: { organizationId: 'org-1' },
+      latestUserMessage: '기부 유형부터 정할게요.',
+      organization,
+      modelOutput: {
+        assistantMessage: '기부 유형부터 확인할게요.',
+        proposedPatch: {},
+      },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        proposedPatch: {},
+        nextQuestionField: 'donationDesignation',
+      },
     });
   });
 });

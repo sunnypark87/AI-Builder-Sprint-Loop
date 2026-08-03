@@ -45,7 +45,7 @@ describe('AI consultation service', () => {
     const result = await consultPledge({
       organization,
       currentPledge: { organizationId: 'org-1' },
-      messages: [],
+      messages: [{ role: 'user', content: '지정 기부로 할게요.' }],
       fetchImpl,
       config: {
         apiKey: 'secret',

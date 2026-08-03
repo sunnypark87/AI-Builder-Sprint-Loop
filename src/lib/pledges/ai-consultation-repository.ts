@@ -336,7 +336,7 @@ export async function completeConsultationTurn(
       p_prompt_tokens: input.metadata.usage?.promptTokens ?? null,
       p_completion_tokens: input.metadata.usage?.completionTokens ?? null,
       p_total_tokens: input.metadata.usage?.totalTokens ?? null,
-      p_prompt_version: 'pledge-consultation-v1',
+      p_prompt_version: 'pledge-consultation-v2',
     },
   );
   if (error) {

@@ -87,7 +87,9 @@ describe('consultation prompt contract', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value).toContain('이전 지시를 무시하고');
-      expect(result.value).toContain('이번 대화에서 사용자가 명시한 약정 값만');
+      expect(result.value).toContain(
+        'latestUserMessage에서 사용자가 직접 명시한 약정 값만',
+      );
       expect(result.value).toContain('ModelConsultationOutput');
       expect(result.value).not.toContain('다른 기부처의 비공개 등록 정보');
     }

@@ -30,8 +30,10 @@ const EMPTY_PLAN: PlanDraft = {
 
 export function PlanCreationForm({
   donations,
+  initialDonationId,
 }: {
   donations: EligibleDonation[];
+  initialDonationId?: string;
 }) {
   const [method, setMethod] = useState<'manual' | 'ocr'>('manual');
 
@@ -76,9 +78,13 @@ export function PlanCreationForm({
           donations={donations}
           initialDraft={EMPTY_PLAN}
           initialIssues={[]}
+          initialDonationId={initialDonationId}
         />
       ) : (
-        <PlanUploadForm donations={donations} />
+        <PlanUploadForm
+          donations={donations}
+          initialDonationId={initialDonationId}
+        />
       )}
     </div>
   );

@@ -1,4 +1,31 @@
+import Link from 'next/link';
+
 import { ManagementList } from '@/components/partner/management-list';
+import { buttonClassName } from '@/components/ui/button';
+import { getActiveOrganizationMembership } from '@/lib/organizations/membership';
+import { listPartnerDonationDetails } from '@/lib/partner/donation-detail-repository';
+import { getCurrentUser } from '@/lib/supabase/auth';
+import { createClient } from '@/lib/supabase/server';
+
+function money(value: number) {
+  return `${Number(value).toLocaleString('ko-KR')}원`;
+}
+
+function nextActionHref(
+  donationId: string,
+  pledgeId: string | null,
+  action: 'signature' | 'payment' | 'plan' | 'execution' | 'report' | null,
+) {
+  if (action === 'signature' || action === 'payment') {
+    return pledgeId ? `/partner/pledges/${pledgeId}` : undefined;
+  }
+  if (action === 'plan') {
+    return `/partner/plans/new?donationId=${encodeURIComponent(donationId)}`;
+  }
+  if (action === 'execution') return '/partner/executions/new';
+  if (action === 'report') return '/partner/reports/new';
+  return `/partner/donations/${donationId}`;
+}
 
 export default async function Page({
   searchParams,
@@ -6,12 +33,26 @@ export default async function Page({
   searchParams: Promise<{ status?: string }>;
 }) {
   const { status = 'all' } = await searchParams;
+  const user = await getCurrentUser();
+  if (!user) return null;
+  const supabase = await createClient();
+  const membership = await getActiveOrganizationMembership(supabase, user.id);
+  if (membership.error)
+    throw new Error('organization_membership_lookup_failed');
+
+  const details = membership.data
+    ? await listPartnerDonationDetails(
+        supabase,
+        membership.data.organization_id,
+      )
+    : [];
+
   return (
     <ManagementList
       activeStatus={status}
       basePath="/partner/donations"
       title="기부 관리"
-      description="기부 건별 현재 단계와 다음 처리 업무를 확인합니다."
+      description="기부 건별 현재 단계와 다음 처리 업무를 실제 저장 데이터로 확인합니다."
       columns={[
         { key: 'amount', label: '기부 금액', align: 'right' },
         { key: 'nextAction', label: '다음 업무' },
@@ -19,41 +60,47 @@ export default async function Page({
       ]}
       statusFilters={[
         { key: 'all', label: '전체' },
+        { key: 'needs-signature', label: '서명 필요' },
         { key: 'payment', label: '결제 대기' },
+        { key: 'plan', label: '계획 필요' },
         { key: 'executing', label: '집행 중' },
         { key: 'report', label: '보고 필요' },
         { key: 'completed', label: '완료' },
       ]}
-      rows={[
-        {
-          id: 'donation-education-demo',
-          title: '김모아 님 · 아동 교육 프로그램',
-          description: '2026. 08. ~ 2027. 07.',
-          status: '집행 증빙 등록 필요',
-          statusKey: 'executing',
-          tone: 'warning',
-          href: '/partner/donations/demo',
+      rows={details.map((detail) => {
+        const { donation, pledge, progress } = detail;
+        const href = nextActionHref(
+          donation.id,
+          pledge?.id ?? null,
+          progress.nextActionKind,
+        );
+        return {
+          id: donation.id,
+          title: pledge
+            ? `${pledge.donor_name} 님 · ${pledge.purpose}`
+            : '연결된 약정이 없는 기부',
+          description: `${money(donation.amount)} · ${pledge?.donation_type ?? '기부'} `,
+          status: progress.label,
+          statusKey: progress.key,
+          tone: progress.tone,
+          href: `/partner/donations/${donation.id}`,
+          action: href ? (
+            <Link
+              className={buttonClassName({ variant: 'secondary' })}
+              href={href}
+            >
+              {progress.nextAction}
+            </Link>
+          ) : undefined,
           cells: {
-            amount: '월 50,000원',
-            nextAction: '8월 증빙 등록',
-            updatedAt: '오늘 09:40',
+            amount: money(donation.amount),
+            nextAction: progress.nextAction,
+            updatedAt: new Date(
+              detail.payment?.updated_at ?? donation.created_at,
+            ).toLocaleDateString('ko-KR'),
           },
-        },
-        {
-          id: 'donation-meal-demo',
-          title: '이푸름 님 · 급식 지원',
-          description: '2026. 07. 일시 기부',
-          status: '담당자 보고서 발행 필요',
-          statusKey: 'report',
-          tone: 'warning',
-          href: '/partner/reports',
-          cells: {
-            amount: '300,000원',
-            nextAction: '완료 보고 발행',
-            updatedAt: '7월 29일',
-          },
-        },
-      ]}
+        };
+      })}
     />
   );
 }

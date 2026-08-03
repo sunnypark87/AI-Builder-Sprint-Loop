@@ -12,15 +12,7 @@ const methods = ['card', 'transfer', 'easy'] as const;
 type PaymentMethod = (typeof methods)[number];
 type PledgeAccess =
   | { response: NextResponse }
-  | {
-      pledge: {
-        id: string;
-        status: string;
-        organization_id: string;
-        amount: number | null;
-      };
-      user: { id: string };
-    };
+  | { pledge: { id: string; status: string }; user: { id: string } };
 
 export async function GET(_request: Request, context: RouteContext) {
   const access = await getPledgeAccess(context);
@@ -110,16 +102,13 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
   if (existing) {
-    if (
-      existing.status === 'completed' &&
-      !(await ensureDonation(admin, access.pledge))
-    ) {
-      return NextResponse.json(
-        { code: 'donation_link_failed' },
-        { status: 503 },
-      );
-    }
-    return NextResponse.json({ payment: existing, idempotent: true });
+    const donation = await ensurePaidDonation(admin, access.user.id, existing);
+    if (donation instanceof NextResponse) return donation;
+    return NextResponse.json({
+      ...(donation ? { donation } : {}),
+      idempotent: true,
+      payment: existing,
+    });
   }
 
   const { data: payment, error } = await admin
@@ -144,54 +133,54 @@ export async function POST(request: Request, context: RouteContext) {
       )
       .eq('idempotency_key', idempotencyKey)
       .maybeSingle();
-    if (raced) return NextResponse.json({ payment: raced, idempotent: true });
+    if (raced) {
+      const donation = await ensurePaidDonation(admin, access.user.id, raced);
+      if (donation instanceof NextResponse) return donation;
+      return NextResponse.json({
+        ...(donation ? { donation } : {}),
+        idempotent: true,
+        payment: raced,
+      });
+    }
     return NextResponse.json(
       { code: 'payment_create_failed' },
       { status: 503 },
     );
   }
 
-  if (
-    payment.status === 'completed' &&
-    !(await ensureDonation(admin, access.pledge))
-  ) {
-    return NextResponse.json({ code: 'donation_link_failed' }, { status: 503 });
-  }
+  const donation = await ensurePaidDonation(admin, access.user.id, payment);
+  if (donation instanceof NextResponse) return donation;
 
-  return NextResponse.json({ payment }, { status: 201 });
+  return NextResponse.json(
+    { ...(donation ? { donation } : {}), payment },
+    { status: 201 },
+  );
 }
 
-async function ensureDonation(
+async function ensurePaidDonation(
   admin: ReturnType<typeof createAdminClient>,
-  pledge: {
-    id: string;
-    organization_id: string;
-    amount: number | null;
-  },
+  actorUserId: string,
+  payment: { id: string; pledge_id: string; status: string },
 ) {
-  if (!pledge.amount || pledge.amount <= 0) return false;
-  const { data: existing, error: lookupError } = await admin
-    .from('donations')
-    .select('id')
-    .eq('pledge_id', pledge.id)
+  if (payment.status !== 'completed') return null;
+
+  const { data, error } = await admin
+    .rpc('create_paid_donation_for_demo_payment', {
+      p_actor_id: actorUserId,
+      p_payment_id: payment.id,
+      p_pledge_id: payment.pledge_id,
+    })
     .maybeSingle();
-  if (lookupError) return false;
-  if (existing) return true;
-  const { error } = await admin.from('donations').insert({
-    amount: pledge.amount,
-    organization_id: pledge.organization_id,
-    paid_at: new Date().toISOString(),
-    paid_at_is_authoritative: true,
-    pledge_id: pledge.id,
-    status: 'paid',
-  });
-  if (!error) return true;
-  const { data: raced } = await admin
-    .from('donations')
-    .select('id')
-    .eq('pledge_id', pledge.id)
-    .maybeSingle();
-  return Boolean(raced);
+  const row = data as { created?: unknown; donation_id?: unknown } | null;
+
+  if (error || typeof row?.donation_id !== 'string') {
+    return NextResponse.json(
+      { code: 'donation_bridge_failed' },
+      { status: 503 },
+    );
+  }
+
+  return { id: row.donation_id, created: row.created === true };
 }
 
 async function getPledgeAccess(context: RouteContext): Promise<PledgeAccess> {
@@ -205,7 +194,7 @@ async function getPledgeAccess(context: RouteContext): Promise<PledgeAccess> {
   const supabase = await createClient();
   const { data: pledge, error } = await supabase
     .from('pledges')
-    .select('id, status, donor_user_id, organization_id, amount')
+    .select('id, status, donor_user_id')
     .eq('id', pledgeId)
     .eq('donor_user_id', user.id)
     .maybeSingle();

@@ -25,4 +25,27 @@ describe('PlanCreationForm', () => {
     expect(screen.getByLabelText(/집행 계획서/)).toBeTruthy();
     expect(screen.queryByRole('textbox', { name: '계획명' })).toBeNull();
   });
+
+  it('preselects the donation passed from a signed pledge', () => {
+    render(
+      <PlanCreationForm
+        donations={[
+          {
+            id: 'donation-1',
+            organizationId: 'organization-1',
+            label: '서명 완료 기부',
+          },
+        ]}
+        initialDonationId="donation-1"
+      />,
+    );
+
+    expect(
+      (
+        screen.getByRole('combobox', {
+          name: '대상 기부 내역',
+        }) as HTMLSelectElement
+      ).value,
+    ).toBe('donation-1');
+  });
 });

@@ -5,7 +5,8 @@ import { buttonClassName } from '@/components/ui/button';
 import type { StatusTone } from '@/components/ui/status-indicator';
 import { createReportRepository } from '@/lib/reports/report-repository';
 import type { ReportListItem, ReportStatus } from '@/lib/reports/types';
-import { createClient } from '@/lib/supabase/server';
+import { requireUserId } from '@/lib/supabase/auth';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +18,12 @@ const presentation: Record<ReportStatus, { label: string; tone: StatusTone }> =
     published: { label: '기부자 발행 완료', tone: 'success' },
   };
 
+const createAction = (
+  <Link className={buttonClassName()} href="/partner/reports/new">
+    보고서 작성하기
+  </Link>
+);
+
 export default async function Page({
   searchParams,
 }: {
@@ -26,20 +33,27 @@ export default async function Page({
   let reports: ReportListItem[] = [];
   let loadFailed = false;
   try {
-    reports = await createReportRepository(await createClient()).list();
+    const supabase = await createClient();
+    const userId = await requireUserId(supabase);
+    reports = await createReportRepository(supabase, {
+      actorUserId: userId,
+      client: createServiceClient(),
+    }).list();
   } catch {
     loadFailed = true;
   }
   if (loadFailed) {
     return (
       <ManagementList
+        action={createAction}
         activeStatus={status}
         basePath="/partner/reports"
         columns={[]}
         description="검증된 계획과 집행 내역으로 AI 초안을 만들고 검토 후 발행합니다."
         error={{
           title: '보고서 목록을 불러오지 못했습니다.',
-          message: '잠시 후 다시 시도해 주세요.',
+          message:
+            '기존 목록을 다시 불러오거나 새 보고서 작성을 계속해 주세요.',
         }}
         rows={[]}
         statusFilters={[{ key: 'all', label: '전체' }]}
@@ -49,11 +63,7 @@ export default async function Page({
   }
   return (
     <ManagementList
-      action={
-        <Link className={buttonClassName()} href="/partner/reports/new">
-          보고서 만들기
-        </Link>
-      }
+      action={createAction}
       activeStatus={status}
       basePath="/partner/reports"
       title="완료 보고서"

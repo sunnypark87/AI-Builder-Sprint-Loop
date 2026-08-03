@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -58,7 +58,7 @@ afterEach(() => {
 });
 
 describe('ExecutionReviewForm', () => {
-  it('requires a warning acknowledgement and submits reviewed values', async () => {
+  it('submits reviewed values and offers AI report creation', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(
@@ -109,7 +109,18 @@ describe('ExecutionReviewForm', () => {
         planItemId: planItemOptions[1].planItemId,
       },
     );
-    expect(push).toHaveBeenCalledWith('/partner/executions?status=registered');
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole('link', { name: 'AI 보고서 작성하기' })
+          .getAttribute('href'),
+      ).toBe('/partner/reports/new'),
+    );
+    expect(
+      screen.getByRole('link', { name: '집행 내역 목록' }).getAttribute('href'),
+    ).toBe('/partner/executions?status=registered');
+    expect(push).not.toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalledOnce();
   });
 
   it('allows corrected values to be resubmitted while showing a blocking rule', () => {

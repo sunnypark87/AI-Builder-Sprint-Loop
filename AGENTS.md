@@ -31,6 +31,7 @@ The repository currently contains a starter Next.js web application. Keep this d
     │   └── ui/       # Shared UI for buttons, inputs, cards, dialogs, steps, statuses, and notices
     └── lib/
         ├── executions/ # Receipt parsing, deterministic verification, persistence, and registration flow
+        ├── reports/ # Grounded donation-report evidence, validation, persistence, and generation flow
         ├── supabase/ # Browser/server clients, session refresh, and Auth helpers
         └── ...       # Shared utilities and navigation configuration
 ```
@@ -113,21 +114,27 @@ The routes below reflect the App Router structure in `src/app`. `[organizationId
 
 ### API
 
-| Route                                         | Responsibility                                                     |
-| --------------------------------------------- | ------------------------------------------------------------------ |
-| `GET /api/health`                             | Check application health                                           |
-| `POST /api/partner/plans/upload-url`          | Authorize and prepare a signed direct upload to private Storage    |
-| `DELETE /api/partner/plans/upload-url`        | Remove the user's abandoned pending source upload                  |
-| `POST /api/partner/plans`                     | Register a validated manual plan or analyze an optional source     |
-| `GET /api/partner/plans/[planId]`             | Read an authorized review draft and short-lived source URL         |
-| `PATCH /api/partner/plans/[planId]`           | Validate and transactionally register a reviewed expenditure plan  |
-| `POST /api/partner/plans/[planId]`            | Retry OCR for a failed plan from its privately stored source       |
-| `POST /api/partner/executions/upload-url`     | Authorize a signed direct upload to private receipt Storage        |
-| `DELETE /api/partner/executions/upload-url`   | Remove an abandoned pending receipt upload                         |
-| `POST /api/partner/executions`                | Validate a receipt, run Upstage OCR and save verification evidence |
-| `GET /api/partner/executions/[executionId]`   | Read an authorized receipt review draft and short-lived source URL |
-| `PATCH /api/partner/executions/[executionId]` | Revalidate and transactionally register an expenditure record      |
-| `POST /api/partner/executions/[executionId]`  | Retry OCR for a failed receipt analysis                            |
+| Route                                          | Responsibility                                                     |
+| ---------------------------------------------- | ------------------------------------------------------------------ |
+| `GET /api/health`                              | Check application health                                           |
+| `POST /api/partner/plans/upload-url`           | Authorize and prepare a signed direct upload to private Storage    |
+| `DELETE /api/partner/plans/upload-url`         | Remove the user's abandoned pending source upload                  |
+| `POST /api/partner/plans`                      | Register a validated manual plan or analyze an optional source     |
+| `GET /api/partner/plans/[planId]`              | Read an authorized review draft and short-lived source URL         |
+| `PATCH /api/partner/plans/[planId]`            | Validate and transactionally register a reviewed expenditure plan  |
+| `POST /api/partner/plans/[planId]`             | Retry OCR for a failed plan from its privately stored source       |
+| `POST /api/partner/executions/upload-url`      | Authorize a signed direct upload to private receipt Storage        |
+| `DELETE /api/partner/executions/upload-url`    | Remove an abandoned pending receipt upload                         |
+| `POST /api/partner/executions`                 | Validate a receipt, run Upstage OCR and save verification evidence |
+| `GET /api/partner/executions/[executionId]`    | Read an authorized receipt review draft and short-lived source URL |
+| `PATCH /api/partner/executions/[executionId]`  | Revalidate and transactionally register an expenditure record      |
+| `POST /api/partner/executions/[executionId]`   | Retry OCR for a failed receipt analysis                            |
+| `GET /api/partner/reports`                     | List donations eligible for grounded report generation             |
+| `POST /api/partner/reports`                    | Generate a SolarLLM report draft from registered evidence          |
+| `GET /api/partner/reports/[reportId]`          | Read an authorized report draft and evidence snapshot              |
+| `PATCH /api/partner/reports/[reportId]`        | Validate and save an edited report draft                           |
+| `POST /api/partner/reports/[reportId]/retry`   | Retry a failed or expired report generation                        |
+| `POST /api/partner/reports/[reportId]/publish` | Atomically publish a reviewed report and event                     |
 
 ## Technology Stack
 
@@ -164,8 +171,10 @@ npm run test          # Vitest unit tests
 npm run test:e2e      # Mocked browser regression tests
 npm run test:e2e:plans # Local Supabase plan flow; requires `npx supabase start`
 npm run test:e2e:executions # Local Supabase receipt execution flow
+npm run test:e2e:reports # Local Supabase donation report RLS matrix
 npm run test:ai:ocr   # Live representative OCR evaluation; requires Upstage key
 npm run test:ai:receipt-ocr # Live receipt OCR evaluation; requires Upstage key
+npm run test:ai:reports # Live grounded SolarLLM report evaluation; requires Upstage key
 npm run build         # Next.js production build
 npm run check         # Run format:check, lint, typecheck, test, and build
 ```

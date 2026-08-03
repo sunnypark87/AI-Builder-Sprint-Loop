@@ -18,4 +18,15 @@ describe('impact source Korean metric parser', () => {
       unit: '명',
     });
   });
+
+  it('keeps comparisons and ranges as source text', () => {
+    expect(parseKoreanMetric('1,460명 (전년 1,200명)')).toMatchObject({
+      numericValue: null,
+      textValue: '1,460명 (전년 1,200명)',
+    });
+    expect(parseKoreanMetric('100~200명')).toMatchObject({
+      numericValue: null,
+      textValue: '100~200명',
+    });
+  });
 });

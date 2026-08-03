@@ -66,8 +66,20 @@ export function parseKoreanMetric(value) {
   const numberText = normalized.replace(/[^0-9억만천백십.,]/g, '');
   if (!/[0-9]/.test(numberText))
     return { numericValue: null, textValue: normalized, unit };
+  if (hasAmbiguousMultipleNumbers(normalized))
+    return { numericValue: null, textValue: normalized, unit };
   const numericValue = koreanNumber(numberText, unit);
   return { numericValue, textValue: null, unit };
+}
+
+function hasAmbiguousMultipleNumbers(value) {
+  const matches = [...value.matchAll(/\d[\d,.]*/g)];
+  if (matches.length < 2) return false;
+  const compoundUnits = new Set(['억', '만', '천', '백', '십']);
+  return matches.some((match) => {
+    const next = value.slice((match.index ?? 0) + match[0].length).trimStart();
+    return !compoundUnits.has(next[0]);
+  });
 }
 
 function koreanNumber(value, unit) {

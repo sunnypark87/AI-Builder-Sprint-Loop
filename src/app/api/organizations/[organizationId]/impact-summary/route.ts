@@ -87,7 +87,7 @@ export async function GET(_request: Request, context: RouteContext) {
   const { data: facts, error: factsError } = await supabase
     .from('organization_impact_facts')
     .select(
-      'id, program_id, program_key, program_name, metric_label, numeric_value, text_value, unit, reporting_period, evidence_text',
+      'id, program_id, program_key, program_name, metric_type, metric_label, numeric_value, text_value, unit, reporting_period, evidence_text',
     )
     .eq('organization_id', organization.id)
     .eq('document_id', summary.document_id)
@@ -113,7 +113,7 @@ export async function GET(_request: Request, context: RouteContext) {
       .filter((fact) => fact.program_id === program.id)
       .map((fact) => ({
         id: fact.id,
-        metricType: 'output',
+        metricType: fact.metric_type,
         label: fact.metric_label,
         value: fact.numeric_value ?? fact.text_value ?? '',
         unit: fact.unit,

@@ -1,5 +1,5 @@
 import { ManagementList } from '@/components/partner/management-list';
-import { getActiveOrganizationMembership } from '@/lib/organizations/membership';
+import { getOrganizationIds } from '@/lib/organizations/membership';
 import { getPaymentStatusPresentation } from '@/lib/payments/presentation';
 import { getCurrentUser } from '@/lib/supabase/auth';
 import { createClient } from '@/lib/supabase/server';
@@ -13,21 +13,21 @@ export default async function Page({
   const user = await getCurrentUser();
   if (!user) return null;
   const supabase = await createClient();
-  const { data: membership, error: membershipError } =
-    await getActiveOrganizationMembership(supabase, user.id);
+  const { data: organizationIds, error: membershipError } =
+    await getOrganizationIds(supabase, user.id);
   if (membershipError) throw new Error('organization_membership_lookup_failed');
-  const { data: pledges } = membership
+  const { data: pledges } = organizationIds.length
     ? await supabase
         .from('pledges')
         .select(
-          'id, amount, donation_type, purpose, status, updated_at, donor_name',
+          'id, organization_id, amount, donation_type, purpose, status, updated_at, donor_name, organizations(name)',
         )
-        .eq('organization_id', membership.organization_id)
+        .in('organization_id', organizationIds)
         .order('updated_at', { ascending: false })
     : { data: [] };
   const pledgeIds = (pledges ?? []).map((pledge) => pledge.id);
   const { data: payments } =
-    membership && pledgeIds.length
+    organizationIds.length && pledgeIds.length
       ? await supabase
           .from('demo_payments')
           .select('pledge_id, status, updated_at')
@@ -57,9 +57,12 @@ export default async function Page({
       label: '상태 확인 필요',
       tone: 'neutral' as const,
     };
+    const organization = Array.isArray(pledge.organizations)
+      ? pledge.organizations[0]
+      : pledge.organizations;
     return {
       id: pledge.id,
-      title: `${pledge.donor_name} 님 · ${pledge.purpose}`,
+      title: `${(organization as { name?: string } | null)?.name ?? '기부처'} · ${pledge.donor_name} 님 · ${pledge.purpose}`,
       description: `${Number(pledge.amount).toLocaleString('ko-KR')}원 · ${pledge.donation_type} · ${getPaymentStatusPresentation(payment?.status).label}`,
       status:
         pledge.status === 'signed'

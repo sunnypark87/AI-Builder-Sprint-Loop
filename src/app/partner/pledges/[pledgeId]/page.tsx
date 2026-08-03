@@ -4,7 +4,7 @@ import { OrganizationPledgeCompletionPanel } from '@/components/partner/organiza
 import { OrganizationSigningPanel } from '@/components/partner/organization-signing-panel';
 import { PageHeader } from '@/components/partner/page-header';
 import { Card } from '@/components/ui/card';
-import { getActiveOrganizationMembership } from '@/lib/organizations/membership';
+import { getOrganizationMemberships } from '@/lib/organizations/membership';
 import { getCurrentUser } from '@/lib/supabase/auth';
 import { createClient } from '@/lib/supabase/server';
 
@@ -17,17 +17,20 @@ export default async function PartnerPledgePage({
   if (!user) redirect('/login');
   const { pledgeId } = await params;
   const supabase = await createClient();
-  const { data: membership, error: membershipError } =
-    await getActiveOrganizationMembership(supabase, user.id);
+  const { data: memberships, error: membershipError } =
+    await getOrganizationMemberships(supabase, user.id);
   if (membershipError) throw new Error('organization_membership_lookup_failed');
-  if (!membership) notFound();
+  const organizationIds = (memberships ?? []).map(
+    (membership) => membership.organization_id,
+  );
+  if (!organizationIds.length) notFound();
   const { data: pledge } = await supabase
     .from('pledges')
     .select(
-      'id, status, amount, donation_type, purpose, pledge_date, donation_condition, donor_name, donor_address, donor_contact, donor_email, receipt_requested, organizations(name, slug)',
+      'id, organization_id, status, amount, donation_type, purpose, pledge_date, donation_condition, donor_name, donor_address, donor_contact, donor_email, receipt_requested, organizations(name, slug)',
     )
     .eq('id', pledgeId)
-    .eq('organization_id', membership.organization_id)
+    .in('organization_id', organizationIds)
     .maybeSingle();
   if (!pledge) notFound();
   const { data: payment } = await supabase
@@ -39,16 +42,19 @@ export default async function PartnerPledgePage({
     .from('donations')
     .select('id, status')
     .eq('pledge_id', pledgeId)
-    .eq('organization_id', membership.organization_id)
+    .in('organization_id', organizationIds)
     .eq('status', 'paid')
     .maybeSingle();
 
   const organization = Array.isArray(pledge.organizations)
     ? pledge.organizations[0]
     : pledge.organizations;
+  const pledgeMembership = (memberships ?? []).find(
+    (membership) => membership.organization_id === pledge.organization_id,
+  );
   const available =
     pledge.status === 'awaiting_organization_signature' &&
-    membership.role !== 'viewer';
+    pledgeMembership?.role !== 'viewer';
   return (
     <div className="max-w-[960px]">
       <PageHeader

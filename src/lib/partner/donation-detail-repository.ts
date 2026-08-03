@@ -14,6 +14,7 @@ type DonationRow = {
   amount: number;
   status: string;
   created_at: string;
+  organizations?: { name: string } | { name: string }[] | null;
 };
 
 type PledgeRow = {
@@ -29,6 +30,7 @@ type PledgeRow = {
 
 export type PartnerDonationDetail = {
   donation: DonationRow;
+  organizationName: string;
   pledge: PledgeRow | null;
   payment: { status: string; updated_at: string } | null;
   plans: {
@@ -57,13 +59,15 @@ function first<T>(value: T | T[] | null): T | null {
 export async function getPartnerDonationDetail(
   client: SupabaseClient,
   donationId: string,
-  organizationId: string,
+  organizationIds: string[],
 ): Promise<PartnerDonationDetail | null> {
   const { data: donation, error: donationError } = await client
     .from('donations')
-    .select('id,organization_id,pledge_id,amount,status,created_at')
+    .select(
+      'id,organization_id,pledge_id,amount,status,created_at,organizations(name)',
+    )
     .eq('id', donationId)
-    .eq('organization_id', organizationId)
+    .in('organization_id', organizationIds)
     .maybeSingle();
   if (donationError || !donation) return null;
 
@@ -82,7 +86,7 @@ export async function getPartnerDonationDetail(
             'id,donor_name,amount,donation_type,purpose,pledge_date,donation_condition,status',
           )
           .eq('id', donationRow.pledge_id)
-          .eq('organization_id', organizationId)
+          .eq('organization_id', donationRow.organization_id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
     donationRow.pledge_id
@@ -96,24 +100,25 @@ export async function getPartnerDonationDetail(
       .from('expenditure_plans')
       .select('id,title,status,period_start,period_end,updated_at')
       .eq('donation_id', donationId)
-      .eq('organization_id', organizationId)
+      .eq('organization_id', donationRow.organization_id)
       .order('updated_at', { ascending: false }),
     client
       .from('expenditure_executions')
       .select('id,plan_id,status,updated_at')
       .eq('donation_id', donationId)
-      .eq('organization_id', organizationId)
+      .eq('organization_id', donationRow.organization_id)
       .order('updated_at', { ascending: false }),
     client
       .from('donation_reports')
       .select('id,title,status,updated_at')
       .eq('donation_id', donationId)
-      .eq('organization_id', organizationId)
+      .eq('organization_id', donationRow.organization_id)
       .order('updated_at', { ascending: false }),
   ]);
 
   const detail = {
     donation: donationRow,
+    organizationName: first(donationRow.organizations)?.name ?? '기부처',
     pledge: first(pledge as PledgeRow | PledgeRow[] | null),
     payment: first(payment as { status: string; updated_at: string } | null),
     plans: (plans ?? []) as PartnerDonationDetail['plans'],
@@ -136,17 +141,17 @@ export async function getPartnerDonationDetail(
 
 export async function listPartnerDonationDetails(
   client: SupabaseClient,
-  organizationId: string,
+  organizationIds: string[],
 ) {
   const { data: donations, error } = await client
     .from('donations')
     .select('id')
-    .eq('organization_id', organizationId)
+    .in('organization_id', organizationIds)
     .order('created_at', { ascending: false });
   if (error) throw error;
   const details = await Promise.all(
     (donations ?? []).map((donation) =>
-      getPartnerDonationDetail(client, donation.id as string, organizationId),
+      getPartnerDonationDetail(client, donation.id as string, organizationIds),
     ),
   );
   return details.filter(

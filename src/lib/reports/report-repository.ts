@@ -210,16 +210,23 @@ export function createReportRepository(
       const pledgeById = new Map(
         (pledges ?? []).map((row) => [row.id as string, row]),
       );
-      const planByDonation = new Map(
-        planRows.map((row) => [row.donation_id as string, row]),
+      const donationById = new Map(
+        donationRows.map((row) => [row.id as string, row]),
       );
-      return donationRows.flatMap((donation): EligibleReportDonation[] => {
+      const executionCountByPlan = new Map<string, number>();
+      for (const execution of executions ?? []) {
+        const planId = execution.plan_id as string;
+        executionCountByPlan.set(
+          planId,
+          (executionCountByPlan.get(planId) ?? 0) + 1,
+        );
+      }
+      return planRows.flatMap((plan): EligibleReportDonation[] => {
+        const donation = donationById.get(plan.donation_id as string);
+        if (!donation) return [];
         const pledge = pledgeById.get(donation.pledge_id as string);
-        const plan = planByDonation.get(donation.id as string);
-        const count = (executions ?? []).filter(
-          (execution) => execution.plan_id === plan?.id,
-        ).length;
-        if (!pledge || !plan || count === 0) return [];
+        const count = executionCountByPlan.get(plan.id as string) ?? 0;
+        if (!pledge || count === 0) return [];
         return [
           {
             organizationId: donation.organization_id as string,

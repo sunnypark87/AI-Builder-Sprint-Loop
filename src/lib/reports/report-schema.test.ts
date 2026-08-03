@@ -82,6 +82,26 @@ describe('report schema', () => {
     );
   });
 
+  it('accepts complete evidence dates without allowing their components as claims', () => {
+    const dated = valid();
+    dated.summary.text = '2026년 7월 10일에 집행 내역을 등록했습니다.';
+    expect(parseAndValidateReportContent(dated, evidence).issues).toEqual([]);
+
+    dated.summary.text = '7명에게 지원했습니다.';
+    expect(
+      parseAndValidateReportContent(dated, evidence).issues.map(
+        (issue) => issue.code,
+      ),
+    ).toContain('numeric_claim_not_allowed');
+
+    dated.summary.text = '2026-07-11에 집행했습니다.';
+    expect(
+      parseAndValidateReportContent(dated, evidence).issues.map(
+        (issue) => issue.code,
+      ),
+    ).toContain('numeric_claim_not_allowed');
+  });
+
   it('blocks HTML and missing plan items', () => {
     const content = valid();
     content.outcomes.text = '<script>leak</script>';

@@ -79,6 +79,11 @@ export function parseReportContent(value: unknown): ReportContent | null {
 
 const HTML = /<\/?[a-z][^>]*>/i;
 const NUMERIC_CLAIM = /\d[\d,]*(?:\.\d+)?%?/g;
+const DATE_CLAIMS = [
+  /\b(\d{4})-(\d{1,2})-(\d{1,2})\b/g,
+  /\b(\d{4})\.(\d{1,2})\.(\d{1,2})\.?/g,
+  /\b(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/g,
+];
 
 function normalizedNumber(value: string) {
   const percent = value.endsWith('%');
@@ -104,14 +109,39 @@ function allowedNumericClaims(evidence: ReportEvidence) {
     add(item.remainingAmount);
   }
   for (const execution of evidence.executions) add(execution.totalAmount);
-  for (const date of [
+  return values;
+}
+
+function allowedDateClaims(evidence: ReportEvidence) {
+  return new Set([
     evidence.plan.periodStart,
     evidence.plan.periodEnd,
     ...evidence.executions.map((execution) => execution.transactionDate),
-  ]) {
-    date.split('-').forEach((part) => add(Number(part)));
+  ]);
+}
+
+function normalizeDateClaim(year: string, month: string, day: string) {
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+}
+
+function removeDateClaims(
+  value: string,
+  allowedDates: Set<string>,
+  onUnsupported: (claim: string) => void,
+) {
+  let remaining = value;
+  for (const pattern of DATE_CLAIMS) {
+    remaining = remaining.replace(
+      pattern,
+      (claim, year: string, month: string, day: string) => {
+        if (!allowedDates.has(normalizeDateClaim(year, month, day))) {
+          onUnsupported(claim);
+        }
+        return '';
+      },
+    );
   }
-  return values;
+  return remaining;
 }
 
 export function validateReportContent(
@@ -121,6 +151,7 @@ export function validateReportContent(
   const issues: ReportValidationIssue[] = [];
   const knownEvidence = reportEvidenceIds(evidence);
   const allowedNumbers = allowedNumericClaims(evidence);
+  const allowedDates = allowedDateClaims(evidence);
   const validateText = (value: string, path: string, max: number) => {
     if (!value.trim()) {
       issues.push({ code: 'required', path, message: '내용을 입력해 주세요.' });
@@ -138,14 +169,19 @@ export function validateReportContent(
         message: 'HTML은 보고서에 사용할 수 없습니다.',
       });
     }
-    const unsupportedNumber = (value.match(NUMERIC_CLAIM) ?? []).find(
+    let unsupportedDate = '';
+    const withoutDates = removeDateClaims(value, allowedDates, (claim) => {
+      unsupportedDate ||= claim;
+    });
+    const unsupportedNumber = (withoutDates.match(NUMERIC_CLAIM) ?? []).find(
       (claim) => !allowedNumbers.has(normalizedNumber(claim)),
     );
-    if (unsupportedNumber) {
+    const unsupportedClaim = unsupportedDate || unsupportedNumber;
+    if (unsupportedClaim) {
       issues.push({
         code: 'numeric_claim_not_allowed',
         path,
-        message: `근거에서 확인할 수 없는 수치(${unsupportedNumber})가 포함되어 있습니다.`,
+        message: `근거에서 확인할 수 없는 수치(${unsupportedClaim})가 포함되어 있습니다.`,
       });
     }
   };

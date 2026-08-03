@@ -7,7 +7,6 @@ import { cn } from '@/lib/cn';
 import {
   isNavigationItemActive,
   partnerNavigation,
-  partnerSettingsNavigation,
   type NavigationItem,
 } from '@/lib/navigation';
 
@@ -62,9 +61,8 @@ export function PartnerSidebar() {
           모두기브 파트너
         </p>
       </div>
-      <div className="grid gap-8 overflow-y-auto px-3 py-5">
+      <div className="overflow-y-auto px-3 py-5">
         <NavigationGroup items={partnerNavigation} label="기부 운영" />
-        <NavigationGroup items={partnerSettingsNavigation} label="설정" />
       </div>
       <Link
         className="mx-3 mb-4 mt-auto flex min-h-10 items-center rounded-[var(--radius-sm)] px-3 text-sm font-medium text-copy-secondary hover:bg-panel-muted"

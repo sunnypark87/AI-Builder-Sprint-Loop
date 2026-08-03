@@ -21,13 +21,6 @@ export const partnerNavigation: NavigationItem[] = [
   { label: '보고서', href: '/partner/reports' },
 ];
 
-export const partnerSettingsNavigation: NavigationItem[] = [
-  { label: '기부처 프로필', href: '/partner/profile' },
-  { label: '약정서 템플릿', href: '/partner/settings/pledge-template' },
-  { label: '구성원·권한', href: '/partner/settings/members' },
-  { label: '알림 설정', href: '/partner/settings/notifications' },
-];
-
 export function isNavigationItemActive(pathname: string, item: NavigationItem) {
   if (item.exact) return pathname === item.href;
   return pathname === item.href || pathname.startsWith(`${item.href}/`);

@@ -323,22 +323,14 @@ export function PledgeTemplateEditor({
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6">
           <Link
             className={buttonClassName({ variant: 'secondary' })}
-            href={
-              mode === 'registration'
-                ? registrationReturnHref
-                : '/partner/settings/pledge-template'
-            }
+            href={mode === 'registration' ? registrationReturnHref : '/partner'}
           >
             {mode === 'registration' ? '기부처 정보로 돌아가기' : '변경 취소'}
           </Link>
           {hasDonationType ? (
             <Link
               className={buttonClassName({ size: 'large' })}
-              href={
-                mode === 'registration'
-                  ? '/partner'
-                  : '/partner/settings/pledge-template'
-              }
+              href={mode === 'registration' ? '/partner' : '/partner'}
             >
               {mode === 'registration'
                 ? '템플릿 저장·등록 완료'

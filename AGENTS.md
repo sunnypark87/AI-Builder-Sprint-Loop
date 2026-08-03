@@ -92,7 +92,6 @@ The routes below reflect the App Router structure in `src/app`. `[organizationId
 | Route                                      | Page responsibility                                                                     |
 | ------------------------------------------ | --------------------------------------------------------------------------------------- |
 | `/partner`                                 | Dashboard summarizing work from pledges through reporting                               |
-| `/partner/profile`                         | Manage the public organization profile and verification materials                       |
 | `/partner/pledges`                         | Manage pledge lists and signature tasks by status                                       |
 | `/partner/pledges/[pledgeId]`              | Review donor-signed pledge terms and add the organization signature                     |
 | `/partner/pledges/demo`                    | Demo pledge review and organization-signature flow                                      |
@@ -108,9 +107,6 @@ The routes below reflect the App Router structure in `src/app`. `[organizationId
 | `/partner/executions/demo/review`          | Review source evidence, AI extraction, and personal-data redaction before publishing    |
 | `/partner/reports`                         | Manage completion reports and AI draft review statuses                                  |
 | `/partner/reports/demo/review`             | Compare and review expenditure evidence against an AI report draft before publishing    |
-| `/partner/settings/pledge-template`        | Configure organization-specific terms in the standard pledge                            |
-| `/partner/settings/members`                | Manage members and task-specific permissions                                            |
-| `/partner/settings/notifications`          | Configure notifications for pledges, AI analysis, and reports                           |
 
 ### API
 

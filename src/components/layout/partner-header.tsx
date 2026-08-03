@@ -8,11 +8,7 @@ import { useState } from 'react';
 import { cn } from '@/lib/cn';
 import { getAuthErrorMessage, signOut } from '@/lib/supabase/auth-client';
 import { buttonClassName } from '@/components/ui/button';
-import {
-  isNavigationItemActive,
-  partnerNavigation,
-  partnerSettingsNavigation,
-} from '@/lib/navigation';
+import { isNavigationItemActive, partnerNavigation } from '@/lib/navigation';
 
 import { BrandMark } from './brand-mark';
 
@@ -20,7 +16,7 @@ export function PartnerHeader() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [signOutMessage, setSignOutMessage] = useState('');
-  const items = [...partnerNavigation, ...partnerSettingsNavigation];
+  const items = partnerNavigation;
 
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-panel lg:static">

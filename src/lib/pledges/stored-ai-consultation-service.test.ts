@@ -159,6 +159,7 @@ describe('stored AI consultation service', () => {
         nextQuestionField: 'paymentMethod',
       },
       metadata: {
+        model: 'solar-pro3',
         requestId: 'provider-1',
         attempts: 1,
         durationMs: 20,

@@ -15,6 +15,7 @@ export type UpstageChatUsage = {
 };
 export type UpstageChatCompletion = {
   output: ModelConsultationOutput;
+  model: string;
   requestId: string | null;
   usage: UpstageChatUsage | null;
   attempts: number;
@@ -46,6 +47,7 @@ export async function completeUpstageChat(input: {
       const result = await requestOnce(config, input.messages, fetchImpl);
       return {
         ...result,
+        model: config.model,
         attempts: attempt + 1,
         durationMs: Date.now() - startedAt,
       };
@@ -86,7 +88,7 @@ async function requestOnce(
   config: UpstageChatConfig,
   messages: UpstageChatMessage[],
   fetchImpl: typeof fetch,
-): Promise<Omit<UpstageChatCompletion, 'attempts' | 'durationMs'>> {
+): Promise<Omit<UpstageChatCompletion, 'attempts' | 'durationMs' | 'model'>> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.timeoutMs);
   try {

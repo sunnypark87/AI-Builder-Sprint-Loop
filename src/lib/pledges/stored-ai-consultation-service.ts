@@ -173,7 +173,7 @@ export async function runStoredPledgeConsultation(input: {
       pledgeVersion: context.version,
       result: result.value,
       metadata: result.metadata,
-      model: input.config?.model ?? 'solar-pro3',
+      model: result.metadata.model,
     });
     return {
       ok: true,

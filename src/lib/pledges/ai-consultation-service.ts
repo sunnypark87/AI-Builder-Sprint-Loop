@@ -52,6 +52,7 @@ export type AiConsultationSuccess = {
   ok: true;
   value: PledgeConsultationResult;
   metadata: {
+    model: string;
     requestId: string | null;
     attempts: number;
     durationMs: number;
@@ -108,6 +109,7 @@ export async function consultPledge(input: {
       ok: true,
       value,
       metadata: {
+        model: completion.model,
         requestId: completion.requestId,
         attempts: completion.attempts,
         durationMs: completion.durationMs,

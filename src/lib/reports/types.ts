@@ -117,3 +117,13 @@ export type ReportReview = {
   retryAvailable: boolean;
   publishedAt: string | null;
 };
+
+export type PublishedDonationReport = {
+  id: string;
+  title: string;
+  period_start: string;
+  period_end: string;
+  evidence_snapshot: unknown;
+  published_content: unknown;
+  published_at: string;
+};

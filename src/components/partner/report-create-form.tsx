@@ -14,14 +14,14 @@ export function ReportCreateForm({
   donations: EligibleReportDonation[];
 }) {
   const router = useRouter();
-  const [selected, setSelected] = useState(donations[0]?.donationId ?? '');
+  const [selected, setSelected] = useState(donations[0]?.planId ?? '');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
-  const target = donations.find((donation) => donation.donationId === selected);
+  const target = donations.find((donation) => donation.planId === selected);
   const idempotencyKey = useMemo(
     () =>
       target
-        ? `report:${target.donationId}:${target.periodStart}:${target.periodEnd}`
+        ? `report:${target.donationId}:${target.planId}:${target.periodStart}:${target.periodEnd}`
         : '',
     [target],
   );
@@ -81,7 +81,7 @@ export function ReportCreateForm({
           value={selected}
         >
           {donations.map((donation) => (
-            <option key={donation.donationId} value={donation.donationId}>
+            <option key={donation.planId} value={donation.planId}>
               {donation.organizationName} · {donation.planTitle}
             </option>
           ))}

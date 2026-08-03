@@ -82,6 +82,37 @@ describe('report schema', () => {
     );
   });
 
+  it('binds numeric claims to their cited evidence and semantic unit', () => {
+    const content = valid();
+    content.planComparison.text = '계획 3,000원 중 2,000원을 집행했습니다.';
+    content.planComparison.evidenceIds = [`plan:${evidence.plan.id}`];
+    expect(parseAndValidateReportContent(content, evidence).issues).toEqual([]);
+
+    for (const claim of [
+      '3,000명에게 지원했습니다.',
+      '-3,000원을 집행했습니다.',
+    ]) {
+      content.planComparison.text = claim;
+      expect(
+        parseAndValidateReportContent(content, evidence).issues.map(
+          (issue) => issue.code,
+        ),
+      ).toContain('numeric_claim_not_allowed');
+    }
+
+    content.summary.text = '2,000원을 집행했습니다.';
+    content.summary.evidenceIds = [`pledge:${evidence.pledgeId}`];
+    content.planComparison.text = '등록된 계획 범위 안에서 집행했습니다.';
+    expect(
+      parseAndValidateReportContent(content, evidence).issues.map(
+        (issue) => issue.code,
+      ),
+    ).toContain('numeric_claim_not_allowed');
+
+    content.summary.evidenceIds = [`execution:${evidence.executions[0].id}`];
+    expect(parseAndValidateReportContent(content, evidence).issues).toEqual([]);
+  });
+
   it('accepts complete evidence dates without allowing their components as claims', () => {
     const dated = valid();
     dated.summary.text = '2026년 7월 10일에 집행 내역을 등록했습니다.';

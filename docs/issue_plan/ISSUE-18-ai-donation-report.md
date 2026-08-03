@@ -320,20 +320,23 @@ playwright.report.config.ts                            # 별도 평가 설정이
 - 조직용 보고 대상/생성·조회·수정·재시도·발행 API와 목록·생성·검토 UI, 기부자용 발행 보고서 목록·상세 UI를 구현했다.
 - 데모 결제 완료 시 기부와 약정을 멱등하게 연결하고, 발행 트랜잭션이 후속 #19용 `report_published:{reportId}` 이벤트를 함께 기록하도록 했다.
 - 직접 기능 리뷰를 반영해 한 기부에 등록 계획이 여러 건이어도 집행 내역이 있는 모든 계획을 보고 대상으로 노출하고, 날짜는 전체 날짜 표현으로만 검증해 월·일 숫자가 근거 없는 인원수 등의 주장을 허용하지 않도록 보강했다.
-- `UPSTAGE_SOLAR_MODEL`, `UPSTAGE_SOLAR_URL`은 선택적 서버 변수다. 신규 필수 변수나 npm 의존성은 없으며 배포 전 두 마이그레이션을 순서대로 적용해야 한다.
+- PR 기능 리뷰를 반영해 다중 계획 선택값과 생성 요청을 `planId`로 연결하고 계획별 멱등성 키를 사용하도록 수정했다.
+- 수치 주장은 인용한 근거 ID별로 허용된 금액·건수·집행률과 단위까지 일치할 때만 승인해, 같은 값의 인원수 주장이나 음수 금액 및 다른 근거의 수치 재사용을 차단했다.
+- 기부자의 보고서 원본 테이블 조회 정책을 제거하고 발행본 렌더링에 필요한 7개 필드만 반환하는 `get_published_donation_reports` RPC를 추가했다.
+- `UPSTAGE_SOLAR_MODEL`, `UPSTAGE_SOLAR_URL`은 선택적 서버 변수다. 신규 필수 변수나 npm 의존성은 없으며 배포 전 세 마이그레이션을 순서대로 적용해야 한다.
 
 ### 완료 조건 추적표
 
-| 완료 조건                       | 구현 파일                                                                                                 | 테스트 또는 검증 파일                                                                  | 결과 |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ---- |
-| 기부·약정·계획·집행 근거 무결성 | `20260803000000_create_donation_reports.sql`, `report-repository.ts`, `report-evidence.ts`                | `migration-policy.test.ts`, `report-evidence.test.ts`, `report-service.test.ts`        | PASS |
-| 결정론적 수치와 AI 근거 일치    | `report-evidence.ts`, `report-schema.ts`                                                                  | `report-evidence.test.ts`, `report-schema.test.ts`, 실제 Solar 대표 사례 3건           | PASS |
-| 담당자 검토 후 발행             | 보고서 `[reportId]` API, `report-review-editor.tsx`, `publish_donation_report` RPC                        | Route/서비스 단위 테스트, `npm run check` 프로덕션 빌드                                | PASS |
-| 조직/기부자 RLS 분리            | 보고서 RLS, `20260803010000_grant_pledge_access_for_reports.sql`                                          | `donation-report-rls.integration.spec.ts` 기관/대상 기부자/타 기부자/익명 3개 시나리오 | PASS |
-| 민감정보 비노출                 | `report-evidence.ts`, `solar-chat.ts`, 기부자 `donation-report-view.tsx`                                  | 허용 필드·프롬프트 인젝션·HTML·비밀정보 비노출 단위/실기 평가                          | PASS |
-| 실패 재시도와 중복 방지         | 생성/저장/실패/재시도 RPC, `report-service.ts`, retry API                                                 | `report-service.test.ts`, `migration-policy.test.ts`                                   | PASS |
-| 기부자 발행본 조회              | `/my-donations/[pledgeId]`, `/my-donations/[pledgeId]/reports/[reportId]`                                 | RLS 통합 테스트, `npm run check` 빌드의 동적 라우트 확인                               | PASS |
-| 보고 발행 이벤트 계약           | `donation_report_events`, `publish_donation_report`의 `report_published:{reportId}` 멱등 이벤트 원자 기록 | `migration-policy.test.ts`                                                             | PASS |
+| 완료 조건                       | 구현 파일                                                                                                               | 테스트 또는 검증 파일                                                                                  | 결과 |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ---- |
+| 기부·약정·계획·집행 근거 무결성 | `20260803000000_create_donation_reports.sql`, `report-repository.ts`, `report-evidence.ts`                              | `migration-policy.test.ts`, `report-evidence.test.ts`, `report-service.test.ts`                        | PASS |
+| 결정론적 수치와 AI 근거 일치    | `report-evidence.ts`, `report-schema.ts`                                                                                | `report-evidence.test.ts`, `report-schema.test.ts`, 실제 Solar 대표 사례 3건                           | PASS |
+| 담당자 검토 후 발행             | 보고서 `[reportId]` API, `report-review-editor.tsx`, `publish_donation_report` RPC                                      | Route/서비스 단위 테스트, `npm run check` 프로덕션 빌드                                                | PASS |
+| 조직/기부자 RLS 분리            | 보고서 RLS, `20260803010000_grant_pledge_access_for_reports.sql`, `20260803020000_restrict_donor_report_projection.sql` | `donation-report-rls.integration.spec.ts` 기관/대상 기부자 안전 projection/타 기부자·익명 3개 시나리오 | PASS |
+| 민감정보 비노출                 | `report-evidence.ts`, `solar-chat.ts`, 기부자 `donation-report-view.tsx`                                                | 허용 필드·프롬프트 인젝션·HTML·비밀정보 비노출 단위/실기 평가                                          | PASS |
+| 실패 재시도와 중복 방지         | 생성/저장/실패/재시도 RPC, `report-service.ts`, retry API                                                               | `report-service.test.ts`, `migration-policy.test.ts`                                                   | PASS |
+| 기부자 발행본 조회              | `/my-donations/[pledgeId]`, `/my-donations/[pledgeId]/reports/[reportId]`                                               | RLS 통합 테스트, `npm run check` 빌드의 동적 라우트 확인                                               | PASS |
+| 보고 발행 이벤트 계약           | `donation_report_events`, `publish_donation_report`의 `report_published:{reportId}` 멱등 이벤트 원자 기록               | `migration-policy.test.ts`                                                                             | PASS |
 
 ### 검증 명령과 결과
 
@@ -345,13 +348,13 @@ npx supabase db lint --local --level warning
   PASS — 신규 스키마 경고 없음. 기존 save_expenditure_execution_analysis의 미사용 p_semantic_key 경고 1건만 존재
 
 npm run test:e2e:reports
-  PASS — 3/3 (기관 구성원, 대상 기부자 읽기 전용, 타 기부자·익명 차단)
+  PASS — 3/3 (기관 구성원 원본 조회, 대상 기부자 안전 projection, 타 기부자·익명 차단)
 
 node --env-file-if-exists=.env --env-file-if-exists=.env.local ./node_modules/@playwright/test/cli.js test --config playwright.report.config.ts
   PASS — 실제 SolarLLM 1개 테스트 안의 비식별 대표 사례 3건(급식, 교육, 프롬프트 인젝션/HTML)
 
 npm run check
-  PASS — 최신 origin/main 병합 후 format:check, ESLint, TypeScript, Vitest 105개 파일/414개 테스트, Next.js 프로덕션 빌드
+  PASS — PR 리뷰 반영 후 format:check, ESLint, TypeScript, Vitest 106개 파일/417개 테스트, Next.js 프로덕션 빌드
 
 git diff --check
   PASS — 공백 오류 없음
@@ -367,12 +370,14 @@ verify-change
 - 안전성 검증 결과: PASS — 약정 목적에 삽입한 지시문과 HTML을 데이터로만 취급했고, 출력 HTML·금지 필드·과도한 문자열·잘못된 JSON을 저장 전에 차단했다. timeout, rate limit, 인증/네트워크/5xx 오류는 원문 비노출 내부 코드로 변환했다.
 - AI가 발견하거나 예방한 품질 문제: 최초 실제 모델 평가에서 모델이 근거에 포함된 금액을 문장에 사용했으나 검증기가 모든 숫자를 일괄 거부하는 과잉 차단을 발견했다. 검증을 “스냅샷에 존재하는 값 또는 정확히 계산된 집행률만 허용”으로 수정해 근거 수치는 허용하고 환각 수치는 계속 차단했다.
 - 후속 직접 기능 리뷰에서 보고 기간의 월·일 숫자가 전역 숫자 허용 목록에 들어가 근거 없는 인원수 주장으로 재사용될 수 있음을 발견했다. 전체 날짜가 근거 날짜와 일치할 때만 허용하고 나머지 숫자는 기존 근거 검증을 받도록 수정했으며 회귀 테스트를 추가했다.
+- PR 기능 리뷰에서 근거 숫자를 단위와 인용 범위 없이 전역 허용하면 금액을 인원수로 바꾸거나 다른 근거의 숫자를 재사용할 수 있음을 확인했다. 근거 ID별 금액·건수·집행률 타입 검증으로 보강하고 `3,000명`, `-3,000원`, 잘못 인용한 `2,000원` 회귀 사례를 추가했다.
+- PR 기능 리뷰에서 발행 상태만으로 원본 보고서 행을 공개하면 AI 초안과 내부 검증·모델 메타데이터가 함께 노출될 수 있음을 확인했다. 원본 RLS를 닫고 기부자 전용 최소 projection으로 교체했다.
 - 최종 판정: PASS
 
 ### 차단 항목과 미검증 범위
 
 - 차단 항목 없음.
-- 로컬 마이그레이션 이력에는 작업 전부터 `202608020000` 버전의 파일명 불일치가 있어 두 번째 신규 마이그레이션의 자동 적용이 중단됐다. 이력이나 데이터를 파괴하지 않고 동일한 두 `GRANT` 문을 로컬 DB에 직접 적용해 통합 검증했으며, 깨끗한 환경에서는 저장소의 타임스탬프 순서대로 적용된다.
+- 로컬 마이그레이션 이력에는 작업 전부터 `202608020000` 버전의 파일명 불일치가 있어 후속 신규 마이그레이션의 자동 적용이 중단됐다. 이력이나 데이터를 파괴하지 않고 보정 `GRANT`와 기부자 projection SQL을 로컬 DB에 직접 적용해 통합 검증했으며, 깨끗한 환경에서는 저장소의 타임스탬프 순서대로 적용된다.
 - 실제 브라우저의 생성→편집→발행 전체 흐름은 별도 E2E로 자동화하지 않았다. 서비스·Route 단위 테스트, 프로덕션 빌드, 실제 모델 평가와 로컬 RLS 통합 테스트로 각 경계를 검증했다.
 - GitHub PR 생성과 원격 검증 결과 기록은 사용자가 요청하지 않아 수행하지 않았다.
 

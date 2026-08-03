@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { DonationReportView } from '@/components/reports/donation-report-view';
 import { parseReportEvidence } from '@/lib/reports/report-evidence';
 import { parseReportContent } from '@/lib/reports/report-schema';
+import type { PublishedDonationReport } from '@/lib/reports/types';
 import { getCurrentUser } from '@/lib/supabase/auth';
 import { createClient } from '@/lib/supabase/server';
 
@@ -17,15 +18,12 @@ export default async function Page({
   const user = await getCurrentUser();
   if (!user) redirect('/login');
   const { pledgeId, reportId } = await params;
-  const { data } = await (
+  const { data: reports } = await (
     await createClient()
-  )
-    .from('donation_reports')
-    .select('id,title,evidence_snapshot,published_content,published_at')
-    .eq('id', reportId)
-    .eq('pledge_id', pledgeId)
-    .eq('status', 'published')
-    .maybeSingle();
+  ).rpc('get_published_donation_reports', { p_pledge_id: pledgeId });
+  const data = (reports as PublishedDonationReport[] | null)?.find(
+    (report) => report.id === reportId,
+  );
   const evidence = parseReportEvidence(data?.evidence_snapshot);
   const content = parseReportContent(data?.published_content);
   if (!data || !evidence || !content) notFound();

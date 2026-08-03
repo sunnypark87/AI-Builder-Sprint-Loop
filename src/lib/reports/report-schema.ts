@@ -78,38 +78,70 @@ export function parseReportContent(value: unknown): ReportContent | null {
 }
 
 const HTML = /<\/?[a-z][^>]*>/i;
-const NUMERIC_CLAIM = /\d[\d,]*(?:\.\d+)?%?/g;
+const NUMERIC_CLAIM = /[+-]?\d[\d,]*(?:\.\d+)?\s*(?:%|원|건|회|명)?/g;
 const DATE_CLAIMS = [
   /\b(\d{4})-(\d{1,2})-(\d{1,2})\b/g,
   /\b(\d{4})\.(\d{1,2})\.(\d{1,2})\.?/g,
   /\b(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/g,
 ];
 
-function normalizedNumber(value: string) {
-  const percent = value.endsWith('%');
-  const parsed = Number(value.replaceAll(',', '').replace('%', ''));
-  return Number.isFinite(parsed) ? `${parsed}${percent ? '%' : ''}` : value;
+type NumericClaimKind = 'money' | 'count' | 'percent';
+
+function normalizedNumericClaim(value: string) {
+  const match = value
+    .trim()
+    .match(/^([+-]?\d[\d,]*(?:\.\d+)?)\s*(%|원|건|회|명)?$/);
+  if (!match) return null;
+  const parsed = Number(match[1].replaceAll(',', ''));
+  if (!Number.isFinite(parsed)) return null;
+  const kind: NumericClaimKind | null =
+    match[2] === '원'
+      ? 'money'
+      : match[2] === '건' || match[2] === '회'
+        ? 'count'
+        : match[2] === '%'
+          ? 'percent'
+          : null;
+  return kind ? `${parsed}:${kind}` : null;
 }
 
-function allowedNumericClaims(evidence: ReportEvidence) {
-  const values = new Set<string>();
-  const add = (value: number) => values.add(String(value));
-  add(evidence.plan.totalAmount);
-  add(evidence.plan.spentAmount);
-  add(evidence.plan.remainingAmount);
-  add(evidence.plan.executionCount);
+function allowedNumericClaimsByEvidence(evidence: ReportEvidence) {
+  const claims = new Map<string, Set<string>>();
+  const add = (evidenceId: string, value: number, kind: NumericClaimKind) => {
+    const values = claims.get(evidenceId) ?? new Set<string>();
+    values.add(`${value}:${kind}`);
+    claims.set(evidenceId, values);
+  };
+  const planId = `plan:${evidence.plan.id}`;
+  add(planId, evidence.plan.totalAmount, 'money');
+  add(planId, evidence.plan.spentAmount, 'money');
+  add(planId, evidence.plan.remainingAmount, 'money');
+  add(planId, evidence.plan.executionCount, 'count');
   if (evidence.plan.totalAmount > 0) {
-    values.add(
-      `${Math.round((evidence.plan.spentAmount / evidence.plan.totalAmount) * 100)}%`,
+    add(
+      planId,
+      Math.round((evidence.plan.spentAmount / evidence.plan.totalAmount) * 100),
+      'percent',
     );
   }
   for (const item of evidence.plan.items) {
-    add(item.plannedAmount);
-    add(item.spentAmount);
-    add(item.remainingAmount);
+    const itemId = `plan-item:${item.id}`;
+    add(itemId, item.plannedAmount, 'money');
+    add(itemId, item.spentAmount, 'money');
+    add(itemId, item.remainingAmount, 'money');
+    add(itemId, item.executionIds.length, 'count');
+    if (item.plannedAmount > 0) {
+      add(
+        itemId,
+        Math.round((item.spentAmount / item.plannedAmount) * 100),
+        'percent',
+      );
+    }
   }
-  for (const execution of evidence.executions) add(execution.totalAmount);
-  return values;
+  for (const execution of evidence.executions) {
+    add(`execution:${execution.id}`, execution.totalAmount, 'money');
+  }
+  return claims;
 }
 
 function allowedDateClaims(evidence: ReportEvidence) {
@@ -150,9 +182,14 @@ export function validateReportContent(
 ): ReportValidationIssue[] {
   const issues: ReportValidationIssue[] = [];
   const knownEvidence = reportEvidenceIds(evidence);
-  const allowedNumbers = allowedNumericClaims(evidence);
+  const allowedNumbersByEvidence = allowedNumericClaimsByEvidence(evidence);
   const allowedDates = allowedDateClaims(evidence);
-  const validateText = (value: string, path: string, max: number) => {
+  const validateText = (
+    value: string,
+    path: string,
+    max: number,
+    evidenceIds: string[] = [],
+  ) => {
     if (!value.trim()) {
       issues.push({ code: 'required', path, message: '내용을 입력해 주세요.' });
     } else if (value.length > max) {
@@ -173,8 +210,16 @@ export function validateReportContent(
     const withoutDates = removeDateClaims(value, allowedDates, (claim) => {
       unsupportedDate ||= claim;
     });
+    const allowedNumbers = new Set(
+      evidenceIds.flatMap((evidenceId) => [
+        ...(allowedNumbersByEvidence.get(evidenceId) ?? []),
+      ]),
+    );
     const unsupportedNumber = (withoutDates.match(NUMERIC_CLAIM) ?? []).find(
-      (claim) => !allowedNumbers.has(normalizedNumber(claim)),
+      (claim) => {
+        const normalized = normalizedNumericClaim(claim);
+        return !normalized || !allowedNumbers.has(normalized);
+      },
     );
     const unsupportedClaim = unsupportedDate || unsupportedNumber;
     if (unsupportedClaim) {
@@ -186,7 +231,7 @@ export function validateReportContent(
     }
   };
   const validateNarrative = (value: ReportNarrative, path: string) => {
-    validateText(value.text, `${path}.text`, 1200);
+    validateText(value.text, `${path}.text`, 1200, value.evidenceIds);
     if (value.evidenceIds.length === 0) {
       issues.push({
         code: 'missing_evidence',
@@ -225,7 +270,7 @@ export function validateReportContent(
     });
   }
   content.items.forEach((item, index) => {
-    validateText(item.title, `items.${index}.title`, 200);
+    validateText(item.title, `items.${index}.title`, 200, item.evidenceIds);
     validateNarrative(item, `items.${index}`);
     if (!item.evidenceIds.includes(`plan-item:${item.planItemId}`)) {
       issues.push({

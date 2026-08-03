@@ -39,7 +39,7 @@ test('organization member can read draft and published reports', async () => {
   ]);
 });
 
-test('donor can read only their published report and cannot mutate it', async () => {
+test('donor can read only the safe projection of their published report', async () => {
   const supabase = await authenticatedClient(reportRlsUsers.donor);
   const { data, error } = await supabase
     .from('donation_reports')
@@ -47,9 +47,28 @@ test('donor can read only their published report and cannot mutate it', async ()
     .eq('organization_id', reportRlsIds.organization);
 
   expect(error).toBeNull();
-  expect(data).toEqual([
-    { id: reportRlsIds.publishedReport, status: 'published' },
-  ]);
+  expect(data).toEqual([]);
+
+  const { data: publishedReports, error: projectionError } = await supabase.rpc(
+    'get_published_donation_reports',
+    {
+      p_pledge_id: reportRlsIds.publishedPledge,
+    },
+  );
+  expect(projectionError).toBeNull();
+  expect(publishedReports).toHaveLength(1);
+  expect(publishedReports?.[0].id).toBe(reportRlsIds.publishedReport);
+  expect(Object.keys(publishedReports?.[0] ?? {}).sort()).toEqual(
+    [
+      'evidence_snapshot',
+      'id',
+      'period_end',
+      'period_start',
+      'published_at',
+      'published_content',
+      'title',
+    ].sort(),
+  );
 
   const { error: updateError } = await supabase
     .from('donation_reports')
@@ -62,14 +81,12 @@ test('unrelated donor and anonymous client cannot read reports', async () => {
   const outsider = await authenticatedClient(reportRlsUsers.outsider);
   const anonymous = client();
   const [outsiderResult, anonymousResult] = await Promise.all([
-    outsider
-      .from('donation_reports')
-      .select('id')
-      .eq('organization_id', reportRlsIds.organization),
-    anonymous
-      .from('donation_reports')
-      .select('id')
-      .eq('organization_id', reportRlsIds.organization),
+    outsider.rpc('get_published_donation_reports', {
+      p_pledge_id: reportRlsIds.publishedPledge,
+    }),
+    anonymous.rpc('get_published_donation_reports', {
+      p_pledge_id: reportRlsIds.publishedPledge,
+    }),
   ]);
 
   expect(outsiderResult.error).toBeNull();

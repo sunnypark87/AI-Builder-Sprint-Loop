@@ -33,14 +33,33 @@ describe('donation report migration security and atomicity', () => {
     );
   });
 
-  it('enables RLS and exposes only published reports to their donor', () => {
+  it('enables RLS without granting report mutation access', () => {
     expect(migration).toContain(
       'alter table public.donation_reports enable row level security',
     );
-    expect(migration).toContain("status = 'published'");
-    expect(migration).toContain('pledge.donor_user_id = (select auth.uid())');
     expect(migration).not.toMatch(
       /grant (insert|update|delete)[^;]*authenticated/i,
+    );
+  });
+
+  it('exposes a donor-safe published report projection', () => {
+    const projectionMigration = readFileSync(
+      new URL(
+        '../../../supabase/migrations/20260803020000_restrict_donor_report_projection.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+
+    expect(projectionMigration).toContain(
+      'drop policy if exists "Donors can read their published donation reports"',
+    );
+    expect(projectionMigration).toContain("report.status = 'published'");
+    expect(projectionMigration).toContain(
+      'pledge.donor_user_id = (select auth.uid())',
+    );
+    expect(projectionMigration).not.toMatch(
+      /\b(ai_draft|draft_content|validation_issues|model_metadata|generation_error_code|reviewed_by)\b/,
     );
   });
 

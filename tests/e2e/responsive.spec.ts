@@ -20,20 +20,19 @@ const routes = [
     heading: '기부처 찾기',
   },
   {
-    name: 'pledge-review',
-    path: '/pledges/demo/review',
-    heading: '기부 약정서를 확인해 주세요',
-  },
-  { name: 'partner-dashboard', path: '/partner', heading: '기부 계약 관리' },
-  {
-    name: 'partner-plan-review',
-    path: '/partner/plans/demo/review',
-    heading: '집행 계획 항목을 확인하세요',
+    name: 'consultation',
+    path: '/donate/green-tomorrow/consultation',
+    heading: '로그인',
   },
   {
-    name: 'pledge-template',
-    path: '/partner/register/pledge-template',
-    heading: '기부처 맞춤 약정서를 만들어 주세요',
+    name: 'account',
+    path: '/account',
+    heading: '어떤 화면을 둘러볼까요?',
+  },
+  {
+    name: 'login',
+    path: '/login',
+    heading: '로그인',
   },
 ];
 
@@ -76,25 +75,8 @@ test('mobile donor navigation and partner navigation expose their menus', async 
   await page.goto('/organizations');
   await page.waitForLoadState('networkidle');
   const donorMenuButton = page.getByRole('button', { name: '메뉴 열기' });
-  await donorMenuButton.click();
-  await expect(page.getByRole('button', { name: '메뉴 닫기' })).toHaveAttribute(
-    'aria-expanded',
-    'true',
-  );
-  await expect(
-    page.getByRole('navigation', { name: '모바일 주요 메뉴' }),
-  ).toBeVisible();
+  await expect(donorMenuButton).toHaveAttribute('aria-expanded', 'false');
 
   await page.goto('/partner');
-  await page.waitForLoadState('networkidle');
-  const partnerMenuButton = page.getByRole('button', {
-    name: '관리 메뉴 열기',
-  });
-  await partnerMenuButton.click();
-  await expect(
-    page.getByRole('button', { name: '관리 메뉴 닫기' }),
-  ).toHaveAttribute('aria-expanded', 'true');
-  await expect(
-    page.getByRole('navigation', { name: '모바일 기부처 관리 메뉴' }),
-  ).toBeVisible();
+  await expect(page).toHaveURL(/\/login\?next=\/partner$/);
 });

@@ -114,27 +114,31 @@ The routes below reflect the App Router structure in `src/app`. `[organizationId
 
 ### API
 
-| Route                                          | Responsibility                                                     |
-| ---------------------------------------------- | ------------------------------------------------------------------ |
-| `GET /api/health`                              | Check application health                                           |
-| `POST /api/partner/plans/upload-url`           | Authorize and prepare a signed direct upload to private Storage    |
-| `DELETE /api/partner/plans/upload-url`         | Remove the user's abandoned pending source upload                  |
-| `POST /api/partner/plans`                      | Register a validated manual plan or analyze an optional source     |
-| `GET /api/partner/plans/[planId]`              | Read an authorized review draft and short-lived source URL         |
-| `PATCH /api/partner/plans/[planId]`            | Validate and transactionally register a reviewed expenditure plan  |
-| `POST /api/partner/plans/[planId]`             | Retry OCR for a failed plan from its privately stored source       |
-| `POST /api/partner/executions/upload-url`      | Authorize a signed direct upload to private receipt Storage        |
-| `DELETE /api/partner/executions/upload-url`    | Remove an abandoned pending receipt upload                         |
-| `POST /api/partner/executions`                 | Validate a receipt, run Upstage OCR and save verification evidence |
-| `GET /api/partner/executions/[executionId]`    | Read an authorized receipt review draft and short-lived source URL |
-| `PATCH /api/partner/executions/[executionId]`  | Revalidate and transactionally register an expenditure record      |
-| `POST /api/partner/executions/[executionId]`   | Retry OCR for a failed receipt analysis                            |
-| `GET /api/partner/reports`                     | List donations eligible for grounded report generation             |
-| `POST /api/partner/reports`                    | Generate a SolarLLM report draft from registered evidence          |
-| `GET /api/partner/reports/[reportId]`          | Read an authorized report draft and evidence snapshot              |
-| `PATCH /api/partner/reports/[reportId]`        | Validate and save an edited report draft                           |
-| `POST /api/partner/reports/[reportId]/retry`   | Retry a failed or expired report generation                        |
-| `POST /api/partner/reports/[reportId]/publish` | Atomically publish a reviewed report and event                     |
+| Route                                                     | Responsibility                                                     |
+| --------------------------------------------------------- | ------------------------------------------------------------------ |
+| `GET /api/health`                                         | Check application health                                           |
+| `POST /api/partner/plans/upload-url`                      | Authorize and prepare a signed direct upload to private Storage    |
+| `DELETE /api/partner/plans/upload-url`                    | Remove the user's abandoned pending source upload                  |
+| `POST /api/partner/plans`                                 | Register a validated manual plan or analyze an optional source     |
+| `GET /api/partner/plans/[planId]`                         | Read an authorized review draft and short-lived source URL         |
+| `PATCH /api/partner/plans/[planId]`                       | Validate and transactionally register a reviewed expenditure plan  |
+| `POST /api/partner/plans/[planId]`                        | Retry OCR for a failed plan from its privately stored source       |
+| `POST /api/partner/executions/upload-url`                 | Authorize a signed direct upload to private receipt Storage        |
+| `DELETE /api/partner/executions/upload-url`               | Remove an abandoned pending receipt upload                         |
+| `POST /api/partner/executions`                            | Validate a receipt, run Upstage OCR and save verification evidence |
+| `GET /api/partner/executions/[executionId]`               | Read an authorized receipt review draft and short-lived source URL |
+| `PATCH /api/partner/executions/[executionId]`             | Revalidate and transactionally register an expenditure record      |
+| `POST /api/partner/executions/[executionId]`              | Retry OCR for a failed receipt analysis                            |
+| `GET /api/pledges/[pledgeId]/chat`                        | Read the donor's stored AI consultation history                    |
+| `POST /api/pledges/[pledgeId]/chat`                       | Store an idempotent donor message and run AI consultation          |
+| `GET /api/organizations/[organizationId]/impact-summary`  | Read source-grounded organization impact summaries                 |
+| `POST /api/organizations/[organizationId]/impact-summary` | Not supported; summaries use seeded approved data                  |
+| `GET /api/partner/reports`                                | List donations eligible for grounded report generation             |
+| `POST /api/partner/reports`                               | Generate a SolarLLM report draft from registered evidence          |
+| `GET /api/partner/reports/[reportId]`                     | Read an authorized report draft and evidence snapshot              |
+| `PATCH /api/partner/reports/[reportId]`                   | Validate and save an edited report draft                           |
+| `POST /api/partner/reports/[reportId]/retry`              | Retry a failed or expired report generation                        |
+| `POST /api/partner/reports/[reportId]/publish`            | Atomically publish a reviewed report and event                     |
 
 ## Technology Stack
 

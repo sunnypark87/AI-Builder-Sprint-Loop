@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { PledgeChatPanel } from '@/components/pledges/pledge-chat-panel';
@@ -23,26 +22,20 @@ export function PledgeReviewWorkspace({
   pledge: EditablePledge;
   messages: PledgeChatMessage[];
 }) {
-  const router = useRouter();
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [zoom, setZoom] = useState(100);
-  const organization = Array.isArray(pledge.organizations)
-    ? pledge.organizations[0]
-    : pledge.organizations;
+  const [currentPledge, setCurrentPledge] = useState(pledge);
+  const [chatMessages, setChatMessages] = useState(messages);
+  const [appliedPatch, setAppliedPatch] = useState<PledgeChatPatch>();
 
-  async function applyPatch(patch: PledgeChatPatch) {
-    const response = await fetch(`/api/pledges/${pledge.id}`, {
-      body: JSON.stringify({
-        ...patch,
-        organizationSlug: organization?.slug ?? 'haebom',
-        version: pledge.version ?? 1,
-      }),
-      headers: { 'Content-Type': 'application/json' },
-      method: 'PATCH',
-    });
-    if (!response.ok) throw new Error('patch_failed');
-    router.refresh();
-    window.location.reload();
+  function handleAppliedPatch(
+    patch: PledgeChatPatch,
+    pledgeVersion: number | null,
+  ) {
+    setAppliedPatch(patch);
+    setCurrentPledge((current) =>
+      mergePledgeChatPatch(current, patch, pledgeVersion),
+    );
   }
 
   return (
@@ -113,7 +106,10 @@ export function PledgeReviewWorkspace({
         </div>
         <div className="overflow-auto bg-panel-muted">
           <div className="origin-top-left" style={{ zoom: `${zoom}%` }}>
-            <PledgeDocumentForm pledge={pledge} />
+            <PledgeDocumentForm
+              appliedPatch={appliedPatch}
+              pledge={currentPledge}
+            />
           </div>
         </div>
       </section>
@@ -121,7 +117,9 @@ export function PledgeReviewWorkspace({
         <div className="xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)]">
           <PledgeChatPanel
             initialMessages={messages}
-            onApplyPatch={applyPatch}
+            messages={chatMessages}
+            onMessagesChange={setChatMessages}
+            onAppliedPatch={handleAppliedPatch}
             onCollapse={() => setChatCollapsed(true)}
             pledgeId={pledge.id}
           />
@@ -129,4 +127,34 @@ export function PledgeReviewWorkspace({
       ) : null}
     </div>
   );
+}
+
+export function mergePledgeChatPatch(
+  pledge: EditablePledge,
+  patch: PledgeChatPatch,
+  pledgeVersion: number | null,
+): EditablePledge {
+  return {
+    ...pledge,
+    ...(patch.amount !== undefined ? { amount: patch.amount } : {}),
+    ...(patch.donationDesignation !== undefined
+      ? { donation_designation: patch.donationDesignation }
+      : {}),
+    ...(patch.donationCondition !== undefined
+      ? { donation_condition: patch.donationCondition }
+      : {}),
+    ...(patch.paymentSchedule !== undefined
+      ? { payment_schedule: patch.paymentSchedule }
+      : {}),
+    ...(patch.paymentScheduleOther !== undefined
+      ? { payment_schedule_other: patch.paymentScheduleOther }
+      : {}),
+    ...(patch.paymentMethod !== undefined
+      ? { payment_method: patch.paymentMethod }
+      : {}),
+    ...(patch.paymentMethodOther !== undefined
+      ? { payment_method_other: patch.paymentMethodOther }
+      : {}),
+    ...(pledgeVersion !== null ? { version: pledgeVersion } : {}),
+  };
 }

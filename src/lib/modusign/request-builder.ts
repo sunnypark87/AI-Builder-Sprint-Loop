@@ -78,10 +78,7 @@ function buildFieldMappings(pledge: SignatureRequestPledge) {
     address: pledge.address,
     amount: String(pledge.amount),
     contact: pledge.contact,
-    donationCondition: formatDonationCondition(
-      pledge.purpose,
-      pledge.donationCondition,
-    ),
+    donationCondition: formatDonationCondition(pledge.donationCondition),
     donationKindCash: pledge.donationKind === 'cash',
     donationKindOther: pledge.donationKind === 'other',
     donationTypeOther:
@@ -122,18 +119,10 @@ function buildFieldMappings(pledge: SignatureRequestPledge) {
     });
 }
 
-export function formatDonationCondition(
-  purpose: string,
-  donationCondition?: string,
-) {
-  return [
-    `기부 목적: ${purpose.trim()}`,
-    donationCondition?.trim()
-      ? `기부 조건: ${donationCondition.trim()}`
-      : undefined,
-  ]
-    .filter(Boolean)
-    .join('\n');
+export function formatDonationCondition(donationCondition?: string) {
+  return donationCondition?.trim()
+    ? `기부 조건: ${donationCondition.trim()}`
+    : '';
 }
 
 function getFieldValue(

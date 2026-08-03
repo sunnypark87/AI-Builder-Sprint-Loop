@@ -186,6 +186,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       updates[column] = nextValue ?? null;
     }
   }
+  if (value.donationDesignation === 'undesignated') {
+    updates.donation_condition = null;
+  }
   const receiptRequested =
     'receiptRequested' in raw
       ? value.receiptRequested

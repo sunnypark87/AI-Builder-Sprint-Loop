@@ -31,4 +31,16 @@ describe('consultation assistant response', () => {
       }),
     ).toBe('말씀해 주신 내용을 확인했어요. 기부하실 금액을 알려주세요.');
   });
+
+  it('explains when an ungrounded condition was left for donor confirmation', () => {
+    expect(
+      composeConsultationAssistantMessage({
+        proposedPatch: { donationDesignation: 'designated' },
+        groundingWarnings: [
+          '지정 기부 조건은 승인된 기부처 사업이나 허용 조건에서 선택해 주세요.',
+        ],
+        nextQuestionField: 'donationCondition',
+      }),
+    ).toContain('승인된 기부처 사업이나 허용 조건에서 선택해 주세요.');
+  });
 });

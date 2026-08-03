@@ -29,7 +29,10 @@ const FIELD_LABELS: Record<keyof AiPledgePatch, string> = {
 };
 
 export function composeConsultationAssistantMessage(
-  result: Pick<PledgeConsultationResult, 'proposedPatch' | 'nextQuestionField'>,
+  result: Pick<
+    PledgeConsultationResult,
+    'proposedPatch' | 'nextQuestionField' | 'groundingWarnings'
+  >,
 ) {
   const appliedFields = Object.keys(result.proposedPatch).filter(
     (field): field is keyof AiPledgePatch => field in FIELD_LABELS,
@@ -37,7 +40,11 @@ export function composeConsultationAssistantMessage(
   const acknowledgement = appliedFields.length
     ? `${appliedFields.map((field) => FIELD_LABELS[field]).join(', ')}을 약정서에 작성했어요.`
     : '말씀해 주신 내용을 확인했어요.';
+  const groundingWarnings = result.groundingWarnings ?? [];
+  const warning = groundingWarnings.length
+    ? ` ${groundingWarnings.join(' ')}`
+    : '';
   if (!result.nextQuestionField)
-    return `${acknowledgement} 필요한 약정 정보가 모두 작성됐어요. 다음 화면에서 전체 내용을 검토하고 수정할 수 있습니다.`;
-  return `${acknowledgement} ${NEXT_QUESTIONS[result.nextQuestionField]}`;
+    return `${acknowledgement}${warning} 필요한 약정 정보가 모두 작성됐어요. 다음 화면에서 전체 내용을 검토하고 수정할 수 있습니다.`;
+  return `${acknowledgement}${warning} ${NEXT_QUESTIONS[result.nextQuestionField]}`;
 }

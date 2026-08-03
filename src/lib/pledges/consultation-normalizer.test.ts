@@ -78,7 +78,7 @@ describe('consultation result normalization', () => {
     });
   });
 
-  it('rejects designated conditions without an approved program ground', () => {
+  it('keeps unrelated patch fields when a condition lacks approved grounding', () => {
     const result = normalizeConsultationResult({
       currentPledge: {},
       organization: {
@@ -101,9 +101,15 @@ describe('consultation result normalization', () => {
         },
       },
     });
-    expect(result).toEqual({
-      ok: false,
-      errors: ['지정 기부 조건이 승인된 기부처 사업 근거와 일치하지 않습니다.'],
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        proposedPatch: { donationDesignation: 'designated' },
+        missingFields: expect.arrayContaining(['donationCondition']),
+        groundingWarnings: [
+          '지정 기부 조건은 승인된 기부처 사업이나 허용 조건에서 선택해 주세요.',
+        ],
+      },
     });
   });
 
@@ -130,7 +136,10 @@ describe('consultation result normalization', () => {
         },
       },
     });
-    expect(result).toMatchObject({ ok: true });
+    expect(result).toMatchObject({
+      ok: true,
+      value: { proposedPatch: { donationCondition: '교재비 지원' } },
+    });
   });
 
   it('grounds a condition against the effective designation across turns', () => {
@@ -155,6 +164,41 @@ describe('consultation result normalization', () => {
         proposedPatch: { donationCondition: '해외 의료비 지원' },
       },
     });
-    expect(result.ok).toBe(false);
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        proposedPatch: {},
+        missingFields: expect.arrayContaining(['donationCondition']),
+        groundingWarnings: [
+          '지정 기부 조건은 승인된 기부처 사업이나 허용 조건에서 선택해 주세요.',
+        ],
+      },
+    });
+  });
+
+  it('does not ground a condition while the effective designation is undesignated', () => {
+    const result = normalizeConsultationResult({
+      currentPledge: { donationDesignation: 'undesignated' },
+      organization: {
+        ...organization,
+        programs: [
+          {
+            id: 'program-1',
+            key: 'education',
+            name: '아동 교육',
+            description: '교육 지원',
+            allowedConditions: ['교재비 지원'],
+          },
+        ],
+      },
+      modelOutput: {
+        assistantMessage: '조건을 확인해 주세요.',
+        proposedPatch: { donationCondition: '교재비 지원' },
+      },
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      value: { proposedPatch: {}, groundingWarnings: expect.any(Array) },
+    });
   });
 });

@@ -19,16 +19,35 @@ export function normalizeConsultationResult(input: {
   | { ok: true; value: PledgeConsultationResult }
   | { ok: false; errors: string[] } {
   const proposedPatch = normalizePatch(input.modelOutput.proposedPatch);
-  const groundingErrors = validateDonationConditionGrounding(
-    proposedPatch,
-    input.currentPledge,
+  const groundingWarnings: string[] = [];
+  const effectiveDesignation =
+    proposedPatch.donationDesignation ??
+    input.currentPledge.donationDesignation;
+  const groundedCondition = resolveDonationCondition(
+    effectiveDesignation === 'designated'
+      ? proposedPatch.donationCondition
+      : null,
     input.organization,
   );
-  if (groundingErrors.length) return { ok: false, errors: groundingErrors };
+  if (proposedPatch.donationCondition && !groundedCondition) {
+    delete proposedPatch.donationCondition;
+    groundingWarnings.push(
+      '지정 기부 조건은 승인된 기부처 사업이나 허용 조건에서 선택해 주세요.',
+    );
+  } else if (groundedCondition) {
+    proposedPatch.donationCondition = groundedCondition;
+  }
   const missingFields = getMissingPledgeFields(
     input.currentPledge,
     proposedPatch,
   );
+  if (
+    groundingWarnings.length &&
+    !missingFields.includes('donationCondition') &&
+    effectiveDesignation === 'designated'
+  ) {
+    missingFields.push('donationCondition');
+  }
   const conflictFields = findPledgeConflicts(
     input.currentPledge,
     proposedPatch,
@@ -45,31 +64,36 @@ export function normalizeConsultationResult(input: {
       confirmationFields,
       conflictFields,
       nextQuestionField: selectNextQuestion(missingFields),
+      groundingWarnings,
     },
   };
 }
 
-function validateDonationConditionGrounding(
-  patch: PledgeConsultationResult['proposedPatch'],
-  currentPledge: ConsultationPledgeState,
+function resolveDonationCondition(
+  condition: PledgeConsultationResult['proposedPatch']['donationCondition'],
   organization: OrganizationAiContext,
 ) {
-  if (!patch.donationCondition?.trim()) return [];
-  const effectiveDesignation =
-    patch.donationDesignation ?? currentPledge.donationDesignation;
-  if (effectiveDesignation !== 'designated')
-    return ['지정 기부로 확인되지 않은 기부 조건은 자동 반영할 수 없습니다.'];
-  const condition = normalize(patch.donationCondition);
-  const grounded = (organization.programs ?? []).some((program) => {
-    const candidates = [program.name, ...program.allowedConditions];
-    return candidates.some((candidate) => {
-      const normalized = normalize(candidate);
-      return condition.includes(normalized) || normalized.includes(condition);
-    });
-  });
-  return grounded
-    ? []
-    : ['지정 기부 조건이 승인된 기부처 사업 근거와 일치하지 않습니다.'];
+  if (!condition?.trim()) return null;
+  const normalizedInput = normalize(condition);
+  for (const program of organization.programs ?? []) {
+    if (normalizedInput === normalize(program.name)) return program.name;
+    for (const allowedCondition of program.allowedConditions) {
+      if (normalizedInput === normalize(allowedCondition))
+        return allowedCondition;
+
+      // Keep the demo's natural phrasing ("사업의 <조건>") while requiring
+      // the actual condition to be a complete approved value.
+      const programName = normalize(program.name);
+      if (
+        [
+          `${programName}의${normalize(allowedCondition)}`,
+          `${programName}사업의${normalize(allowedCondition)}`,
+        ].includes(normalizedInput)
+      )
+        return allowedCondition;
+    }
+  }
+  return null;
 }
 
 function normalizePatch(patch: ModelConsultationOutput['proposedPatch']) {
@@ -84,5 +108,5 @@ function normalizePatch(patch: ModelConsultationOutput['proposedPatch']) {
 }
 
 function normalize(value: string) {
-  return value.replace(/\s+/g, '').toLocaleLowerCase('ko-KR');
+  return value.replace(/[^\p{L}\p{N}]+/gu, '').toLocaleLowerCase('ko-KR');
 }

@@ -52,6 +52,7 @@ export type PledgeConsultationResult = ModelConsultationOutput & {
   confirmationFields: PledgeField[];
   conflictFields: PledgeField[];
   nextQuestionField: PledgeField | null;
+  groundingWarnings?: string[];
 };
 
 export type SchemaValidationError = { path: string; message: string };

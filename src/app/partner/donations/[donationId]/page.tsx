@@ -4,7 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { PageHeader } from '@/components/partner/page-header';
 import { Card } from '@/components/ui/card';
 import { StatusIndicator } from '@/components/ui/status-indicator';
-import { getActiveOrganizationMembership } from '@/lib/organizations/membership';
+import { getOrganizationIds } from '@/lib/organizations/membership';
 import { getPartnerDonationDetail } from '@/lib/partner/donation-detail-repository';
 import { getCurrentUser } from '@/lib/supabase/auth';
 import { createClient } from '@/lib/supabase/server';
@@ -38,15 +38,15 @@ export default async function PartnerDonationDetailPage({
   if (!user) redirect('/login');
   const { donationId } = await params;
   const supabase = await createClient();
-  const membership = await getActiveOrganizationMembership(supabase, user.id);
-  if (membership.error)
+  const memberships = await getOrganizationIds(supabase, user.id);
+  if (memberships.error)
     throw new Error('organization_membership_lookup_failed');
-  if (!membership.data) notFound();
+  if (!memberships.data.length) notFound();
 
   const detail = await getPartnerDonationDetail(
     supabase,
     donationId,
-    membership.data.organization_id,
+    memberships.data,
   );
   if (!detail) notFound();
 
@@ -61,7 +61,11 @@ export default async function PartnerDonationDetailPage({
     <div className="max-w-[960px]">
       <PageHeader
         context="기부 상세"
-        title={pledge ? `${pledge.donor_name} 님 기부 이행` : '기부 상세'}
+        title={
+          pledge
+            ? `${detail.organizationName} · ${pledge.donor_name} 님 기부 이행`
+            : `${detail.organizationName} · 기부 상세`
+        }
         description="약정, 결제, 계획, 집행과 보고 진행 상태를 실제 저장 데이터로 확인합니다."
       />
 

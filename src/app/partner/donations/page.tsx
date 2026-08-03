@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 import { ManagementList } from '@/components/partner/management-list';
 import { buttonClassName } from '@/components/ui/button';
-import { getActiveOrganizationMembership } from '@/lib/organizations/membership';
+import { getOrganizationIds } from '@/lib/organizations/membership';
 import { listPartnerDonationDetails } from '@/lib/partner/donation-detail-repository';
 import { getCurrentUser } from '@/lib/supabase/auth';
 import { createClient } from '@/lib/supabase/server';
@@ -36,15 +36,12 @@ export default async function Page({
   const user = await getCurrentUser();
   if (!user) return null;
   const supabase = await createClient();
-  const membership = await getActiveOrganizationMembership(supabase, user.id);
-  if (membership.error)
+  const memberships = await getOrganizationIds(supabase, user.id);
+  if (memberships.error)
     throw new Error('organization_membership_lookup_failed');
 
-  const details = membership.data
-    ? await listPartnerDonationDetails(
-        supabase,
-        membership.data.organization_id,
-      )
+  const details = memberships.data.length
+    ? await listPartnerDonationDetails(supabase, memberships.data)
     : [];
 
   return (
@@ -77,7 +74,7 @@ export default async function Page({
         return {
           id: donation.id,
           title: pledge
-            ? `${pledge.donor_name} 님 · ${pledge.purpose}`
+            ? `${detail.organizationName} · ${pledge.donor_name} 님 · ${pledge.purpose}`
             : '연결된 약정이 없는 기부',
           description: `${money(donation.amount)} · ${pledge?.donation_type ?? '기부'} `,
           status: progress.label,

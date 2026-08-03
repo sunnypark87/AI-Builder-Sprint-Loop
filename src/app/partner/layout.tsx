@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 
 import { PartnerHeader } from '@/components/layout/partner-header';
 import { PartnerSidebar } from '@/components/layout/partner-sidebar';
-import { getActiveOrganizationMembership } from '@/lib/organizations/membership';
+import { getOrganizationMemberships } from '@/lib/organizations/membership';
 import { getCurrentUser } from '@/lib/supabase/auth';
 import { createClient } from '@/lib/supabase/server';
 
@@ -17,10 +17,10 @@ export default async function PartnerLayout({
   const user = await getCurrentUser();
   if (!user) redirect('/login?next=/partner');
   const supabase = await createClient();
-  const { data: membership, error: membershipError } =
-    await getActiveOrganizationMembership(supabase, user.id);
+  const { data: memberships, error: membershipError } =
+    await getOrganizationMemberships(supabase, user.id);
   if (membershipError) throw new Error('organization_membership_lookup_failed');
-  if (!membership) redirect('/account');
+  if (!memberships?.length) redirect('/account');
 
   return (
     <div className="flex min-h-screen bg-panel">

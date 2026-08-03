@@ -314,6 +314,7 @@ playwright.report.config.ts                            # 별도 평가 설정이
 
 ### 변경 내용
 
+- 후속 진입 핫픽스로 보고서 목록을 인증된 사용자와 서버 클라이언트의 조직 범위로 조회하고, 목록 조회 실패 시에도 `보고서 작성하기` 버튼을 유지했다. 집행 내역 등록 완료 화면에는 `AI 보고서 작성하기`와 집행 목록 이동 선택지를 추가했다.
 - 시연용 집행 계획·영수증 PDF가 OCR에서 한 줄로 평탄화되어도 계획 항목과 영수증 필드·품목을 복원하도록 파서를 보강했다. 계획은 3,000,000원 단일 항목으로 단순화하고 영수증 세 품목 합계도 3,000,000원으로 맞춰 보고서에서 계획 대비 100% 집행 사례를 만들었다.
 - `donations.pledge_id`, 보고서/발행 이벤트 테이블, 상태 전이 RPC, 역할별 RLS를 추가했다. 기존 서약 스키마에 누락됐던 `authenticated` 읽기와 `service_role` 서버 작업 권한은 별도 보정 마이그레이션으로 명시했다.
 - `src/lib/reports/`에 공개 근거 허용 목록, 결정론적 집계, 구조화 콘텐츠 검증, 저장소와 생성·저장·재시도·발행 서비스를 구현했다.
@@ -343,6 +344,15 @@ playwright.report.config.ts                            # 별도 평가 설정이
 ### 검증 명령과 결과
 
 ```text
+npm run test -- src/app/partner/reports/page.test.tsx src/components/partner/execution-review-form.test.tsx
+  PASS — 2개 파일/6개 테스트, 목록 실패 시 작성 버튼 유지·조직 범위 서버 조회·집행 등록 후 AI 보고서 작성 연결
+
+npm run test:e2e:reports
+  PASS — 3/3 (기관 구성원 보고서 조회, 대상 기부자 안전 projection, 타 기부자·익명 차단)
+
+npm run check
+  PASS — 진입 핫픽스 반영 후 format:check, ESLint, TypeScript, Vitest 111개 파일/437개 테스트, Next.js 프로덕션 빌드
+
 npm run test -- src/lib/executions/parse-ocr-receipt.test.ts src/lib/plans/parse-ocr-plan.test.ts
   PASS — 2개 파일/12개 테스트, 실제 OCR의 구분자 이동을 포함해 계획 3개 항목과 영수증 8개 필드·3개 품목 복원
 
@@ -392,6 +402,7 @@ verify-change
 ### 차단 항목과 미검증 범위
 
 - 차단 항목 없음.
+- 원격 Supabase 프로젝트가 로컬 CLI에 연결되어 있지 않아 배포 DB의 보고서 마이그레이션 적용 여부는 확인하지 못했다. 로컬 Supabase의 보고서 RLS 통합 테스트 3건은 모두 통과했으며, 배포 전 원격 마이그레이션 이력을 별도로 확인해야 한다.
 - 로컬 마이그레이션 이력에는 작업 전부터 `202608020000` 버전의 파일명 불일치가 있어 후속 신규 마이그레이션의 자동 적용이 중단됐다. 이력이나 데이터를 파괴하지 않고 보정 `GRANT`와 기부자 projection SQL을 로컬 DB에 직접 적용해 통합 검증했으며, 깨끗한 환경에서는 저장소의 타임스탬프 순서대로 적용된다.
 - 실제 브라우저의 생성→편집→발행 전체 흐름은 별도 E2E로 자동화하지 않았다. 서비스·Route 단위 테스트, 프로덕션 빌드, 실제 모델 평가와 로컬 RLS 통합 테스트로 각 경계를 검증했다.
 - GitHub PR 생성과 원격 검증 결과 기록은 사용자가 요청하지 않아 수행하지 않았다.

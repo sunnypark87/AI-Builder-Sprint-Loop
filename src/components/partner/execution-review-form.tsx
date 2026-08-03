@@ -6,6 +6,7 @@ import {
   PlusIcon,
   Trash2Icon,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
@@ -69,6 +70,7 @@ export function ExecutionReviewForm({
   const [warningReason, setWarningReason] = useState(initialWarningReason);
   const [requestError, setRequestError] = useState('');
   const [pending, setPending] = useState(false);
+  const [registered, setRegistered] = useState(false);
   const hasWarning = verificationResults.some(
     (result) => result.outcome === 'warning',
   );
@@ -78,6 +80,27 @@ export function ExecutionReviewForm({
   const selectedPlanItem =
     planItemOptions.find((option) => option.planItemId === planItemId) ??
     planItemOptions[0];
+
+  if (registered) {
+    return (
+      <div className="grid max-w-[760px] gap-6">
+        <InlineNotice title="집행 내역 등록을 완료했습니다." tone="info">
+          등록된 계획과 집행 내역을 근거로 AI 보고서 초안을 작성할 수 있습니다.
+        </InlineNotice>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Link
+            className={buttonClassName({ variant: 'secondary' })}
+            href="/partner/executions?status=registered"
+          >
+            집행 내역 목록
+          </Link>
+          <Link className={buttonClassName()} href="/partner/reports/new">
+            AI 보고서 작성하기
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form
@@ -113,7 +136,7 @@ export function ExecutionReviewForm({
             );
             return;
           }
-          router.push('/partner/executions?status=registered');
+          setRegistered(true);
           router.refresh();
         } catch {
           setRequestError(

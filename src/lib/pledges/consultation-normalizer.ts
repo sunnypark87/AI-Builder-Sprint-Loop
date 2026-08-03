@@ -10,15 +10,25 @@ import {
   selectNextQuestion,
   type ConsultationPledgeState,
 } from './consultation';
+import {
+  getRequestedQuestionField,
+  groundPatchInLatestUserMessage,
+} from './consultation-evidence';
 
 export function normalizeConsultationResult(input: {
   modelOutput: ModelConsultationOutput;
   currentPledge: ConsultationPledgeState;
   organization: OrganizationAiContext;
+  latestUserMessage: string;
 }):
   | { ok: true; value: PledgeConsultationResult }
   | { ok: false; errors: string[] } {
-  const proposedPatch = normalizePatch(input.modelOutput.proposedPatch);
+  const proposedPatch = normalizePatch(
+    groundPatchInLatestUserMessage({
+      message: input.latestUserMessage,
+      modelPatch: input.modelOutput.proposedPatch,
+    }),
+  );
   const groundingWarnings: string[] = [];
   const effectiveDesignation =
     proposedPatch.donationDesignation ??
@@ -55,6 +65,9 @@ export function normalizeConsultationResult(input: {
   const confirmationFields = Object.keys(proposedPatch).filter(
     (field): field is PledgeField => field !== 'organization',
   ) as PledgeField[];
+  const requestedQuestionField = getRequestedQuestionField(
+    input.latestUserMessage,
+  );
   return {
     ok: true,
     value: {
@@ -63,7 +76,10 @@ export function normalizeConsultationResult(input: {
       missingFields,
       confirmationFields,
       conflictFields,
-      nextQuestionField: selectNextQuestion(missingFields),
+      nextQuestionField:
+        requestedQuestionField && missingFields.includes(requestedQuestionField)
+          ? requestedQuestionField
+          : selectNextQuestion(missingFields),
       groundingWarnings,
     },
   };

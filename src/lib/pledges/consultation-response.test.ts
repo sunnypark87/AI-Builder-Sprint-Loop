@@ -32,6 +32,17 @@ describe('consultation assistant response', () => {
     ).toBe('말씀해 주신 내용을 확인했어요. 기부하실 금액을 알려주세요.');
   });
 
+  it('asks the requested donation-type question before the default amount question', () => {
+    expect(
+      composeConsultationAssistantMessage({
+        proposedPatch: {},
+        nextQuestionField: 'donationDesignation',
+      }),
+    ).toBe(
+      '말씀해 주신 내용을 확인했어요. 특정 활동에 사용하는 지정 기부와 재단에 사용처를 맡기는 비지정 기부 중 어떤 방식으로 진행할까요?',
+    );
+  });
+
   it('explains when an ungrounded condition was left for donor confirmation', () => {
     expect(
       composeConsultationAssistantMessage({

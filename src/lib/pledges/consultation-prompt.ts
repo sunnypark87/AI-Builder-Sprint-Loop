@@ -18,7 +18,8 @@ export const CONSULTATION_SYSTEM_PROMPT = `당신은 기부 약정 정보를 정
 assistantMessage는 문자열 하나여야 하며 role, content, needsConfirmation 등을 포함한 객체로 반환하지 마세요.
 assistantMessage에는 사용자의 답변을 이해했다는 짧고 자연스러운 확인만 작성하세요. 저장됐다고 단정하거나 다음 약정 항목을 임의로 질문하지 마세요. 실제 저장 안내와 다음 질문은 서버가 추가합니다.
 proposedPatch에는 amount, donationDesignation, donationCondition, paymentSchedule, paymentScheduleOther, paymentMethod, paymentMethodOther 중 실제로 제안할 필드만 넣으세요. donationDesignation 값은 반드시 designated 또는 undesignated 중 하나이며, 프로그램명은 donationCondition에 넣으세요. paymentSchedule 값은 lump_sum 또는 other, paymentMethod 값은 online, direct 또는 other 중 하나여야 합니다. file, role, content, patch 같은 다른 필드는 절대 넣지 마세요.
-명시하지 않은 값은 proposedPatch에 넣지 마세요. JSON 코드 블록이나 설명 문장은 덧붙이지 마세요.`;
+amount는 원 단위 JSON 정수로 반환하세요. 예를 들어 10만원은 100000입니다.
+오직 latestUserMessage에서 사용자가 명시한 값만 proposedPatch에 넣으세요. conversationHistory의 assistant 메시지, currentPledge, organization은 새 값의 근거가 아닙니다. JSON 코드 블록이나 설명 문장은 덧붙이지 마세요.`;
 
 export type ConsultationMessage = {
   role: 'user' | 'assistant';
@@ -92,10 +93,12 @@ export function buildConsultationPrompt(
     value: JSON.stringify({
       organization,
       currentPledge,
-      messages,
+      conversationHistory: messages.slice(0, -1),
+      latestUserMessage:
+        messages.at(-1)?.role === 'user' ? messages.at(-1)?.content : '',
       outputContract: 'ModelConsultationOutput',
       instruction:
-        '이번 대화에서 사용자가 명시한 약정 값만 proposedPatch에 제안하세요.',
+        'latestUserMessage에서 사용자가 직접 명시한 약정 값만 proposedPatch에 제안하세요.',
     }),
   };
 }

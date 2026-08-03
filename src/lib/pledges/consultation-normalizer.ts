@@ -21,6 +21,7 @@ export function normalizeConsultationResult(input: {
   const proposedPatch = normalizePatch(input.modelOutput.proposedPatch);
   const groundingErrors = validateDonationConditionGrounding(
     proposedPatch,
+    input.currentPledge,
     input.organization,
   );
   if (groundingErrors.length) return { ok: false, errors: groundingErrors };
@@ -50,13 +51,14 @@ export function normalizeConsultationResult(input: {
 
 function validateDonationConditionGrounding(
   patch: PledgeConsultationResult['proposedPatch'],
+  currentPledge: ConsultationPledgeState,
   organization: OrganizationAiContext,
 ) {
-  if (
-    patch.donationDesignation !== 'designated' ||
-    !patch.donationCondition?.trim()
-  )
-    return [];
+  if (!patch.donationCondition?.trim()) return [];
+  const effectiveDesignation =
+    patch.donationDesignation ?? currentPledge.donationDesignation;
+  if (effectiveDesignation !== 'designated')
+    return ['지정 기부로 확인되지 않은 기부 조건은 자동 반영할 수 없습니다.'];
   const condition = normalize(patch.donationCondition);
   const grounded = (organization.programs ?? []).some((program) => {
     const candidates = [program.name, ...program.allowedConditions];

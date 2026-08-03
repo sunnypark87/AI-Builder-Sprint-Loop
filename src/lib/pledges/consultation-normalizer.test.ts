@@ -132,4 +132,29 @@ describe('consultation result normalization', () => {
     });
     expect(result).toMatchObject({ ok: true });
   });
+
+  it('grounds a condition against the effective designation across turns', () => {
+    const result = normalizeConsultationResult({
+      currentPledge: {
+        donationDesignation: 'designated',
+      },
+      organization: {
+        ...organization,
+        programs: [
+          {
+            id: 'program-1',
+            key: 'education',
+            name: '아동 교육',
+            description: '교육 지원',
+            allowedConditions: ['교재비 지원'],
+          },
+        ],
+      },
+      modelOutput: {
+        assistantMessage: '조건을 확인해 주세요.',
+        proposedPatch: { donationCondition: '해외 의료비 지원' },
+      },
+    });
+    expect(result.ok).toBe(false);
+  });
 });

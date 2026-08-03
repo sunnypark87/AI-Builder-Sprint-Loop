@@ -314,6 +314,7 @@ playwright.report.config.ts                            # 별도 평가 설정이
 
 ### 변경 내용
 
+- 시연용 집행 계획·영수증 PDF가 OCR에서 한 줄로 평탄화되어도 계획 항목과 영수증 필드·품목을 복원하도록 파서를 보강하고, PDF를 명시적인 라벨·구분자 행으로 재생성했다.
 - `donations.pledge_id`, 보고서/발행 이벤트 테이블, 상태 전이 RPC, 역할별 RLS를 추가했다. 기존 서약 스키마에 누락됐던 `authenticated` 읽기와 `service_role` 서버 작업 권한은 별도 보정 마이그레이션으로 명시했다.
 - `src/lib/reports/`에 공개 근거 허용 목록, 결정론적 집계, 구조화 콘텐츠 검증, 저장소와 생성·저장·재시도·발행 서비스를 구현했다.
 - 서버 전용 Solar Chat Completions 클라이언트와 오류 분류, 타임아웃, JSON 응답 검증, 프롬프트 인젝션 방어 규칙을 추가했다.
@@ -342,6 +343,18 @@ playwright.report.config.ts                            # 별도 평가 설정이
 ### 검증 명령과 결과
 
 ```text
+npm run test -- src/lib/executions/parse-ocr-receipt.test.ts src/lib/plans/parse-ocr-plan.test.ts
+  PASS — 2개 파일/12개 테스트, 실제 OCR의 구분자 이동을 포함해 계획 3개 항목과 영수증 8개 필드·3개 품목 복원
+
+npm run test:ai:ocr -- --grep "maps every item from the demo plan PDF"
+  PASS — 실제 Upstage OCR에서 시연 계획 PDF의 항목명·사용 목적·계획 금액 3건 정확히 매핑
+
+npm run test:ai:receipt-ocr -- --grep "maps all items from the demo receipt PDF"
+  PASS — 실제 Upstage OCR에서 시연 영수증 PDF의 필수 필드 8개와 품목명·수량·금액 3건 정확히 매핑
+
+npm run check
+  PASS — PDF OCR 핫픽스 반영 후 format:check, ESLint, TypeScript, Vitest 106개 파일/422개 테스트, Next.js 프로덕션 빌드
+
 npx supabase migration up --local
   PASS — 최초 실행에서 20260803000000 보고서 스키마 적용
 

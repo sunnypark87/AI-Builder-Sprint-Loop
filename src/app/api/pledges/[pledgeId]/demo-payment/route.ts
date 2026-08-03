@@ -12,7 +12,15 @@ const methods = ['card', 'transfer', 'easy'] as const;
 type PaymentMethod = (typeof methods)[number];
 type PledgeAccess =
   | { response: NextResponse }
-  | { pledge: { id: string; status: string }; user: { id: string } };
+  | {
+      pledge: {
+        id: string;
+        status: string;
+        organization_id: string;
+        amount: number | null;
+      };
+      user: { id: string };
+    };
 
 export async function GET(_request: Request, context: RouteContext) {
   const access = await getPledgeAccess(context);
@@ -102,6 +110,15 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
   if (existing) {
+    if (
+      existing.status === 'completed' &&
+      !(await ensureDonation(admin, access.pledge))
+    ) {
+      return NextResponse.json(
+        { code: 'donation_link_failed' },
+        { status: 503 },
+      );
+    }
     return NextResponse.json({ payment: existing, idempotent: true });
   }
 
@@ -134,7 +151,47 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
+  if (
+    payment.status === 'completed' &&
+    !(await ensureDonation(admin, access.pledge))
+  ) {
+    return NextResponse.json({ code: 'donation_link_failed' }, { status: 503 });
+  }
+
   return NextResponse.json({ payment }, { status: 201 });
+}
+
+async function ensureDonation(
+  admin: ReturnType<typeof createAdminClient>,
+  pledge: {
+    id: string;
+    organization_id: string;
+    amount: number | null;
+  },
+) {
+  if (!pledge.amount || pledge.amount <= 0) return false;
+  const { data: existing, error: lookupError } = await admin
+    .from('donations')
+    .select('id')
+    .eq('pledge_id', pledge.id)
+    .maybeSingle();
+  if (lookupError) return false;
+  if (existing) return true;
+  const { error } = await admin.from('donations').insert({
+    amount: pledge.amount,
+    organization_id: pledge.organization_id,
+    paid_at: new Date().toISOString(),
+    paid_at_is_authoritative: true,
+    pledge_id: pledge.id,
+    status: 'paid',
+  });
+  if (!error) return true;
+  const { data: raced } = await admin
+    .from('donations')
+    .select('id')
+    .eq('pledge_id', pledge.id)
+    .maybeSingle();
+  return Boolean(raced);
 }
 
 async function getPledgeAccess(context: RouteContext): Promise<PledgeAccess> {
@@ -148,7 +205,7 @@ async function getPledgeAccess(context: RouteContext): Promise<PledgeAccess> {
   const supabase = await createClient();
   const { data: pledge, error } = await supabase
     .from('pledges')
-    .select('id, status, donor_user_id')
+    .select('id, status, donor_user_id, organization_id, amount')
     .eq('id', pledgeId)
     .eq('donor_user_id', user.id)
     .maybeSingle();

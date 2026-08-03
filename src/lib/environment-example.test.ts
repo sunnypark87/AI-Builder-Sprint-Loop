@@ -17,6 +17,8 @@ describe('.env.example', () => {
       'UPSTAGE_API_KEY',
       'UPSTAGE_OCR_MODEL',
       'UPSTAGE_OCR_URL',
+      'UPSTAGE_SOLAR_MODEL',
+      'UPSTAGE_SOLAR_URL',
       'MODUSIGN_AUTH_KEY',
       'MODUSIGN_TEMPLATE_ID',
       'MODUSIGN_WEBHOOK_SECRET',

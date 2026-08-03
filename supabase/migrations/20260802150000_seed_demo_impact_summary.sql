@@ -6,6 +6,14 @@ declare
   v_organization_id uuid;
   v_document_id uuid;
 begin
+  insert into public.organizations (id, slug, name, description)
+  values (
+    '00000000-0000-4000-8000-000000000001',
+    'haebom',
+    '해봄재단',
+    '돌봄 공백 아동의 방과 후 배움과 식사를 지원합니다.'
+  ) on conflict (slug) do nothing;
+
   select id into v_organization_id
   from public.organizations
   where slug = 'haebom';

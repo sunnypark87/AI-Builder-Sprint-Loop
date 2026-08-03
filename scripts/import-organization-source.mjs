@@ -36,6 +36,29 @@ if (organizationError || !organization)
   throw new Error('기부처를 찾을 수 없습니다.');
 
 const storagePath = `${organization.id}/${contentHash}.txt`;
+const { data: existingDocument, error: existingDocumentError } = await supabase
+  .from('organization_source_documents')
+  .select('id, processing_status, review_status')
+  .eq('organization_id', organization.id)
+  .eq('content_hash', contentHash)
+  .maybeSingle();
+if (existingDocumentError) throw existingDocumentError;
+if (existingDocument) {
+  console.log(
+    JSON.stringify(
+      {
+        documentId: existingDocument.id,
+        contentHash,
+        skipped: true,
+        processingStatus: existingDocument.processing_status,
+        reviewStatus: existingDocument.review_status,
+      },
+      null,
+      2,
+    ),
+  );
+  process.exit(0);
+}
 const { error: uploadError } = await supabase.storage
   .from('organization-source-documents')
   .upload(storagePath, Buffer.from(content), {

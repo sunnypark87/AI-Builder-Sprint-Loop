@@ -21,13 +21,7 @@ function pledgeClient(status = 'signed') {
         eq: () => ({
           eq: () => ({
             maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                amount: 10000,
-                donor_user_id: 'user-1',
-                id: 'pledge-1',
-                organization_id: 'organization-1',
-                status,
-              },
+              data: { donor_user_id: 'user-1', id: 'pledge-1', status },
               error: null,
             }),
           }),
@@ -87,29 +81,21 @@ describe('POST /api/pledges/[pledgeId]/demo-payment', () => {
       data: payment,
       error: null,
     });
-    const donationInsert = vi.fn().mockResolvedValue({ error: null });
     createAdminClient.mockReturnValue({
-      from: vi.fn((table: string) =>
-        table === 'donations'
-          ? {
-              insert: donationInsert,
-              select: () => ({
-                eq: () => ({
-                  maybeSingle: vi
-                    .fn()
-                    .mockResolvedValue({ data: null, error: null }),
-                }),
-              }),
-            }
-          : {
-              select: () => ({
-                eq: () => ({ maybeSingle }),
-              }),
-              insert: () => ({
-                select: () => ({ maybeSingle: insertMaybeSingle }),
-              }),
-            },
-      ),
+      from: vi.fn(() => ({
+        select: () => ({
+          eq: () => ({ maybeSingle }),
+        }),
+        insert: () => ({
+          select: () => ({ maybeSingle: insertMaybeSingle }),
+        }),
+      })),
+      rpc: vi.fn(() => ({
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: { created: true, donation_id: 'donation-1' },
+          error: null,
+        }),
+      })),
     });
 
     const response = await POST(
@@ -121,16 +107,11 @@ describe('POST /api/pledges/[pledgeId]/demo-payment', () => {
     );
 
     expect(response.status).toBe(201);
-    await expect(response.json()).resolves.toEqual({ payment });
+    await expect(response.json()).resolves.toEqual({
+      donation: { created: true, id: 'donation-1' },
+      payment,
+    });
     expect(insertMaybeSingle).toHaveBeenCalledOnce();
-    expect(donationInsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        amount: 10000,
-        organization_id: 'organization-1',
-        pledge_id: 'pledge-1',
-        status: 'paid',
-      }),
-    );
   });
 
   it('returns the existing payment on a repeated submission', async () => {
@@ -141,14 +122,19 @@ describe('POST /api/pledges/[pledgeId]/demo-payment', () => {
       status: 'completed',
     };
     createAdminClient.mockReturnValue({
-      from: vi.fn((table: string) => ({
+      from: vi.fn(() => ({
         select: () => ({
           eq: () => ({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: table === 'donations' ? { id: 'donation-1' } : payment,
-              error: null,
-            }),
+            maybeSingle: vi
+              .fn()
+              .mockResolvedValue({ data: payment, error: null }),
           }),
+        }),
+      })),
+      rpc: vi.fn(() => ({
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: { created: false, donation_id: 'donation-1' },
+          error: null,
         }),
       })),
     });
@@ -163,8 +149,98 @@ describe('POST /api/pledges/[pledgeId]/demo-payment', () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
+      donation: { created: false, id: 'donation-1' },
       idempotent: true,
       payment,
+    });
+  });
+
+  it('does not bridge a failed payment to a donation', async () => {
+    const payment = {
+      id: 'payment-1',
+      method: 'card',
+      pledge_id: 'pledge-1',
+      status: 'failed',
+    };
+    const rpc = vi.fn();
+    createAdminClient.mockReturnValue({
+      from: vi.fn(() => ({
+        select: () => ({
+          eq: () => ({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: null,
+              error: null,
+            }),
+          }),
+        }),
+        insert: () => ({
+          select: () => ({
+            maybeSingle: vi
+              .fn()
+              .mockResolvedValue({ data: payment, error: null }),
+          }),
+        }),
+      })),
+      rpc,
+    });
+
+    const response = await POST(
+      new Request('http://localhost/api/pledges/pledge-1/demo-payment', {
+        body: JSON.stringify({ method: 'card', status: 'failed' }),
+        method: 'POST',
+      }),
+      context,
+    );
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toEqual({ payment });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('returns a retryable error when the completed payment bridge fails', async () => {
+    const payment = {
+      id: 'payment-1',
+      method: 'card',
+      pledge_id: 'pledge-1',
+      status: 'completed',
+    };
+    createAdminClient.mockReturnValue({
+      from: vi.fn(() => ({
+        select: () => ({
+          eq: () => ({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: null,
+              error: null,
+            }),
+          }),
+        }),
+        insert: () => ({
+          select: () => ({
+            maybeSingle: vi
+              .fn()
+              .mockResolvedValue({ data: payment, error: null }),
+          }),
+        }),
+      })),
+      rpc: vi.fn(() => ({
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: null,
+          error: new Error('bridge failed'),
+        }),
+      })),
+    });
+
+    const response = await POST(
+      new Request('http://localhost/api/pledges/pledge-1/demo-payment', {
+        body: JSON.stringify({ method: 'card', status: 'completed' }),
+        method: 'POST',
+      }),
+      context,
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      code: 'donation_bridge_failed',
     });
   });
 });

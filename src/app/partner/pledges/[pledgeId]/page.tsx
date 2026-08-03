@@ -35,6 +35,13 @@ export default async function PartnerPledgePage({
     .select('status, updated_at')
     .eq('pledge_id', pledgeId)
     .maybeSingle();
+  const { data: donation } = await supabase
+    .from('donations')
+    .select('id, status')
+    .eq('pledge_id', pledgeId)
+    .eq('organization_id', membership.organization_id)
+    .eq('status', 'paid')
+    .maybeSingle();
 
   const organization = Array.isArray(pledge.organizations)
     ? pledge.organizations[0]
@@ -94,7 +101,10 @@ export default async function PartnerPledgePage({
         </dl>
       </Card>
       {pledge.status === 'signed' ? (
-        <OrganizationPledgeCompletionPanel payment={payment} />
+        <OrganizationPledgeCompletionPanel
+          donation={donation}
+          payment={payment}
+        />
       ) : (
         <OrganizationSigningPanel pledgeId={pledge.id} available={available} />
       )}

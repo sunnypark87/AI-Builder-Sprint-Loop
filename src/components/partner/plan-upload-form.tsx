@@ -37,8 +37,10 @@ async function cleanupPendingUpload(sourcePath: string) {
 
 export function PlanUploadForm({
   donations,
+  initialDonationId,
 }: {
   donations: EligibleDonation[];
+  initialDonationId?: string;
 }) {
   const router = useRouter();
   const submitting = useRef(false);
@@ -235,6 +237,7 @@ export function PlanUploadForm({
           className="h-10 w-full rounded-[var(--radius-sm)] border border-line bg-panel px-3 text-sm text-copy hover:border-copy-disabled"
           disabled={pending || donations.length === 0}
           name="donationId"
+          defaultValue={initialDonationId}
           onChange={() => {
             idempotencyKey.current = null;
             setRetryPlanId(null);

@@ -39,6 +39,29 @@ afterEach(() => {
 });
 
 describe('PlanUploadForm', () => {
+  it('preselects the donation passed from a signed pledge', () => {
+    render(
+      <PlanUploadForm
+        donations={[
+          {
+            id: '33333333-3333-4333-8333-333333333333',
+            organizationId: '22222222-2222-4222-8222-222222222222',
+            label: '서명 완료 기부',
+          },
+        ]}
+        initialDonationId="33333333-3333-4333-8333-333333333333"
+      />,
+    );
+
+    expect(
+      (
+        screen.getByRole('combobox', {
+          name: '대상 기부 내역',
+        }) as HTMLSelectElement
+      ).value,
+    ).toBe('33333333-3333-4333-8333-333333333333');
+  });
+
   it('uploads the selected donation plan and opens its review page', async () => {
     const fetchMock = vi
       .fn()

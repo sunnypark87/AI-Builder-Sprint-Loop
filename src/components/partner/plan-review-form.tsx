@@ -31,12 +31,14 @@ function numberValue(value: string) {
 export function PlanReviewForm({
   planId,
   initialDraft,
+  initialDonationId,
   initialIssues,
   readOnly = false,
   donations = [],
 }: {
   planId?: string;
   initialDraft: PlanDraft;
+  initialDonationId?: string;
   initialIssues: PlanValidationIssue[];
   readOnly?: boolean;
   donations?: EligibleDonation[];
@@ -46,7 +48,7 @@ export function PlanReviewForm({
   const manualSubmission = useRef<{ key: string; payload: string } | null>(
     null,
   );
-  const [donationId, setDonationId] = useState('');
+  const [donationId, setDonationId] = useState(initialDonationId ?? '');
   const [draft, setDraft] = useState(initialDraft);
   const [issues, setIssues] = useState(initialIssues);
   const [pending, setPending] = useState(false);

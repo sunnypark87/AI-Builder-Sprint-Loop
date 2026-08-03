@@ -19,6 +19,8 @@ describe('.env.example', () => {
       'UPSTAGE_CHAT_MODEL',
       'UPSTAGE_CHAT_TIMEOUT_MS',
       'UPSTAGE_OCR_URL',
+      'UPSTAGE_SOLAR_MODEL',
+      'UPSTAGE_SOLAR_URL',
       'MODUSIGN_AUTH_KEY',
       'MODUSIGN_TEMPLATE_ID',
       'MODUSIGN_WEBHOOK_SECRET',

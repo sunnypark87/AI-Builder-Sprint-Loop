@@ -21,7 +21,13 @@ function pledgeClient(status = 'signed') {
         eq: () => ({
           eq: () => ({
             maybeSingle: vi.fn().mockResolvedValue({
-              data: { donor_user_id: 'user-1', id: 'pledge-1', status },
+              data: {
+                amount: 10000,
+                donor_user_id: 'user-1',
+                id: 'pledge-1',
+                organization_id: 'organization-1',
+                status,
+              },
               error: null,
             }),
           }),
@@ -81,15 +87,29 @@ describe('POST /api/pledges/[pledgeId]/demo-payment', () => {
       data: payment,
       error: null,
     });
+    const donationInsert = vi.fn().mockResolvedValue({ error: null });
     createAdminClient.mockReturnValue({
-      from: vi.fn(() => ({
-        select: () => ({
-          eq: () => ({ maybeSingle }),
-        }),
-        insert: () => ({
-          select: () => ({ maybeSingle: insertMaybeSingle }),
-        }),
-      })),
+      from: vi.fn((table: string) =>
+        table === 'donations'
+          ? {
+              insert: donationInsert,
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: vi
+                    .fn()
+                    .mockResolvedValue({ data: null, error: null }),
+                }),
+              }),
+            }
+          : {
+              select: () => ({
+                eq: () => ({ maybeSingle }),
+              }),
+              insert: () => ({
+                select: () => ({ maybeSingle: insertMaybeSingle }),
+              }),
+            },
+      ),
     });
 
     const response = await POST(
@@ -103,6 +123,14 @@ describe('POST /api/pledges/[pledgeId]/demo-payment', () => {
     expect(response.status).toBe(201);
     await expect(response.json()).resolves.toEqual({ payment });
     expect(insertMaybeSingle).toHaveBeenCalledOnce();
+    expect(donationInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount: 10000,
+        organization_id: 'organization-1',
+        pledge_id: 'pledge-1',
+        status: 'paid',
+      }),
+    );
   });
 
   it('returns the existing payment on a repeated submission', async () => {
@@ -113,12 +141,13 @@ describe('POST /api/pledges/[pledgeId]/demo-payment', () => {
       status: 'completed',
     };
     createAdminClient.mockReturnValue({
-      from: vi.fn(() => ({
+      from: vi.fn((table: string) => ({
         select: () => ({
           eq: () => ({
-            maybeSingle: vi
-              .fn()
-              .mockResolvedValue({ data: payment, error: null }),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: table === 'donations' ? { id: 'donation-1' } : payment,
+              error: null,
+            }),
           }),
         }),
       })),

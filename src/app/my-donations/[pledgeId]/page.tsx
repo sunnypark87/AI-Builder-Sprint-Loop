@@ -6,6 +6,7 @@ import { buttonClassName } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { getPaymentStatusPresentation } from '@/lib/payments/presentation';
 import { getPledgeStatusPresentation } from '@/lib/pledges/presentation';
+import type { PublishedDonationReport } from '@/lib/reports/types';
 import { getCurrentUser } from '@/lib/supabase/auth';
 import { createClient } from '@/lib/supabase/server';
 
@@ -33,6 +34,11 @@ export default async function MyDonationDetailPage({
     .select('method, status, updated_at')
     .eq('pledge_id', pledgeId)
     .maybeSingle();
+  const { data: reportData } = await supabase.rpc(
+    'get_published_donation_reports',
+    { p_pledge_id: pledgeId },
+  );
+  const reports = (reportData ?? []) as PublishedDonationReport[];
   const organization = Array.isArray(pledge.organizations)
     ? pledge.organizations[0]
     : pledge.organizations;
@@ -97,6 +103,30 @@ export default async function MyDonationDetailPage({
       <div className="mt-6 flex flex-wrap gap-2">
         {getNextAction(pledge.status, payment?.status, pledgeId)}
       </div>
+
+      {reports.length > 0 ? (
+        <section className="mt-10" aria-labelledby="published-reports-heading">
+          <h2 className="text-xl font-bold" id="published-reports-heading">
+            발행된 집행 보고서
+          </h2>
+          <div className="mt-4 divide-y divide-line border-y border-line">
+            {reports.map((report) => (
+              <Link
+                className="flex min-h-16 items-center justify-between gap-4 py-4 hover:text-accent-strong"
+                href={`/my-donations/${pledgeId}/reports/${report.id}`}
+                key={report.id}
+              >
+                <span className="font-bold">{report.title}</span>
+                <span className="text-sm text-copy-muted">
+                  {new Date(report.published_at as string).toLocaleDateString(
+                    'ko-KR',
+                  )}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }

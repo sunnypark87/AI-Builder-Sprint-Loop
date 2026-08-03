@@ -21,8 +21,10 @@
     "test:e2e": "playwright test",
     "test:e2e:plans": "node tests/e2e/run-plan-integration.mjs",
     "test:e2e:executions": "node tests/e2e/run-execution-integration.mjs",
+    "test:e2e:reports": "node tests/e2e/run-report-integration.mjs",
     "test:ai:ocr": "playwright test --config playwright.ocr.config.ts",
     "test:ai:receipt-ocr": "playwright test --config playwright.receipt-ocr.config.ts",
+    "test:ai:reports": "playwright test --config playwright.report.config.ts",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {
